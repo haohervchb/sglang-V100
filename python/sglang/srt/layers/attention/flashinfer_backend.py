@@ -153,8 +153,12 @@ class FlashInferAttnBackend(AttentionBackend):
         init_new_workspace: bool = False,
     ):
         super().__init__()
-        self.prefill_backend = "fa2"
-        self.decode_backend = "fa2"
+        if torch.cuda.get_device_capability()[0] < 8:
+            self.prefill_backend = "auto"
+            self.decode_backend = "auto"
+        else:
+            self.prefill_backend = "fa2"
+            self.decode_backend = "fa2"
 
         self.req_to_token_pool = model_runner.req_to_token_pool
         self.token_to_kv_pool = model_runner.token_to_kv_pool
@@ -173,6 +177,9 @@ class FlashInferAttnBackend(AttentionBackend):
                 get_attention_tp_size()
             ),
         )
+        # Disable tensor cores for sm70 - FA2 TC path crashes, use non-TC (TileLang) path
+        if torch.cuda.get_device_capability()[0] < 8:
+            self.decode_use_tensor_cores = False
         self.max_context_len = model_runner.model_config.context_len
         self.skip_prefill = skip_prefill
         self.is_multimodal = model_runner.model_config.is_multimodal
@@ -687,7 +694,8 @@ class FlashInferAttnBackend(AttentionBackend):
         )
         # fast_decode_plan requires _cached_module set by the initial full
         # begin_forward call above; install it only after that first plan runs.
-        if forward_mode.is_decode_or_idle():
+        # Skip for sm70 (TileLang backend doesn't use FA2 ABI)
+        if forward_mode.is_decode_or_idle() and torch.cuda.get_device_capability()[0] >= 8:
             for w in self.decode_cuda_graph_metadata[bs]:
                 w.begin_forward = partial(fast_decode_plan, w)
 

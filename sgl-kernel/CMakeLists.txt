@@ -319,7 +319,6 @@ set(SOURCES
 
     "${repo-flashinfer_SOURCE_DIR}/csrc/norm.cu"
     "${repo-flashinfer_SOURCE_DIR}/csrc/renorm.cu"
-    "${repo-flash-attention_SOURCE_DIR}/csrc/flash_attn/flash_sparse_api.cpp"
 )
 
 if (NOT SGL_KERNEL_V100_ONLY)
@@ -338,6 +337,7 @@ if (NOT SGL_KERNEL_V100_ONLY)
         "${repo-flash-attention_SOURCE_DIR}/csrc/flash_attn/src/flash_fwd_sparse_hdim128_bf16_sm80.cu"
         "${repo-flash-attention_SOURCE_DIR}/csrc/flash_attn/src/flash_fwd_sparse_hdim128_fp16_causal_sm80.cu"
         "${repo-flash-attention_SOURCE_DIR}/csrc/flash_attn/src/flash_fwd_sparse_hdim128_fp16_sm80.cu"
+        "${repo-flash-attention_SOURCE_DIR}/csrc/flash_attn/flash_sparse_api.cpp"
     )
 endif()
 

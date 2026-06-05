@@ -383,6 +383,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   /*
    * From Sparse Flash Attention
    */
+#if !defined(SGL_KERNEL_V100_ONLY)
   m.def(
       "fwd_sparse(Tensor! q, Tensor k, Tensor v, "
       "Tensor block_count, Tensor block_offset, Tensor column_count, Tensor column_index, "
@@ -401,6 +402,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "bool is_causal, float softcap, bool return_softmax, "
       "Generator? gen) -> Tensor[]");
   m.impl("varlen_fwd_sparse", torch::kCUDA, &flash::mha_varlen_fwd_sparse);
+#endif
 
   // Sparse Attention utils
   m.def(
