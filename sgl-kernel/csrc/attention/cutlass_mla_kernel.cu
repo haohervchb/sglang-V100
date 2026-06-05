@@ -29,7 +29,7 @@ limitations under the License.
 #include "utils.h"
 
 // clang-format off
-#if !defined(CUDA_VERSION) || CUDA_VERSION < 12040
+#if !defined(CUDA_VERSION) || CUDA_VERSION < 12040 || defined(SGL_KERNEL_V100_ONLY)
 void cutlass_mla_decode(
     torch::Tensor const& out,
     torch::Tensor const& q_nope,
@@ -38,6 +38,7 @@ void cutlass_mla_decode(
     torch::Tensor const& seq_lens,
     torch::Tensor const& page_table,
     torch::Tensor const& workspace,
+    double sm_scale,
     int64_t num_kv_splits) {
   TORCH_CHECK(false, "CUDA version must be >= 12.4 for cutlass_mla_decode");
 }

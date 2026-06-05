@@ -1269,8 +1269,6 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 )
                 self.server_args.dtype = "float16"
                 self.model_config.dtype = torch.float16
-                if torch.cuda.get_device_capability()[1] < 5:
-                    raise RuntimeError("SGLang only supports sm75 and above.")
 
         set_cuda_arch()
 

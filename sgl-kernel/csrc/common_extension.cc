@@ -38,6 +38,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "int reg_buffer_sz_bytes) -> ()");
   m.impl("all_reduce", torch::kCUDA, &all_reduce);
 
+#if !defined(SGL_KERNEL_V100_ONLY)
   m.def("mscclpp_generate_unique_id", &mscclpp_generate_unique_id);
   m.def(
       "mscclpp_init_context(Tensor unique_id, int rank, int world_size, Tensor scratch, Tensor put_buffer, "
@@ -46,6 +47,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
 
   m.def("mscclpp_allreduce(int context, Tensor inp, Tensor! out, int nthreads, int nblocks) -> ()");
   m.impl("mscclpp_allreduce", torch::kCUDA, &mscclpp_allreduce);
+#endif
 
   /*
    * From csrc/attention
@@ -108,10 +110,12 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.impl("fast_topk_transform_ragged_fused", torch::kCUDA, &fast_topk_transform_ragged_interface);
 
   /*
-   * From csrc/gemm
-   */
+    * From csrc/gemm
+    */
+#if !defined(SGL_KERNEL_V100_ONLY)
   m.def("awq_dequantize(Tensor qweight, Tensor scales, Tensor qzeros) -> Tensor");
   m.impl("awq_dequantize", torch::kCUDA, &awq_dequantize);
+#endif
 
   m.def(
       "int8_scaled_mm(Tensor mat_a, Tensor mat_b, Tensor scales_a, Tensor scales_b, ScalarType out_dtype, Tensor? "
@@ -177,8 +181,10 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "correction_bias) -> ()");
   m.impl("topk_sigmoid", torch::kCUDA, &topk_sigmoid);
 
+#if !defined(SGL_KERNEL_V100_ONLY)
   m.def("moe_sum_reduce(Tensor input, Tensor output, float routed_scaling_factor) -> ()");
   m.impl("moe_sum_reduce", torch::kCUDA, &moe_sum_reduce);
+#endif
 
   m.def("moe_sum(Tensor input, Tensor! output) -> ()");
   m.impl("moe_sum", torch::kCUDA, &moe_sum);
@@ -214,7 +220,8 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.def("apply_shuffle_mul_sum(Tensor input, Tensor output, Tensor permutation, Tensor? factors) -> ()");
   m.impl("apply_shuffle_mul_sum", torch::kCUDA, &apply_shuffle_mul_sum);
 
-  // DeepSeek-V4 fused norm + rope
+// DeepSeek-V4 fused norm + rope, fused qk norm rope — uses sm80+ BF16 intrinsics
+#if !defined(SGL_KERNEL_V100_ONLY)
   m.def(
       "dsv4_fused_q_norm_rope(Tensor q_input, Tensor! q_output, Tensor freqs_cis, Tensor positions, float eps) -> ()");
   m.impl("dsv4_fused_q_norm_rope", torch::kCUDA, &dsv4_fused_q_norm_rope);
@@ -236,6 +243,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "bool is_neox, Tensor position_ids, float factor, float low, float high, float attention_factor, int rotary_dim) "
       "-> ()");
   m.impl("fused_qk_norm_rope", torch::kCUDA, &fused_qk_norm_rope);
+#endif
 
   /*
    * From csrc/moe/cutlass_moe/w4a8
@@ -493,8 +501,9 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.impl("causal_conv1d_fwd", torch::kCUDA, &causal_conv1d_fwd);
 
   /*
-   * From csrc/expert_sepcialization
-   */
+    * From csrc/expert_sepcialization
+    */
+#if !defined(SGL_KERNEL_V100_ONLY)
   m.def(
       "es_fp8_blockwise_scaled_grouped_mm(Tensor output, Tensor a, Tensor b, Tensor scales_a, Tensor scales_b, Tensor "
       "stride_a, Tensor stride_b, Tensor stride_d, Tensor problem_sizes, Tensor expert_offsets, Tensor workspace) -> "
@@ -508,6 +517,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "es_sm100_mxfp8_blockscaled_grouped_quant(Tensor input, Tensor problem_sizes, Tensor expert_offsets, Tensor "
       "blockscale_offsets, Tensor quant_output, Tensor scale_factor) -> () ");
   m.impl("es_sm100_mxfp8_blockscaled_grouped_quant", &es_sm100_mxfp8_blockscaled_grouped_quant);
+#endif
 }
 
 REGISTER_EXTENSION(common_ops)

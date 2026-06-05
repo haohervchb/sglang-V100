@@ -2372,6 +2372,8 @@ class ServerArgs:
                     self.attention_backend = "trtllm_mha"
                 elif is_cuda() and get_device_sm() >= 80:
                     self.attention_backend = "fa3"
+                elif is_cuda() and is_flashinfer_available():
+                    self.attention_backend = "flashinfer"
                 else:
                     self.attention_backend = "triton"
 
@@ -2751,6 +2753,8 @@ class ServerArgs:
                     return "triton"
             elif is_mps():
                 return "torch_native"
+            elif is_flashinfer_available():
+                return "flashinfer"
             else:
                 return "triton"
 
