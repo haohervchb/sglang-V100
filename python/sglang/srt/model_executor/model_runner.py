@@ -2287,6 +2287,20 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             self.decode_attention_backend_str,
         ) = self.server_args.get_attention_backends()
 
+        # SM70 (V100): auto-switch decode to Triton for better SM utilization.
+        # Triton's SM70-specific split-K tuning (sm_count-based segments) outperforms
+        # FlashInfer TileLang "auto" decode path, which lacks dynamic segment control.
+        # Prefill stays on FlashInfer for proven TileLang paged performance.
+        major, minor = torch.cuda.get_device_capability()
+        if (
+            major == 7
+            and self.decode_attention_backend_str is None
+            and self.prefill_attention_backend_str is None
+            and self.server_args.attention_backend is None
+        ):
+            self.prefill_attention_backend_str = "flashinfer"
+            self.decode_attention_backend_str = "triton"
+
         if self.decode_attention_backend_str != self.prefill_attention_backend_str:
             from sglang.srt.layers.attention.hybrid_attn_backend import (
                 HybridAttnBackend,
