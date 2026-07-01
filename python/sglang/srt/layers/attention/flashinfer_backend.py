@@ -154,12 +154,16 @@ class FlashInferAttnBackend(AttentionBackend):
         init_new_workspace: bool = False,
     ):
         super().__init__()
-        if torch.cuda.get_device_capability()[0] < 8:
+        major, _ = torch.cuda.get_device_capability()
+        if major < 8:
             self.prefill_backend = "auto"
             self.decode_backend = "auto"
         else:
             self.prefill_backend = "fa2"
             self.decode_backend = "fa2"
+
+        # Cache SM70 detection once (avoid repeated get_device_capability calls)
+        self._sm70 = major == 7
 
         self.req_to_token_pool = model_runner.req_to_token_pool
         self.token_to_kv_pool = model_runner.token_to_kv_pool
@@ -290,7 +294,11 @@ class FlashInferAttnBackend(AttentionBackend):
                 )
             else:
                 fmha_backend = "cutlass"
-        ragged_backend = "tilelang" if torch.cuda.get_device_capability()[0] == 7 else fmha_backend
+        # SM70: use "auto" (resolves to "fa2") instead of "tilelang".
+        # "tilelang" is FlashInfer's TVM JIT backend (slower compiles, lower kernel quality).
+        # "auto" -> fa2 on SM70 via determine_attention_backend(), sharing the same
+        # compiled .so as the paged wrapper, avoiding redundant JIT compilation.
+        ragged_backend = fmha_backend
         self.prefill_wrapper_ragged = BatchPrefillWithRaggedKVCacheWrapper(
             self.workspace_buffer, "NHD", backend=ragged_backend
         )
@@ -339,13 +347,12 @@ class FlashInferAttnBackend(AttentionBackend):
         self.prefill_cuda_graph_metadata = {}  # For verify
         self.draft_extend_cuda_graph_metadata = {}  # For draft extend
 
-    @staticmethod
-    def _is_sm70() -> bool:
+    def _is_sm70(self) -> bool:
         """Detect V100 (SM70) GPU. On V100, scatter-gather KV access through
         page tables during attention tile iteration is prohibitively expensive.
-        The FlattenKV path replaces paged attention with contiguous attention."""
-        major, minor = torch.cuda.get_device_capability()
-        return major == 7
+        The FlattenKV path replaces paged attention with contiguous attention.
+        Cached at __init__ to avoid repeated get_device_capability() calls."""
+        return self._sm70
 
     def _has_prefix_tokens(self, forward_batch: ForwardBatch) -> bool:
         """Check if any sequence in the batch has cached prefix tokens (extend prefix > 0)."""
@@ -543,6 +550,16 @@ class FlashInferAttnBackend(AttentionBackend):
                 # 3. Custom masking logic conflicts with ragged wrapper's assumptions
                 use_ragged = False
                 extend_no_prefix = False
+
+            # SM70 (V100): force ragged for ALL prefill.
+            # The fa_v100 paged kernel (flashinfer's SM70 path) crashes with
+            # cu_seqlens_k size mismatch on any call (cold or cached-prefix).
+            # Ragged path uses contiguous Q/K/V tensors and avoids the paged wrapper.
+            # extend_no_prefix controls whether we skip the merge path entirely; for
+            # correctness with chunked prefill we keep extend_no_prefix from the
+            # upstream logic, and fix the merge path in forward_extend instead.
+            if self._sm70:
+                use_ragged = True
             else:
                 use_ragged = (
                     not self.enable_deterministic
@@ -823,7 +840,7 @@ class FlashInferAttnBackend(AttentionBackend):
                 )
 
                 if flat_k is not None and flat_v is not None:
-                    logger.info(
+                    logger.debug(
                         f"[V100 FlattenKV] Using contiguous prefill for "
                         f"{flatten_prefix_lens.sum().item():.0f} prefix tokens "
                         f"({flatten_prefix_lens.numel()} seqs), avoiding scatter-gather"
@@ -952,33 +969,106 @@ class FlashInferAttnBackend(AttentionBackend):
                 )
 
             else:
-                swa_window_left = (
-                    layer.sliding_window_size
-                    if not (
-                        self.forward_metadata.multi_item_params
-                        and self.forward_metadata.multi_item_params.is_enabled()
-                    )
-                    else -1
-                )
-                o1, s1 = self.prefill_wrapper_ragged.forward_return_lse(
-                    q.view(-1, layer.tp_q_head_num, layer.head_dim),
-                    k.view(-1, layer.tp_k_head_num, layer.head_dim),
-                    v.view(-1, layer.tp_v_head_num, layer.head_dim),
-                    causal=causal,
-                    sm_scale=layer.scaling,
-                    window_left=swa_window_left,
-                    logits_soft_cap=logits_soft_cap,
-                )
-                o2, s2 = prefill_wrapper_paged.forward_return_lse(
-                    q.view(-1, layer.tp_q_head_num, layer.head_dim),
-                    self.token_to_kv_pool.get_kv_buffer(layer.layer_id),
-                    causal=False,
-                    sm_scale=layer.scaling,
-                    window_left=swa_window_left,
-                    logits_soft_cap=logits_soft_cap,
-                )
+                # Merge path: attend to both cached prefix and new tokens.
+                if self._sm70:
+                    # SM70: avoid paged kernel (crashes with cu_seqlens_k mismatch).
+                    # Flatten prefix KV, concatenate with new KV, run single ragged forward.
+                    req_to_token = self.req_to_token_pool.req_to_token
+                    kv_pool = self.token_to_kv_pool.get_kv_buffer(layer.layer_id)
+                    flatten_prefix_lens = forward_batch.extend_prefix_lens
 
-                o, _ = _safe_merge_state(o1, s1, o2, s2)
+                    flat_k, flat_v, _, flat_seq_lens = flatten_kv(
+                        req_to_token,
+                        kv_pool[0],
+                        kv_pool[1],
+                        k.view(-1, layer.tp_k_head_num, layer.head_dim),
+                        v.view(-1, layer.tp_v_head_num, layer.head_dim),
+                        forward_batch.seq_lens,
+                        flatten_prefix_lens,
+                        self.device,
+                    )
+
+                    if flat_k is not None and flat_v is not None:
+                        # flatten_kv already returns prefix + new KV concatenated.
+                        # single ragged forward over full_KV replaces merge_state of
+                        # ragged(new) + paged(prefix).
+                        full_seq_lens = forward_batch.seq_lens
+                        causal = not layer.is_cross_attention and layer.attn_type != AttentionType.ENCODER_ONLY
+                        swa_window_left = (
+                            layer.sliding_window_size
+                            if not (
+                                self.forward_metadata.multi_item_params
+                                and self.forward_metadata.multi_item_params.is_enabled()
+                            )
+                            else -1
+                        )
+                        num_seqs = full_seq_lens.numel()
+                        ext_seq_lens = full_seq_lens - flatten_prefix_lens
+                        qo_indptr = torch.zeros(num_seqs + 1, dtype=torch.int32, device=self.device)
+                        qo_indptr[1:] = torch.cumsum(ext_seq_lens, dim=0)
+                        kv_indptr = torch.zeros(num_seqs + 1, dtype=torch.int32, device=self.device)
+                        kv_indptr[1:] = torch.cumsum(full_seq_lens, dim=0)
+                        self.prefill_wrapper_ragged.begin_forward(
+                            qo_indptr,
+                            kv_indptr,
+                            layer.tp_q_head_num,
+                            layer.tp_k_head_num,
+                            layer.head_dim,
+                            causal=causal,
+                            q_data_type=q.dtype,
+                            kv_data_type=k.dtype,
+                            prefix_len_ptr=flatten_prefix_lens.clamp(min=0).to(self.device),
+                            seq_lens_q=ext_seq_lens,
+                            seq_lens=full_seq_lens,
+                        )
+                        o = self.prefill_wrapper_ragged.forward(
+                            q.view(-1, layer.tp_q_head_num, layer.head_dim),
+                            flat_k,
+                            flat_v,
+                            causal=causal,
+                            sm_scale=layer.scaling,
+                            window_left=swa_window_left,
+                            logits_soft_cap=logits_soft_cap,
+                        )
+                    else:
+                        # No prefix tokens — fall through to simple ragged (shouldn't happen here)
+                        causal = not layer.is_cross_attention and layer.attn_type != AttentionType.ENCODER_ONLY
+                        o = self.prefill_wrapper_ragged.forward(
+                            q.view(-1, layer.tp_q_head_num, layer.head_dim),
+                            k.view(-1, layer.tp_k_head_num, layer.head_dim),
+                            v.view(-1, layer.tp_v_head_num, layer.head_dim),
+                            causal=causal,
+                            sm_scale=layer.scaling,
+                            logits_soft_cap=logits_soft_cap,
+                        )
+                else:
+                    # Non-SM70: original merge path (ragged + paged + merge_state)
+                    swa_window_left = (
+                        layer.sliding_window_size
+                        if not (
+                            self.forward_metadata.multi_item_params
+                            and self.forward_metadata.multi_item_params.is_enabled()
+                        )
+                        else -1
+                    )
+                    o1, s1 = self.prefill_wrapper_ragged.forward_return_lse(
+                        q.view(-1, layer.tp_q_head_num, layer.head_dim),
+                        k.view(-1, layer.tp_k_head_num, layer.head_dim),
+                        v.view(-1, layer.tp_v_head_num, layer.head_dim),
+                        causal=causal,
+                        sm_scale=layer.scaling,
+                        window_left=swa_window_left,
+                        logits_soft_cap=logits_soft_cap,
+                    )
+                    o2, s2 = prefill_wrapper_paged.forward_return_lse(
+                        q.view(-1, layer.tp_q_head_num, layer.head_dim),
+                        self.token_to_kv_pool.get_kv_buffer(layer.layer_id),
+                        causal=False,
+                        sm_scale=layer.scaling,
+                        window_left=swa_window_left,
+                        logits_soft_cap=logits_soft_cap,
+                    )
+                    o, _ = _safe_merge_state(o1, s1, o2, s2)
 
             if save_kv_cache:
                 self.token_to_kv_pool.set_kv_buffer(

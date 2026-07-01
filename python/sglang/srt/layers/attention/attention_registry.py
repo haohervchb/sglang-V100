@@ -144,17 +144,30 @@ def create_dsv4_backend(runner):
 
         logger.info("Using DeepseekV4AttnBackend for dsv4 attention backend (CUDA).")
         return DeepseekV4AttnBackend(runner)
-
-
 @register_attention_backend("triton")
 def create_triton_backend(runner):
     assert not runner.model_config.is_encoder_decoder, (
         "Cross attention is not supported in the triton attention backend. "
         "Please use `--attention-backend flashinfer`."
     )
+
     from sglang.srt.layers.attention.triton_backend import TritonAttnBackend
 
     return TritonAttnBackend(runner)
+
+
+@register_attention_backend("flash_attn_v100")
+def create_flash_attn_v100_backend(runner):
+    assert not runner.model_config.is_encoder_decoder, (
+        "Cross attention is not supported in the flash_attn_v100 backend."
+    )
+
+    from sglang.srt.layers.attention.flash_attn_v100_backend import (
+        FlashAttnV100Backend,
+    )
+
+    return FlashAttnV100Backend(runner)
+
 
 
 @register_attention_backend("torch_native")

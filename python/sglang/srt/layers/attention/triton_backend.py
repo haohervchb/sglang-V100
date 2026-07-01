@@ -13,6 +13,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 from sglang.srt.layers.attention.utils import create_flashinfer_kv_indices_triton
+
+
+def _flatten_paged_kv_cache(buf: torch.Tensor) -> torch.Tensor:
+    """View a paged KV buffer as a flat 3D [num_slots, num_kv_heads, head_dim] tensor.
+
+    The Triton decode/extend kernels index the cache with per-token slot indices
+    (kv_loc) and read ``buf.stride(0)`` as the per-slot stride. For a 4D
+    ``[num_pages, page_size, num_kv_heads, head_dim]`` buffer that stride is the
+    *page* stride, which would mis-index every slot. Flattening the leading two
+    dims yields correct strides while keeping the same memory. No-op for the
+    page_size=1 (already 3D) case.
+    """
+    if buf.ndim == 4:
+        return buf.view(-1, buf.shape[-2], buf.shape[-1])
+    return buf
 from sglang.srt.layers.dp_attention import get_attention_tp_size
 from sglang.srt.layers.radix_attention import AttentionType
 from sglang.srt.mem_cache.swa_memory_pool import SWAKVPool
@@ -169,7 +184,11 @@ class TritonAttnBackend(AttentionBackend):
         # Matches GooseLLM's triton_attn.py SM70 segment tuning formula.
         if _is_cuda:
             major, minor = torch.cuda.get_device_capability()
-            if major == 7 and not self.use_mla and not self.enable_deterministic:
+            if (
+                major == 7
+                and not self.use_mla
+                and not model_runner.server_args.enable_deterministic_inference
+            ):
                 kv_heads = self.num_kv_head
                 if kv_heads > 0:
                     sm_count = self.device_core_count
@@ -178,7 +197,12 @@ class TritonAttnBackend(AttentionBackend):
                             next_power_of_2((sm_count + kv_heads - 1) // kv_heads),
                             self.max_kv_splits,
                         )
-                        target_splits = min(target_splits, 128)
+                        # Cap at 16: V100 memory bandwidth is the bottleneck, not compute.
+                        # The original cap of 128 over-provisions stage1 grid dimensions and
+                        # forces proportionally larger intermediate buffers (attn_logits,
+                        # attn_lse), increasing stage2 reduction work. 16 provides enough
+                        # SM occupancy while keeping memory bandwidth utilization high.
+                        target_splits = min(target_splits, 16)
                         if target_splits != self.max_kv_splits:
                             logger.info(
                                 f"[SM70 Triton decode] Increase max_kv_splits: "
@@ -1288,8 +1312,12 @@ class TritonAttnBackend(AttentionBackend):
 
         self.decode_attention_fwd(
             q.view(-1, layer.tp_q_head_num, layer.qk_head_dim),
-            self.token_to_kv_pool.get_key_buffer(layer.layer_id),
-            self.token_to_kv_pool.get_value_buffer(layer.layer_id),
+            _flatten_paged_kv_cache(
+                self.token_to_kv_pool.get_key_buffer(layer.layer_id)
+            ),
+            _flatten_paged_kv_cache(
+                self.token_to_kv_pool.get_value_buffer(layer.layer_id)
+            ),
             o.view(-1, layer.tp_q_head_num, layer.v_head_dim),
             kv_indptr,
             kv_indices,
