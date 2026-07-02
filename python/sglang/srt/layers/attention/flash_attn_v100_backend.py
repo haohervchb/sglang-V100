@@ -43,18 +43,46 @@ V100_PAGE_SIZE = 16
 
 _paged_forward = None
 _paged_forward_loaded = False
+_use_tilelang = None  # None = unset, True/False = cached
 
 
 def _load_paged_forward():
-    """Lazy-load the ai-bond paged forward kernel via GooseLLM's wrapper.
-
-    Resolves ``flash_attn_v100.flash_attn_paged_forward`` by searching a list
-    of candidate roots (env override first, then GooseLLM's in-tree path).
-    """
-    global _paged_forward, _paged_forward_loaded
+    """Lazy-load the paged forward kernel. Prefers the vendored tilelang-fa-v100
+    on SM70 (from GooseLLM, tuned for V100); falls back to the ai-bond kernel
+    (flash_attn_v100_cuda.paged_fwd) when tilelang is unavailable."""
+    global _paged_forward, _paged_forward_loaded, _use_tilelang
     if _paged_forward_loaded:
         return _paged_forward
     _paged_forward_loaded = True
+
+    # Try vendored tilelang-fa-v100 first (preferred on SM70)
+    from sglang.srt.layers.attention.tilelang_fa_v100 import paged_forward as _tl_paged
+
+    try:
+        import tilelang  # noqa: F401
+
+        from sglang.srt.utils.common import get_device_sm, is_cuda
+
+        if is_cuda() and get_device_sm() == 70:
+            _paged_forward = _tl_paged
+            _use_tilelang = True
+            logger.info(
+                "paged prefill: using vendored tilelang-fa-v100 kernel (SM70)."
+            )
+            return _paged_forward
+    except Exception:
+        pass
+
+    # Fall back to ai-bond flash_attn_v100_cuda
+    _load_ai_bond_paged()
+    return _paged_forward
+
+
+def _load_ai_bond_paged():
+    """Lazy-load the ai-bond paged forward kernel via GooseLLM's wrapper."""
+    global _paged_forward
+    if _paged_forward is not None:
+        return _paged_forward
 
     env_root = os.environ.get("FLASH_ATTN_V100_DIR")
     candidate_roots = []
@@ -73,7 +101,6 @@ def _load_paged_forward():
             root_str = str(root)
             if root_str not in sys.path:
                 sys.path.insert(0, root_str)
-            break
 
     try:
         from flash_attn_v100 import flash_attn_paged_forward  # noqa: F401
@@ -125,6 +152,7 @@ class FlashAttnV100Backend(AttentionBackend):
             )
 
         self.max_context_len = model_runner.model_config.context_len
+        self._max_pages = (self.max_context_len + self.page_size - 1) // self.page_size
         self.req_to_token_pool = model_runner.req_to_token_pool
         self.req_to_token = model_runner.req_to_token_pool.req_to_token
         self.token_to_kv_pool = model_runner.token_to_kv_pool
@@ -167,6 +195,12 @@ class FlashAttnV100Backend(AttentionBackend):
         max_seq_len = int(seq_lens.max().item()) if num_seqs > 0 else 0
         max_pages = (max_seq_len + self.page_size - 1) // self.page_size
 
+        # Fixed-width page table so the tilelang kernel's max_blocks key never
+        # changes: allocate [num_seqs, self._max_pages] and fill only the first
+        # max_pages columns.  Unused columns stay 0 (never read by the kernel).
+        page_table = torch.zeros(
+            num_seqs, self._max_pages, dtype=torch.int32, device=self.device
+        )
         if max_pages > 0:
             strided = torch.arange(
                 0, max_seq_len, self.page_size, device=self.device
@@ -174,11 +208,7 @@ class FlashAttnV100Backend(AttentionBackend):
             token_indices = self.req_to_token[
                 req_pool_indices[:, None], strided[None, :]
             ]  # [num_seqs, max_pages]
-            page_table = (token_indices // self.page_size).to(torch.int32)
-        else:
-            page_table = torch.zeros(
-                num_seqs, 1, dtype=torch.int32, device=self.device
-            )
+            page_table[:, :max_pages] = (token_indices // self.page_size).to(torch.int32)
 
         query_start_loc = torch.zeros(
             num_seqs + 1, dtype=torch.int32, device=self.device
@@ -222,9 +252,8 @@ class FlashAttnV100Backend(AttentionBackend):
         # Decode cuda-graph state lives in the Triton backend.
         self._triton.init_cuda_graph_state(max_bs, max_num_tokens, kv_indices_buf)
 
-        max_pages = (self.max_context_len + self.page_size - 1) // self.page_size
         self._cg_page_table = torch.zeros(
-            max_bs, max_pages, dtype=torch.int32, device=self.device
+            max_bs, self._max_pages, dtype=torch.int32, device=self.device
         )
         self._cg_seq_lens = torch.zeros(
             max_bs, dtype=torch.int32, device=self.device
