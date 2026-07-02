@@ -197,12 +197,12 @@ class TritonAttnBackend(AttentionBackend):
                             next_power_of_2((sm_count + kv_heads - 1) // kv_heads),
                             self.max_kv_splits,
                         )
-                        # Cap at 16: V100 memory bandwidth is the bottleneck, not compute.
-                        # The original cap of 128 over-provisions stage1 grid dimensions and
-                        # forces proportionally larger intermediate buffers (attn_logits,
-                        # attn_lse), increasing stage2 reduction work. 16 provides enough
-                        # SM occupancy while keeping memory bandwidth utilization high.
-                        target_splits = min(target_splits, 16)
+                        # Cap at 128 to match GooseLLM's SM70_MAX_NUM_PAR_SOFTMAX_SEGMENTS.
+                        # The original cap of 16 under-utilised V100's 80 SMs at small
+                        # kv-head counts (kv_heads=1 -> 16 blocks vs 128 blocks), causing
+                        # the 70W decode under-utilisation and long-context decay.
+                        # 128 provides enough SM occupancy to saturate memory bandwidth.
+                        target_splits = min(target_splits, 128)
                         if target_splits != self.max_kv_splits:
                             logger.info(
                                 f"[SM70 Triton decode] Increase max_kv_splits: "

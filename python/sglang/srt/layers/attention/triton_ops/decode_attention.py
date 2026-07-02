@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 _MIN_BLOCK_KV = 32
+_BLOCK = 64  # decode-stage KV tile (module-level so V100 sweep can override)
+_BLOCK_GROUPED = 16  # grouped decode stage tile (V100: 16 matches WMMA, was 32)
 
 
 @triton.jit
@@ -193,7 +195,7 @@ def _decode_att_m_fwd(
     logit_cap,
     xai_temperature_len=-1,
 ):
-    BLOCK = 64
+    BLOCK = _BLOCK
     # [TODO] work around SGPR limit on MI3xx
     if _is_hip:
         BLOCK = 8
@@ -442,7 +444,7 @@ def _decode_grouped_att_m_fwd(
     has_mla=False,
     use_pdl=False,
 ):
-    BLOCK = 32
+    BLOCK = _BLOCK_GROUPED
     Lk = k_buffer.shape[-1]
     Lv = v_buffer.shape[-1]
 
