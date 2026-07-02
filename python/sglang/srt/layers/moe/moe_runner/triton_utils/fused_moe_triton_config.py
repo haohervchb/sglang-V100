@@ -153,6 +153,22 @@ def get_default_config(
     is_marlin: bool,
     block_shape: Optional[List[int]] = None,
 ) -> Dict[str, int]:
+    # Env-var override for quick V100 BLOCK-size sweeps
+    env_m = os.environ.get("SGLANG_MOE_BLOCK_M")
+    env_n = os.environ.get("SGLANG_MOE_BLOCK_N")
+    env_k = os.environ.get("SGLANG_MOE_BLOCK_K")
+    env_w = os.environ.get("SGLANG_MOE_WARPS")
+    env_s = os.environ.get("SGLANG_MOE_STAGES")
+    if env_m is not None:
+        return {
+            "BLOCK_SIZE_M": int(env_m),
+            "BLOCK_SIZE_N": int(env_n or "64"),
+            "BLOCK_SIZE_K": int(env_k or "64"),
+            "GROUP_SIZE_M": 4,
+            "num_warps": int(env_w or "4"),
+            "num_stages": int(env_s or "2"),
+        }
+
     if get_global_server_args().enable_deterministic_inference:
         config = {
             "BLOCK_SIZE_M": 64,
@@ -199,12 +215,33 @@ def get_default_config(
         }
         # A heuristic: fused marlin works faster with this config for small M
         if M <= E or (is_marlin and M <= 32):
-            config = {
-                "BLOCK_SIZE_M": 16,
-                "BLOCK_SIZE_N": 32,
-                "BLOCK_SIZE_K": 64,
-                "GROUP_SIZE_M": 1,
-            }
+            # V100 (SM70): larger tiles fill SMs better than the tiny H100 defaults
+            try:
+                import torch
+                sm = torch.cuda.get_device_capability()
+                if sm[0] == 7:
+                    config = {
+                        "BLOCK_SIZE_M": 128,
+                        "BLOCK_SIZE_N": 128,
+                        "BLOCK_SIZE_K": 64,
+                        "GROUP_SIZE_M": 4,
+                        "num_warps": 4,
+                        "num_stages": 2,
+                    }
+                else:
+                    config = {
+                        "BLOCK_SIZE_M": 16,
+                        "BLOCK_SIZE_N": 32,
+                        "BLOCK_SIZE_K": 64,
+                        "GROUP_SIZE_M": 1,
+                    }
+            except Exception:
+                config = {
+                    "BLOCK_SIZE_M": 16,
+                    "BLOCK_SIZE_N": 32,
+                    "BLOCK_SIZE_K": 64,
+                    "GROUP_SIZE_M": 1,
+                }
     return config
 
 
