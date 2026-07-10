@@ -280,11 +280,23 @@ class FusedMoE(torch.nn.Module):
             if quant_config is not None:
                 self.quant_method = quant_config.get_quant_method(self, prefix)
             if self.quant_method is None:
-                self.quant_method = UnquantizedFusedMoEMethod(
-                    self.use_triton_kernels,
-                    self.use_flashinfer_trtllm_moe,
-                    self.use_deep_gemm,
+                from sglang.srt.layers.quantization.sm70_fp16_moe import (
+                    SM70FP16MoEMethod,
+                    can_use_sm70_fp16_moe,
                 )
+
+                if (
+                    not with_bias
+                    and get_moe_a2a_backend().is_none()
+                    and can_use_sm70_fp16_moe(params_dtype)
+                ):
+                    self.quant_method = SM70FP16MoEMethod()
+                else:
+                    self.quant_method = UnquantizedFusedMoEMethod(
+                        self.use_triton_kernels,
+                        self.use_flashinfer_trtllm_moe,
+                        self.use_deep_gemm,
+                    )
 
         self.quant_method.create_weights(
             layer=self,
