@@ -125,6 +125,9 @@ def fused_experts_none_to_marlin(
         topk_weights=topk_output.topk_weights,
         topk_ids=topk_output.topk_ids,
         expert_map=quant_info.expert_map,
+        is_expert_parallel=(
+            runner_config.num_experts != runner_config.num_local_experts
+        ),
         g_idx1=quant_info.w13_g_idx,
         g_idx2=quant_info.w2_g_idx,
         sort_indices1=quant_info.w13_g_idx_sort_indices,
