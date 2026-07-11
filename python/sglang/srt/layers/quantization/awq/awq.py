@@ -21,7 +21,10 @@ from sglang.srt.layers.quantization.marlin_utils import (
     check_moe_marlin_supports_layer,
     verify_marlin_supported,
 )
-from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
+from sglang.srt.layers.quantization.unquant import (
+    UnquantizedFusedMoEMethod,
+    UnquantizedLinearMethod,
+)
 from sglang.srt.layers.quantization.utils import get_scalar_types
 from sglang.srt.utils.patch_torch import register_fake_if_exists
 
@@ -343,6 +346,8 @@ class AWQMarlinConfig(QuantizationConfig):
             layer.scheme = self.get_linear_scheme(layer)
             return AWQLinearMethod(self)
         elif isinstance(layer, FusedMoE):
+            if is_layer_skipped_awq(prefix, self.modules_to_not_convert):
+                return UnquantizedFusedMoEMethod(layer.use_triton_kernels)
             from sglang.srt.layers.quantization.moe_wna16 import MoeWNA16Config
 
             if not check_moe_marlin_supports_layer(layer, self.group_size):

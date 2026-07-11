@@ -426,6 +426,14 @@ def marlin_moe_permute_scales(
     return output
 
 
+def sm70_marlin_moe_logical_scales(
+    s: torch.Tensor, size_k: int, size_n: int, group_size: int
+) -> torch.Tensor:
+    """Keep SM70 MoE metadata in logical, N-contiguous order."""
+    del size_k, group_size
+    return s.reshape((s.shape[0], -1, size_n)).contiguous()
+
+
 def marlin_zero_points(
     zp: torch.Tensor, size_k: int, size_n: int, num_bits: int
 ) -> torch.Tensor:
@@ -485,6 +493,37 @@ def moe_awq_to_marlin_zero_points(
     for e in range(num_experts):
         output[e] = awq_to_marlin_zero_points(q_zp_packed[e], size_k, size_n, num_bits)
     return output
+
+
+def moe_awq_to_sm70_marlin_zero_points_float(
+    q_zp_packed: torch.Tensor,
+    scales: torch.Tensor,
+    size_k: int,
+    size_n: int,
+    num_bits: int,
+) -> torch.Tensor:
+    """Expand AWQ zero-points to the FP16 metadata required by SM70 MoE.
+
+    marlin_v100 consumes logical ``zero_point * scale`` values rather than the
+    packed/permuted integer zero-points used by the SM80+ Marlin kernels.
+    """
+    q_zp = unpack_cols(
+        q_zp_packed.reshape(-1, q_zp_packed.shape[-1]),
+        num_bits,
+        size_k * q_zp_packed.shape[0],
+        size_n,
+    ).reshape(q_zp_packed.shape[0], size_k, size_n)
+
+    if num_bits == 4:
+        undo_interleave = numpy.argsort(numpy.array([0, 2, 4, 6, 1, 3, 5, 7]))
+    elif num_bits == 8:
+        undo_interleave = numpy.argsort(numpy.array([0, 2, 1, 3]))
+    else:
+        raise ValueError(f"num_bits must be 4 or 8, got {num_bits}")
+
+    q_zp = q_zp.reshape(-1, len(undo_interleave))[:, undo_interleave]
+    q_zp = q_zp.reshape(q_zp_packed.shape[0], size_k, size_n)
+    return (q_zp.float() * scales.contiguous().float()).to(scales.dtype).contiguous()
 
 
 def maybe_warn_marlin_atomic_add(device, dtype):

@@ -14,6 +14,8 @@ from sglang.srt.layers.quantization.marlin_utils import (
     marlin_moe_permute_scales,
     marlin_permute_scales,
     moe_awq_to_marlin_zero_points,
+    moe_awq_to_sm70_marlin_zero_points_float,
+    sm70_marlin_moe_logical_scales,
 )
 from sglang.srt.layers.quantization.utils import get_scalar_types, replace_parameter
 from sglang.srt.utils import is_hip, is_xpu
@@ -67,6 +69,34 @@ else:
             _, _sm70_awq_repack = _sm70_marlin_v100_repack_ops()
             if _sm70_awq_repack is not None:
                 awq_marlin_repack = _sm70_awq_repack
+
+                def _sm70_awq_moe_repack(
+                    b_q_weight, _perm, size_k, size_n, num_bits
+                ):
+                    # marlin_v100 exposes the real SM70 dense repack op.  Its
+                    # MoE helper is a host-side loop over that same op; mirror
+                    # it here because SGLang's JIT MoE helper closes over the
+                    # stock repack function, whose CUDA kernel is a no-op on
+                    # SM70.
+                    output = torch.empty(
+                        (
+                            b_q_weight.shape[0],
+                            size_k // 16,
+                            size_n * (num_bits // 2),
+                        ),
+                        dtype=b_q_weight.dtype,
+                        device=b_q_weight.device,
+                    )
+                    for expert_id in range(b_q_weight.shape[0]):
+                        output[expert_id] = _sm70_awq_repack(
+                            b_q_weight[expert_id],
+                            size_k,
+                            size_n,
+                            num_bits,
+                        )
+                    return output
+
+                awq_marlin_moe_repack = _sm70_awq_moe_repack
         except Exception:
             pass
 
@@ -187,6 +217,7 @@ class AWQMoEKernel:
     def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
         num_experts = layer.w13_qweight.shape[0]
         device = layer.w13_qweight.device
+        is_sm70 = torch.cuda.get_device_capability(device)[0] == 7
 
         layer.w13_g_idx_sort_indices = torch.nn.Parameter(
             torch.empty((num_experts, 0), dtype=torch.int32, device=device),
@@ -215,36 +246,59 @@ class AWQMoEKernel:
         )
         replace_parameter(layer, "w2_qweight", marlin_w2_qweight)
 
-        marlin_w13_scales = marlin_moe_permute_scales(
-            s=layer.w13_scales,
+        w13_scales = layer.w13_scales.data.contiguous()
+        w2_scales = layer.w2_scales.data.contiguous()
+        scale_transform = (
+            sm70_marlin_moe_logical_scales if is_sm70 else marlin_moe_permute_scales
+        )
+        marlin_w13_scales = scale_transform(
+            s=w13_scales,
             size_k=layer.intermediate_size_per_partition,
-            size_n=layer.w13_scales.shape[2],
+            size_n=w13_scales.shape[2],
             group_size=self.quant_config.group_size,
         )
         replace_parameter(layer, "w13_scales", marlin_w13_scales)
 
-        marlin_w2_scales = marlin_moe_permute_scales(
-            s=layer.w2_scales,
+        marlin_w2_scales = scale_transform(
+            s=w2_scales,
             size_k=layer.intermediate_size_per_partition,
-            size_n=layer.w2_scales.shape[2],
+            size_n=w2_scales.shape[2],
             group_size=self.quant_config.group_size,
         )
         replace_parameter(layer, "w2_scales", marlin_w2_scales)
 
-        marlin_w13_zp = moe_awq_to_marlin_zero_points(
-            layer.w13_qzeros,
-            size_k=layer.w13_qzeros.shape[1],
-            size_n=layer.w13_qzeros.shape[2] * self.quant_config.pack_factor,
-            num_bits=self.quant_config.weight_bits,
-        )
+        if is_sm70:
+            marlin_w13_zp = moe_awq_to_sm70_marlin_zero_points_float(
+                layer.w13_qzeros,
+                w13_scales,
+                size_k=layer.w13_qzeros.shape[1],
+                size_n=layer.w13_qzeros.shape[2] * self.quant_config.pack_factor,
+                num_bits=self.quant_config.weight_bits,
+            )
+        else:
+            marlin_w13_zp = moe_awq_to_marlin_zero_points(
+                layer.w13_qzeros,
+                size_k=layer.w13_qzeros.shape[1],
+                size_n=layer.w13_qzeros.shape[2] * self.quant_config.pack_factor,
+                num_bits=self.quant_config.weight_bits,
+            )
         replace_parameter(layer, "w13_qzeros", marlin_w13_zp)
 
-        marlin_w2_zp = moe_awq_to_marlin_zero_points(
-            layer.w2_qzeros,
-            size_k=layer.w2_qzeros.shape[1],
-            size_n=layer.w2_qzeros.shape[2] * self.quant_config.pack_factor,
-            num_bits=self.quant_config.weight_bits,
-        )
+        if is_sm70:
+            marlin_w2_zp = moe_awq_to_sm70_marlin_zero_points_float(
+                layer.w2_qzeros,
+                w2_scales,
+                size_k=layer.w2_qzeros.shape[1],
+                size_n=layer.w2_qzeros.shape[2] * self.quant_config.pack_factor,
+                num_bits=self.quant_config.weight_bits,
+            )
+        else:
+            marlin_w2_zp = moe_awq_to_marlin_zero_points(
+                layer.w2_qzeros,
+                size_k=layer.w2_qzeros.shape[1],
+                size_n=layer.w2_qzeros.shape[2] * self.quant_config.pack_factor,
+                num_bits=self.quant_config.weight_bits,
+            )
         replace_parameter(layer, "w2_qzeros", marlin_w2_zp)
 
     def apply(

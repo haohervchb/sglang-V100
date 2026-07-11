@@ -223,7 +223,7 @@ def fused_marlin_moe(
         is_k_full=is_k_full,
         use_atomic_add=use_atomic_add,
         use_fp32_reduce=True,
-        is_zp_float=False,
+        is_zp_float=w1_zeros is not None and w1_zeros.dtype != torch.int32,
     )
 
     if clamp_limit is not None:
@@ -264,7 +264,7 @@ def fused_marlin_moe(
         is_k_full=is_k_full,
         use_atomic_add=use_atomic_add,
         use_fp32_reduce=True,
-        is_zp_float=False,
+        is_zp_float=w2_zeros is not None and w2_zeros.dtype != torch.int32,
     ).view(-1, topk, K)
 
     output = hidden_states if inplace else torch.empty_like(hidden_states)
