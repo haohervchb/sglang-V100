@@ -44,7 +44,8 @@ def _load_sm70_ops() -> bool:
 
 
 def can_use_sm70_fp16_moe(params_dtype: torch.dtype) -> bool:
-    if os.environ.get("SGLANG_SM70_FP16_MOE", "1") == "0":
+    # Opt-in until long-prefill model-level correctness is fully validated.
+    if os.environ.get("SGLANG_SM70_FP16_MOE", "0") != "1":
         return False
     if params_dtype != torch.float16 or not torch.cuda.is_available():
         return False
