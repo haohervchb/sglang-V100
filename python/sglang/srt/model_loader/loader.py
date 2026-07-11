@@ -248,13 +248,30 @@ def _get_quantization_config(
             if major is not None and minor is not None:
                 assert 0 <= minor < 10
                 capability = major * 10 + minor
-                if capability < quant_config.get_min_capability():
-                    raise ValueError(
-                        f"The quantization method {model_config.quantization} "
-                        "is not supported for the current GPU. "
-                        f"Minimum capability: {quant_config.get_min_capability()}. "
-                        f"Current capability: {capability}."
+                min_cap = quant_config.get_min_capability()
+                if capability < min_cap:
+                    # SM70 (V100): the stock Marlin kernels are SM80+ stubs,
+                    # but the marlin_v100 integration supplies real WMMA
+                    # kernels. When it is installed, allow gptq_marlin /
+                    # awq_marlin / marlin to run on SM70.
+                    from sglang.srt.layers.quantization.marlin_utils import (
+                        _sm70_marlin_v100_available,
                     )
+
+                    if capability == 70 and min_cap == 80 and _sm70_marlin_v100_available():
+                        logger.info(
+                            "SM70 (V100): allowing quant=%s (min_capability=%d) "
+                            "via the marlin_v100 kernel.",
+                            model_config.quantization,
+                            min_cap,
+                        )
+                    else:
+                        raise ValueError(
+                            f"The quantization method {model_config.quantization} "
+                            "is not supported for the current GPU. "
+                            f"Minimum capability: {min_cap}. "
+                            f"Current capability: {capability}."
+                        )
         supported_dtypes = quant_config.get_supported_act_dtypes()
         if model_config.dtype not in supported_dtypes:
             raise ValueError(

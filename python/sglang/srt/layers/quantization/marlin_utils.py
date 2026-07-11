@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional
 
 import numpy
@@ -74,6 +75,76 @@ class MarlinLinearLayerConfig:
     has_g_idx: bool
 
 
+@lru_cache(maxsize=1)
+def _sm70_marlin_v100_available() -> bool:
+    """True iff the marlin_v100 SM70 MoE kernel is built and loadable.
+
+    The stock JIT Marlin MoE kernel is an empty stub on SM70 (writes nothing,
+    silently zeroing routed-expert output). marlin_v100 supplies real WMMA
+    kernels; when it is installed (scripts/setup_v100_marlin.sh) we re-enable
+    Marlin quant-type support and the gptq->gptq_marlin auto-promotion so that
+    AWQ/GPTQ MoE models work on V100.
+    """
+    try:
+        major, _ = get_device_capability()
+        if major != 7:
+            return False
+        from sglang.jit_kernel.moe_wna16_marlin import _load_marlin_v100_op
+
+        return _load_marlin_v100_op() is not None
+    except Exception:
+        return False
+
+
+@lru_cache(maxsize=1)
+def _sm70_marlin_v100_repack_ops():
+    """Load marlin_v100's dense _C extension on SM70 and return its repack ops.
+
+    sglang's JIT ``gptq_marlin_repack``/``awq_marlin_repack`` are
+    ``__CUDA_ARCH__ < 800`` stubs on SM70 (the kernel body is empty, so the
+    output stays zeroed) -- meaning MoE expert weights are repacked to zeros
+    during loading and the marlin GEMM then reads all-zero weights. marlin_v100
+    ships real SM70 repack kernels in its dense extension; load it here.
+
+    Returns ``(gptq_repack, awq_repack)`` callables, or ``(None, None)`` if the
+    extension is unavailable (non-SM70 or not built).
+    """
+    if not _sm70_marlin_v100_available():
+        return None, None
+    import glob
+    import os
+
+    import torch  # noqa: F811
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    home = os.path.expanduser("~")
+    candidates = sorted(glob.glob(os.path.join(here, "_sm70_marlin_v100_dense*.so")))
+    candidates += sorted(glob.glob(os.path.join(home, "marlin_v100", "vllm", "_C*.so")))
+    for path in candidates:
+        try:
+            torch.ops.load_library(path)
+        except Exception:
+            continue
+        gptq = getattr(torch.ops._C, "gptq_marlin_repack", None)
+        awq = getattr(torch.ops._C, "awq_marlin_repack", None)
+        if gptq is not None:
+            # marlin_v100's op takes an extra trailing `is_a_8bit` bool; wrap it
+            # so callers can use the sglang 5-arg signature unchanged.
+            def _gptq(b_q_weight, perm, size_k, size_n, num_bits, _op=gptq):
+                return _op(b_q_weight, perm, size_k, size_n, num_bits, False)
+
+            def _awq(b_q_weight, size_k, size_n, num_bits, _op=awq):
+                return _op(b_q_weight, size_k, size_n, num_bits, False)
+
+            logger.info(
+                "SM70 (V100): using marlin_v100 gptq/awq repack from %s "
+                "(stock JIT repack is a zero-output stub below sm_80).",
+                path,
+            )
+            return _gptq, _awq
+    return None, None
+
+
 # For binary size and compile time, we don't support the same types for with and
 #  without runtime zero-point. We support common cases, i.e. AWQ and GPTQ.
 #  TODO: we may want to move this into the C++ so its closer to the actual impl
@@ -88,7 +159,14 @@ def query_marlin_supported_quant_types(
         device_capability = -1 if capability is None else capability
 
     if device_capability < 80:
-        return []
+        # The stock Marlin kernel is an SM80+ stub below sm_80. On SM70 (V100)
+        # the marlin_v100 integration (scripts/setup_v100_marlin.sh) supplies
+        # real WMMA kernels, so when it is loadable we report the same
+        # quant-type support matrix as SM80+.
+        if device_capability == 70 and _sm70_marlin_v100_available():
+            pass
+        else:
+            return []
 
     # - has_zp is True: return quant_types that has zero points
     # - has_zp is False: return quant_types that has not zero points

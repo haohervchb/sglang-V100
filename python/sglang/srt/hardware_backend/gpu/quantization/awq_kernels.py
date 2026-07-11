@@ -56,6 +56,20 @@ else:
         )
         from sglang.srt.utils.custom_op import register_custom_op_from_extern
 
+        # On SM70 (V100) the stock JIT awq_marlin_repack is an __CUDA_ARCH__<800
+        # stub that writes nothing -> expert weights would be repacked to zeros.
+        # Prefer marlin_v100's real SM70 repack when available.
+        try:
+            from sglang.srt.layers.quantization.marlin_utils import (
+                _sm70_marlin_v100_repack_ops,
+            )
+
+            _, _sm70_awq_repack = _sm70_marlin_v100_repack_ops()
+            if _sm70_awq_repack is not None:
+                awq_marlin_repack = _sm70_awq_repack
+        except Exception:
+            pass
+
         awq_dequantize = register_custom_op_from_extern(
             awq_dequantize,
             fake_impl=lambda qweight, scales, qzeros: qweight.new_empty(

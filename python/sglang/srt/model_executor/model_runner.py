@@ -1264,11 +1264,20 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             torch.set_num_threads(1)
         if self.device == "cuda":
             if torch.cuda.get_device_capability()[0] < 8:
-                logger.info(
-                    "Compute capability below sm80. Use float16 due to lack of bfloat16 support."
-                )
-                self.server_args.dtype = "float16"
-                self.model_config.dtype = torch.float16
+                # Allow overriding the SM<80 fp16 force (e.g. to run bf16 for
+                # models whose linear-attention/GDN path was tuned in bf16).
+                if os.environ.get("SGLANG_SM70_FORCE_FP16", "1") == "0":
+                    logger.info(
+                        "Compute capability below sm80; SGLANG_SM70_FORCE_FP16=0 "
+                        "so keeping requested dtype %s.",
+                        self.server_args.dtype,
+                    )
+                else:
+                    logger.info(
+                        "Compute capability below sm80. Use float16 due to lack of bfloat16 support."
+                    )
+                    self.server_args.dtype = "float16"
+                    self.model_config.dtype = torch.float16
 
         set_cuda_arch()
 
@@ -2416,7 +2425,11 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             req_pool_indices=buffers.req_pool_indices,
             seq_lens=buffers.seq_lens,
             seq_lens_cpu=buffers.seq_lens_cpu,
-            next_token_logits_buffer=buffers.next_token_logits_buffer,
+            next_token_logits_buffer=None,  # warmup only compiles kernels; an
+            # EXTEND forward returns [bs, vocab] next-token logits, which won't
+            # match a [num_tokens, vocab] buffer. None => _copy_logits_to_buffer
+            # takes its no-buffer branch, so the full forward (incl. lm_head)
+            # runs and compiles every prefill kernel without a shape crash.
             orig_seq_lens=buffers.seq_lens,
             out_cache_loc=buffers.out_cache_loc,
             seq_lens_sum=num_tokens,
@@ -2459,9 +2472,10 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                         forward_batch,
                     )
         except Exception:
-            logger.info(
+            logger.warning(
                 "SM70 prefill warmup failed, continuing without it "
-                "(model may use a non-standard attention backend, e.g. hybrid GDN)."
+                "(model may use a non-standard attention backend, e.g. hybrid GDN).",
+                exc_info=True,
             )
 
     def _pre_initialize_flashinfer_allreduce_workspace(self):

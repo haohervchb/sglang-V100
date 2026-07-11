@@ -215,33 +215,12 @@ def get_default_config(
         }
         # A heuristic: fused marlin works faster with this config for small M
         if M <= E or (is_marlin and M <= 32):
-            # V100 (SM70): larger tiles fill SMs better than the tiny H100 defaults
-            try:
-                import torch
-                sm = torch.cuda.get_device_capability()
-                if sm[0] == 7:
-                    config = {
-                        "BLOCK_SIZE_M": 128,
-                        "BLOCK_SIZE_N": 128,
-                        "BLOCK_SIZE_K": 64,
-                        "GROUP_SIZE_M": 4,
-                        "num_warps": 4,
-                        "num_stages": 2,
-                    }
-                else:
-                    config = {
-                        "BLOCK_SIZE_M": 16,
-                        "BLOCK_SIZE_N": 32,
-                        "BLOCK_SIZE_K": 64,
-                        "GROUP_SIZE_M": 1,
-                    }
-            except Exception:
-                config = {
-                    "BLOCK_SIZE_M": 16,
-                    "BLOCK_SIZE_N": 32,
-                    "BLOCK_SIZE_K": 64,
-                    "GROUP_SIZE_M": 1,
-                }
+            config = {
+                "BLOCK_SIZE_M": 16,
+                "BLOCK_SIZE_N": 32,
+                "BLOCK_SIZE_K": 64,
+                "GROUP_SIZE_M": 1,
+            }
     return config
 
 

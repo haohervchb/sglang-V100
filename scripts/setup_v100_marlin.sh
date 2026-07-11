@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# One-block builder + installer for the SM70 (V100) Marlin MoE kernel.
+#
+# Builds https://github.com/zhinianqin/marlin_v100 against the *currently
+# active* Python env's torch (must match the torch SGLang will run with),
+# then installs the resulting MoE extension next to SGLang's jit_kernel
+# package so it is auto-detected at runtime on SM70 (no env var needed).
+#
+# Usage (from any directory):
+#   conda activate flashinfer-sm70        # or whichever env runs sglang
+#   bash scripts/setup_v100_marlin.sh
+#
+# Re-run is safe: it rebuilds incrementally and re-installs the .so.
+#
+# Knobs (env vars, all optional):
+#   MARLIN_V100_REPO   path to an existing marlin_v100 checkout (default: ~/marlin_v100)
+#   MARLIN_V100_REF    git ref to checkout when cloning (default: leave as-is)
+#   CUTLASS_DIR        path to a CUTLASS checkout with include/{cute/cutlass}
+#   CUDAHOSTCXX        CUDA host compiler (default: auto-detect g++-12)
+#   MAX_JOBS, NVCC_THREADS  parallelism handed to the build
+
+set -euo pipefail
+
+log() { printf '\033[1;34m[setup_v100_marlin]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[setup_v100_marlin WARN]\033[0m %s\n' "$*" >&2; }
+die() { printf '\033[1;31m[setup_v100_marlin ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
+
+PYTHON="${PYTHON:-python}"
+"$PYTHON" -c 'import sys, torch; assert sys.version_info[:2] == (3,12) or True' \
+  || die "PYTHON ('$PYTHON') is not usable."
+"$PYTHON" -c 'import torch' || die "torch is not importable in the active env; activate the sglang env first."
+TORCH_VER="$("$PYTHON" -c 'import torch; print(torch.__version__)')"
+CUDA_VER="$("$PYTHON" -c 'import torch; print(torch.version.cuda)')"
+log "active python: $("$(which "$PYTHON")" -c 'import sys; print(sys.executable)')"
+log "torch=${TORCH_VER}  cuda=${CUDA_VER}"
+
+# --- locate / clone marlin_v100 -------------------------------------------------
+REPO="${MARLIN_V100_REPO:-$HOME/marlin_v100}"
+if [[ ! -d "$REPO/.git" ]]; then
+  log "cloning marlin_v100 to $REPO"
+  git clone https://github.com/zhinianqin/marlin_v100.git "$REPO"
+  if [[ -n "${MARLIN_V100_REF:-}" ]]; then
+    git -C "$REPO" checkout "$MARLIN_V100_REF"
+  fi
+else
+  log "using existing marlin_v100 at $REPO"
+fi
+
+# --- toolchain: CUDA, host compiler, CUTLASS -----------------------------------
+[[ -n "${CUDA_HOME:-}" ]] || CUDA_HOME="/usr/local/cuda-${CUDA_VER}"
+[[ -d "$CUDA_HOME" ]] || CUDA_HOME="/usr/local/cuda"
+[[ -d "$CUDA_HOME/bin" ]] || die "CUDA_HOME ($CUDA_HOME) has no bin/; set CUDA_HOME manually."
+export CUDA_HOME
+export PATH="$CUDA_HOME/bin:$PATH"
+log "CUDA_HOME=$CUDA_HOME  nvcc=$(nvcc --version | tail -1 | awk '{print $2}')"
+
+# gcc-13 hits the well-known _Float128 / glibc error in CUDA's <mathcalls.h>;
+# gcc-12 is the known-good host compiler for sm70 on this toolchain.
+if [[ -z "${CUDAHOSTCXX:-}" ]]; then
+  for cand in /usr/bin/g++-12 /usr/bin/g++-11 /usr/bin/g++-10; do
+    [[ -x "$cand" ]] && CUDAHOSTCXX="$cand" && break
+  done
+  [[ -n "${CUDAHOSTCXX:-}" ]] || die "no g++-12/11/10 found; install g++-12 or set CUDAHOSTCXX."
+fi
+export CUDAHOSTCXX
+log "CUDAHOSTCXX=$CUDAHOSTCXX"
+
+if [[ -z "${CUTLASS_DIR:-}" ]]; then
+  for cand \
+    "$HOME/GooseLLM/.deps/cutlass-src" \
+    "$HOME/tilelang/3rdparty/cutlass" \
+    "$HOME/cutlass" ; do
+    if [[ -f "$cand/include/cute/tensor.hpp" && -f "$cand/include/cutlass/cutlass.h" ]]; then
+      CUTLASS_DIR="$cand"; break
+    fi
+  done
+  [[ -n "${CUTLASS_DIR:-}" ]] || die "CUTLASS not found; set CUTLASS_DIR to a checkout with include/{cute,cutlass}."
+fi
+export CUTLASS_DIR
+log "CUTLASS_DIR=$CUTLASS_DIR"
+
+# --- make marlin_v100's build.sh use the active env's python --------------------
+mkdir -p "$REPO/.venv/bin"
+ln -sfn "$("$(which "$PYTHON")" -c 'import sys; print(sys.executable)')" "$REPO/.venv/bin/python"
+
+# --- build ----------------------------------------------------------------------
+export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"
+export MAX_JOBS="${MAX_JOBS:-8}"
+export NVCC_THREADS="${NVCC_THREADS:-1}"
+# keep ptxas quiet unless explicitly requested (cuts log noise massively)
+export CMAKE_ARGS="${CMAKE_ARGS:-}"
+log "building (MAX_JOBS=$MAX_JOBS) ... this takes ~15-40 min"
+( cd "$REPO" && bash "$REPO/build.sh" )
+
+# --- verify the artifact exists ------------------------------------------------
+SO_MOE="$(ls "$REPO"/vllm/_moe_C*.so 2>/dev/null | head -1 || true)"
+[[ -f "$SO_MOE" ]] || die "build finished but $REPO/vllm/_moe_C*.so was not produced."
+log "built MoE extension: $SO_MOE"
+
+# --- install next to sglang's jit_kernel package --------------------------------
+PKG_DIR="$("$PYTHON" - <<'PY' || die "could not locate sglang.jit_kernel package dir."
+import os
+try:
+    import sglang.jit_kernel as jk
+except Exception as e:
+    raise SystemExit(f"cannot import sglang.jit_kernel: {e}")
+print(os.path.dirname(os.path.abspath(jk.__file__)))
+PY
+)"
+DEST="$PKG_DIR/_sm70_marlin_v100_moe.abi3.so"
+cp -f "$SO_MOE" "$DEST"
+log "installed -> $DEST"
+
+# also install the dense _C extension (used by future dense-linear paths; harmless if unused)
+SO_C="$(ls "$REPO"/vllm/_C*.so 2>/dev/null | head -1 || true)"
+if [[ -f "$SO_C" ]]; then
+  cp -f "$SO_C" "$PKG_DIR/_sm70_marlin_v100_dense.abi3.so"
+  log "installed -> $PKG_DIR/_sm70_marlin_v100_dense.abi3.so"
+fi
+
+# --- runtime smoke test ---------------------------------------------------------
+log "smoke test: load + op registration"
+"$PYTHON" - <<PY || die "smoke test failed; the .so did not register torch.ops._moe_C.moe_wna16_marlin_gemm."
+import os, torch
+torch.ops.load_library("$DEST")
+assert hasattr(torch.ops._moe_C, "moe_wna16_marlin_gemm"), "op not registered"
+print("ok: torch.ops._moe_C.moe_wna16_marlin_gemm registered")
+PY
+
+log "done. SGLang on SM70 will now auto-detect and use this kernel for AWQ/GPTQ MoE."
+log "tuning knobs (optional): SM70_MARLIN_MOE_CTA_GEOMETRY, SM70_MARLIN_MOE_SPLIT_K, SM70_MARLIN_MOE_METADATA_CACHE"

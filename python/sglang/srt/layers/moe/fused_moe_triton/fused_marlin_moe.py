@@ -8,11 +8,25 @@ from sglang.srt.utils.custom_op import register_custom_op
 
 _is_cuda = is_cuda()
 
+# sgl_kernel's moe_sum_reduce C++ op is excluded from V100 (SGL_KERNEL_V100_ONLY)
+# builds, so on SM70 fall back to the triton kernel (mirrors the TRITON runner
+# guard in moe_runner/triton_utils/fused_moe.py added in acbb390dc).
+_has_sgl_moe_sum_reduce = False
 if _is_cuda:
-    from sgl_kernel import moe_sum_reduce
-
     from sglang.jit_kernel.activation import silu_and_mul
     from sglang.jit_kernel.moe_wna16_marlin import moe_wna16_marlin_gemm
+    from sglang.srt.layers.moe.moe_runner.triton_utils.fused_moe_triton_kernels import (
+        moe_sum_reduce_triton,
+    )
+
+    try:
+        _cuda_major, _ = torch.cuda.get_device_capability()
+    except Exception:
+        _cuda_major = 0
+    if _cuda_major >= 8:
+        from sgl_kernel import moe_sum_reduce
+
+        _has_sgl_moe_sum_reduce = True
 
 
 def get_scalar_type(num_bits: int, has_zp: bool, scales: Optional[torch.Tensor] = None):
@@ -261,9 +275,18 @@ def fused_marlin_moe(
         if routed_scaling_factor is None:
             routed_scaling_factor = 1.0
 
-        moe_sum_reduce(
-            intermediate_cache3,
-            output,
-            routed_scaling_factor,
-        )
+        if _has_sgl_moe_sum_reduce:
+            moe_sum_reduce(
+                intermediate_cache3,
+                output,
+                routed_scaling_factor,
+            )
+        else:
+            # SM70 (V100): sgl_kernel moe_sum_reduce op is unavailable; use the
+            # triton fallback (same kernel the TRITON MoE runner uses on SM70).
+            moe_sum_reduce_triton(
+                intermediate_cache3,
+                output,
+                routed_scaling_factor,
+            )
         return output

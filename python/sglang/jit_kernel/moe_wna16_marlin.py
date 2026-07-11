@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import glob
+import logging
+import os
 from typing import TYPE_CHECKING, Optional
 
 import torch
@@ -11,8 +14,77 @@ if TYPE_CHECKING:
     from sgl_kernel.scalar_type import ScalarType
     from tvm_ffi.module import Module
 
+logger = logging.getLogger(__name__)
+
 # Constants matching device::marlin_moe:: in marlin.cuh
 _MAX_THREAD_N = 256
+
+
+# --- SM70 (V100) marlin_v100 integration ---------------------------------------
+# The stock JIT Marlin MoE kernel (csrc/gemm/marlin_moe/marlin_template.h) is an
+# empty-body stub for __CUDA_ARCH__ < 800: it launches but writes nothing, so on
+# V100 the routed experts silently contribute zero (the unquantized shared
+# expert + residual mask the corruption). marlin_v100 (a vLLM-derived SM70 fork
+# with real WMMA kernels) replaces it. Built+installed by
+# scripts/setup_v100_marlin.sh; auto-detected here on SM70 with no env var.
+
+_IS_SM70: bool = False
+try:
+    if torch.cuda.is_available():
+        _IS_SM70 = torch.cuda.get_device_capability()[0] == 7
+except Exception:
+    pass
+
+# Cache for the loaded op. States: None = not attempted yet; callable = loaded;
+# False = attempted but unavailable (so we only warn once).
+_marlin_v100_op = None
+
+
+def _load_marlin_v100_op():
+    """Lazily auto-detect and load the marlin_v100 MoE op on SM70.
+
+    Returns the registered ``torch.ops._moe_C.moe_wna16_marlin_gemm`` callable,
+    or ``None`` if it could not be found. Subsequent calls return the cached
+    result. No-op (returns None) on non-SM70 devices.
+    """
+    global _marlin_v100_op
+    if _marlin_v100_op is not False and _marlin_v100_op is not None:
+        return _marlin_v100_op
+    if _marlin_v100_op is False:
+        return None
+    _marlin_v100_op = False  # mark attempted
+
+    if not _IS_SM70:
+        return None
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    home = os.path.expanduser("~")
+    candidates = []
+    # 1. installed next to sglang's jit_kernel package (setup_v100_marlin.sh)
+    candidates += sorted(glob.glob(os.path.join(here, "_sm70_marlin_v100_moe*.so")))
+    # 2. dev build in a ~/marlin_v100 checkout
+    candidates += sorted(glob.glob(os.path.join(home, "marlin_v100", "vllm", "_moe_C*.so")))
+
+    for path in candidates:
+        try:
+            torch.ops.load_library(path)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("SM70 (V100): failed to load marlin_v100 .so at %s: %s", path, e)
+            continue
+        op = getattr(torch.ops._moe_C, "moe_wna16_marlin_gemm", None)
+        if op is not None:
+            _marlin_v100_op = op
+            logger.info("SM70 (V100): using marlin_v100 MoE kernel from %s", path)
+            return op
+
+    logger.warning(
+        "SM70 (V100) detected but the marlin_v100 MoE kernel was not found. "
+        "The stock JIT Marlin kernel is an empty stub on SM70, so routed-expert "
+        "output will be ZERO (incorrect). Build it with: "
+        "`bash scripts/setup_v100_marlin.sh`. Searched: %s",
+        candidates,
+    )
+    return None
 
 
 @cache_once
@@ -77,6 +149,53 @@ def moe_wna16_marlin_gemm(
     # Early return for zero-size M
     if size_m == 0:
         return c
+
+    # SM70 (V100): dispatch to the marlin_v100 kernel when available. Its op
+    # signature differs from the JIT module: it takes `a_scales` (None for
+    # W4A16) and tuning ints (thread_k/n, blocks_per_sm; -1 = auto-select), and
+    # it computes has_act_order/has_bias/has_zp/num_groups/group_size/is_ep
+    # internally from the tensor shapes, so those are not forwarded. The raw
+    # Optional tensors are passed through unchanged (None => std::nullopt) so
+    # the kernel's has_value()-based presence checks fire correctly; do NOT
+    # convert None to an empty tensor (the kernel treats a present-but-empty
+    # global_scale as an nvfp4-only input and rejects it for GPTQ/AWQ).
+    if _IS_SM70:
+        op = _load_marlin_v100_op()
+        if op is not None:
+            op(
+                a,
+                c,
+                b_q_weight,
+                b_bias_or_none,
+                b_scales,
+                None,  # a_scales (W4A16 has no activation quantization)
+                global_scale_or_none,
+                b_zeros_or_none,
+                g_idx_or_none,
+                perm_or_none,
+                workspace,
+                sorted_token_ids,
+                expert_ids,
+                num_tokens_post_padded,
+                topk_weights,
+                moe_block_size,
+                top_k,
+                mul_topk_weights,
+                b_q_type.id,
+                size_m,
+                size_n,
+                size_k,
+                is_k_full,
+                use_atomic_add,
+                use_fp32_reduce,
+                is_zp_float,
+                -1,  # thread_k  (-1 => C++ model-specific auto-select)
+                -1,  # thread_n
+                -1,  # blocks_per_sm
+            )
+            return c
+        # fall through to the stock JIT path (empty stub on SM70) with the
+        # warning already emitted by _load_marlin_v100_op.
 
     # Determine activation ordering
     has_act_order = (
