@@ -1264,13 +1264,20 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             torch.set_num_threads(1)
         if self.device == "cuda":
             if torch.cuda.get_device_capability()[0] < 8:
-                logger.info(
-                    "Compute capability below sm80. Use float16 due to lack of bfloat16 support."
-                )
-                self.server_args.dtype = "float16"
-                self.model_config.dtype = torch.float16
-                if torch.cuda.get_device_capability()[1] < 5:
-                    raise RuntimeError("SGLang only supports sm75 and above.")
+                # Allow overriding the SM<80 fp16 force (e.g. to run bf16 for
+                # models whose linear-attention/GDN path was tuned in bf16).
+                if os.environ.get("SGLANG_SM70_FORCE_FP16", "1") == "0":
+                    logger.info(
+                        "Compute capability below sm80; SGLANG_SM70_FORCE_FP16=0 "
+                        "so keeping requested dtype %s.",
+                        self.server_args.dtype,
+                    )
+                else:
+                    logger.info(
+                        "Compute capability below sm80. Use float16 due to lack of bfloat16 support."
+                    )
+                    self.server_args.dtype = "float16"
+                    self.model_config.dtype = torch.float16
 
         set_cuda_arch()
 
@@ -2289,6 +2296,20 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             self.decode_attention_backend_str,
         ) = self.server_args.get_attention_backends()
 
+        # SM70 (V100): auto-switch decode to Triton for better SM utilization.
+        # Triton's SM70-specific split-K tuning (sm_count-based segments) outperforms
+        # FlashInfer TileLang "auto" decode path, which lacks dynamic segment control.
+        # Prefill stays on FlashInfer for proven TileLang paged performance.
+        major, minor = torch.cuda.get_device_capability()
+        if (
+            major == 7
+            and self.decode_attention_backend_str is None
+            and self.prefill_attention_backend_str is None
+            and self.server_args.attention_backend is None
+        ):
+            self.prefill_attention_backend_str = "flashinfer"
+            self.decode_attention_backend_str = "triton"
+
         if self.decode_attention_backend_str != self.prefill_attention_backend_str:
             from sglang.srt.layers.attention.hybrid_attn_backend import (
                 HybridAttnBackend,
@@ -2345,6 +2366,117 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
         if self._should_run_flashinfer_autotune():
             self._flashinfer_autotune()
+
+        # SM70 (V100) prefill warmup: the FlashInfer prefill kernels (paged +
+        # ragged FA2 wrappers), Triton index kernels, and torch.compile'd functions
+        # are all compiled lazily on first prefill call without this.  Run a
+        # lightweight EXTEND forward pass so compilation happens at startup.
+        if self.is_generation:
+            major, _ = torch.cuda.get_device_capability()
+            if major == 7:
+                self._warmup_prefill_kernels_extends()
+
+    def _warmup_prefill_kernels_extends(self):
+        """Run a single EXTEND-mode forward to warm up FlashInfer prefill kernels,
+        Triton index-building kernels, and torch.compile'd functions on SM70.
+        The decode-only _dummy_run doesn't compile these paths."""
+
+        warmup_bs = 2
+        warmup_seq_len = 512
+        num_tokens = warmup_bs * warmup_seq_len
+
+        seq_len_fill_value = self.attn_backend.get_cuda_graph_seq_len_fill_value()
+
+        buffers = DecodeInputBuffers.create(
+            device=self.device,
+            max_bs=warmup_bs,
+            max_num_token=num_tokens,
+            hidden_size=self.model_config.hidden_size,
+            vocab_size=self.model_config.vocab_size,
+            dtype=self.model_config.dtype,
+            dp_size=self.server_args.dp_size,
+            pp_size=self.server_args.pp_size,
+            is_encoder_decoder=self.model_config.is_encoder_decoder,
+            require_mlp_tp_gather=False,
+            seq_len_fill_value=seq_len_fill_value,
+            encoder_len_fill_value=0,
+            num_tokens_per_bs=warmup_seq_len,
+            cache_loc_dtype=torch.int64,
+            enable_mamba_track=False,
+        )
+
+        extend_prefix_lens_cpu = [0] * warmup_bs
+        extend_seq_lens_cpu = [warmup_seq_len] * warmup_bs
+        extend_num_tokens = num_tokens
+        extend_seq_lens = torch.full(
+            (warmup_bs,), warmup_seq_len, dtype=torch.int32, device=self.device
+        )
+        extend_prefix_lens = torch.zeros(
+            (warmup_bs,), dtype=torch.int32, device=self.device
+        )
+        extend_start_loc = torch.arange(
+            0, num_tokens, warmup_seq_len, dtype=torch.int32, device=self.device
+        )
+
+        forward_batch = ForwardBatch(
+            forward_mode=ForwardMode.EXTEND,
+            batch_size=warmup_bs,
+            input_ids=buffers.input_ids,
+            req_pool_indices=buffers.req_pool_indices,
+            seq_lens=buffers.seq_lens,
+            seq_lens_cpu=buffers.seq_lens_cpu,
+            next_token_logits_buffer=None,  # warmup only compiles kernels; an
+            # EXTEND forward returns [bs, vocab] next-token logits, which won't
+            # match a [num_tokens, vocab] buffer. None => _copy_logits_to_buffer
+            # takes its no-buffer branch, so the full forward (incl. lm_head)
+            # runs and compiles every prefill kernel without a shape crash.
+            orig_seq_lens=buffers.seq_lens,
+            out_cache_loc=buffers.out_cache_loc,
+            seq_lens_sum=num_tokens,
+            encoder_lens=buffers.encoder_lens,
+            return_logprob=False,
+            positions=buffers.positions,
+            extend_num_tokens=extend_num_tokens,
+            extend_seq_lens=extend_seq_lens,
+            extend_prefix_lens=extend_prefix_lens,
+            extend_start_loc=extend_start_loc,
+            extend_prefix_lens_cpu=extend_prefix_lens_cpu,
+            extend_seq_lens_cpu=extend_seq_lens_cpu,
+            global_num_tokens_gpu=buffers.global_num_tokens_gpu,
+            global_num_tokens_for_logprob_gpu=buffers.global_num_tokens_for_logprob_gpu,
+            dp_padding_mode=DpPaddingMode.get_default_mode_in_cuda_graph(),
+            global_dp_buffer_len=None,
+            mrope_positions=buffers.mrope_positions,
+            spec_algorithm=self.spec_algorithm,
+            spec_info=None,
+            capture_hidden_mode=CaptureHiddenMode.NULL,
+            num_token_non_padded=buffers.num_token_non_padded,
+            global_forward_mode=ForwardMode.EXTEND,
+            lora_ids=None,
+        )
+
+        self.attn_backend.init_forward_metadata(forward_batch)
+
+        forward_batch.dp_local_start_pos = forward_batch.dp_local_num_tokens = None
+        set_dp_buffer_len(None, num_tokens, False)
+        set_is_extend_in_batch(False)
+
+        try:
+            torch.get_device_module(self.device).synchronize()
+            self.tp_group.barrier()
+            with forward_context(ForwardContext(attn_backend=self.attn_backend)):
+                with torch.inference_mode():
+                    self.model.forward(
+                        buffers.input_ids,
+                        forward_batch.positions,
+                        forward_batch,
+                    )
+        except Exception:
+            logger.warning(
+                "SM70 prefill warmup failed, continuing without it "
+                "(model may use a non-standard attention backend, e.g. hybrid GDN).",
+                exc_info=True,
+            )
 
     def _pre_initialize_flashinfer_allreduce_workspace(self):
         """Pre-initialize flashinfer allreduce fusion workspaces.

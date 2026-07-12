@@ -122,30 +122,34 @@ def _causal_conv1d_fwd_kernel(  # continuous batching
             # load from conv_states
             prior_tokens = conv_states_base + (state_len - 1) * stride_conv_state_tok
             mask_w = idx_feats < dim
+            # Cast conv_state loads to the activation dtype: conv_states may be
+            # bf16 while the model runs fp16 (forced on SM70/V100), and the
+            # else-branch below produces x_ptr.dtype, so both branches of this
+            # if/else must agree or Triton rejects the kernel.
             if KERNEL_WIDTH == 2:
                 conv_states_ptrs = prior_tokens  # [BLOCK_N]
-                col0 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col0 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
             if KERNEL_WIDTH == 3:
                 conv_states_ptrs = prior_tokens  # [BLOCK_N]
-                col1 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col1 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
                 conv_states_ptrs = prior_tokens - 1 * stride_conv_state_tok  # [BLOCK_N]
-                col0 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col0 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
             if KERNEL_WIDTH == 4:
                 conv_states_ptrs = prior_tokens  # [BLOCK_N]
-                col2 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col2 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
                 conv_states_ptrs = prior_tokens - 1 * stride_conv_state_tok  # [BLOCK_N]
-                col1 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col1 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
                 conv_states_ptrs = prior_tokens - 2 * stride_conv_state_tok  # [BLOCK_N]
-                col0 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col0 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
             if KERNEL_WIDTH == 5:
                 conv_states_ptrs = prior_tokens  # [BLOCK_N]
-                col3 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col3 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
                 conv_states_ptrs = prior_tokens - 1 * stride_conv_state_tok  # [BLOCK_N]
-                col2 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col2 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
                 conv_states_ptrs = prior_tokens - 2 * stride_conv_state_tok  # [BLOCK_N]
-                col1 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col1 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
                 conv_states_ptrs = prior_tokens - 3 * stride_conv_state_tok  # [BLOCK_N]
-                col0 = tl.load(conv_states_ptrs, mask_w, 0.0)
+                col0 = tl.load(conv_states_ptrs, mask_w, 0.0).to(x_ptr.dtype.element_ty)
         else:
             # prior-tokens are zeros
             if KERNEL_WIDTH >= 2:  # STRATEGY1

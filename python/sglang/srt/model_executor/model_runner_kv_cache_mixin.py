@@ -73,6 +73,45 @@ class ModelRunnerKVCacheMixin:
         if self.mambaish_config is not None:
             rest_memory = self.handle_max_mamba_cache(rest_memory)
 
+        # SM70 (V100): reserve headroom for the per-start JIT/autotune memory
+        # bump. tilelang (FA-v100 prefill + FLA/GDN) and Triton (conv1d/GDN/MoE)
+        # compile lazily on the first serving shapes; the compiled-kernel +
+        # autotuner workspace can grow VRAM by several GB during the first few
+        # prompts. Without this reserve, a high --mem-fraction-static sizes the
+        # KV pool so large that the bump OOMs mid-serving.
+        #
+        # rest_memory is the KV(+mamba) budget; the JIT bump lives in the FREE
+        # memory = post_model_load - rest_memory. Cap rest_memory so that free
+        # memory stays >= the bump (headroom), i.e. rest <= post_model_load -
+        # headroom. This only shrinks the pool when mem_fraction is high enough
+        # that the bump wouldn't fit; at low mem_fraction it's a no-op.
+        try:
+            _major = (
+                torch.cuda.get_device_capability()[0]
+                if torch.cuda.is_available()
+                else 0
+            )
+        except Exception:
+            _major = 0
+        if _major == 7:
+            import os
+
+            jit_headroom_gb = float(
+                os.environ.get("SGLANG_SM70_JIT_HEADROOM_GB", "4.5")
+            )
+            free_after_pool_floor = post_model_load_memory - jit_headroom_gb
+            before = rest_memory
+            rest_memory = max(0.0, min(rest_memory, free_after_pool_floor))
+            logger.info(
+                "SM70 (V100): JIT headroom reserve %.1f GB "
+                "(SGLANG_SM70_JIT_HEADROOM_GB); KV budget %.2f -> %.2f GB "
+                "(free-after-pool floor %.2f GB).",
+                jit_headroom_gb,
+                before,
+                rest_memory,
+                free_after_pool_floor,
+            )
+
         return int(rest_memory * (1 << 30))  # return in bytes
 
     def handle_max_mamba_cache(self: ModelRunner, total_rest_memory):

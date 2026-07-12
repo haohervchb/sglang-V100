@@ -9,7 +9,25 @@ import triton.language as tl
 
 from sglang.srt.configs.model_config import AttentionArch
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
+import logging
+
+logger = logging.getLogger(__name__)
 from sglang.srt.layers.attention.utils import create_flashinfer_kv_indices_triton
+
+
+def _flatten_paged_kv_cache(buf: torch.Tensor) -> torch.Tensor:
+    """View a paged KV buffer as a flat 3D [num_slots, num_kv_heads, head_dim] tensor.
+
+    The Triton decode/extend kernels index the cache with per-token slot indices
+    (kv_loc) and read ``buf.stride(0)`` as the per-slot stride. For a 4D
+    ``[num_pages, page_size, num_kv_heads, head_dim]`` buffer that stride is the
+    *page* stride, which would mis-index every slot. Flattening the leading two
+    dims yields correct strides while keeping the same memory. No-op for the
+    page_size=1 (already 3D) case.
+    """
+    if buf.ndim == 4:
+        return buf.view(-1, buf.shape[-2], buf.shape[-1])
+    return buf
 from sglang.srt.layers.dp_attention import get_attention_tp_size
 from sglang.srt.layers.radix_attention import AttentionType
 from sglang.srt.mem_cache.swa_memory_pool import SWAKVPool
@@ -155,13 +173,50 @@ class TritonAttnBackend(AttentionBackend):
             "SGLANG_TRITON_DECODE_ATTN_STATIC_KV_SPLITS", "false"
         )
         self.max_kv_splits = model_runner.server_args.triton_attention_num_kv_splits
+        self.sm70_decode_min_split_tile = 0
         if self.use_mla:
             self.max_kv_splits = _mla_decode_kv_splits_cap(
                 self.max_kv_splits,
                 self.device_core_count,
                 self.max_context_len,
             )
+
+        # SM70 (V100): Increase decode split-K to fill 80 SMs when KV-head parallelism is low.
+        # Matches GooseLLM's triton_attn.py SM70 segment tuning formula.
         if _is_cuda:
+            major, minor = torch.cuda.get_device_capability()
+            if (
+                major == 7
+                and not self.use_mla
+                and not model_runner.server_args.enable_deterministic_inference
+            ):
+                kv_heads = self.num_kv_head
+                if kv_heads > 0:
+                    sm_count = self.device_core_count
+                    if sm_count > 0:
+                        target_splits = max(
+                            next_power_of_2((sm_count + kv_heads - 1) // kv_heads),
+                            self.max_kv_splits,
+                        )
+                        # Cap at 128 to match GooseLLM's SM70_MAX_NUM_PAR_SOFTMAX_SEGMENTS.
+                        # The original cap of 16 under-utilised V100's 80 SMs at small
+                        # kv-head counts (kv_heads=1 -> 16 blocks vs 128 blocks), causing
+                        # the 70W decode under-utilisation and long-context decay.
+                        # 128 provides enough SM occupancy to saturate memory bandwidth.
+                        target_splits = min(target_splits, 128)
+                        if target_splits != self.max_kv_splits:
+                            logger.info(
+                                f"[SM70 Triton decode] Increase max_kv_splits: "
+                                f"{self.max_kv_splits} -> {target_splits} "
+                                f"(sm_count={sm_count}, kv_heads={kv_heads})"
+                            )
+                            self.max_kv_splits = target_splits
+                        # Avoid launching more split reductions than the context
+                        # can amortize. 128 tokens/split is the crossover measured
+                        # for Qwen GQA (head_dim=256) on V100; the occupancy cap in
+                        # get_num_kv_splits_triton still scales splits down by batch.
+                        self.sm70_decode_min_split_tile = 128
+
             self.use_pdl = is_arch_support_pdl()
         else:
             self.use_pdl = False
@@ -284,6 +339,7 @@ class TritonAttnBackend(AttentionBackend):
             self.num_kv_head,
             self.max_kv_splits,
             self.device_core_count,
+            self.sm70_decode_min_split_tile,
             MAX_NUM_SEQ=SCHEDULE_SEQ,
         )
 
@@ -1263,8 +1319,12 @@ class TritonAttnBackend(AttentionBackend):
 
         self.decode_attention_fwd(
             q.view(-1, layer.tp_q_head_num, layer.qk_head_dim),
-            self.token_to_kv_pool.get_key_buffer(layer.layer_id),
-            self.token_to_kv_pool.get_value_buffer(layer.layer_id),
+            _flatten_paged_kv_cache(
+                self.token_to_kv_pool.get_key_buffer(layer.layer_id)
+            ),
+            _flatten_paged_kv_cache(
+                self.token_to_kv_pool.get_value_buffer(layer.layer_id)
+            ),
             o.view(-1, layer.tp_q_head_num, layer.v_head_dim),
             kv_indptr,
             kv_indices,
@@ -1457,6 +1517,7 @@ def get_num_kv_splits_triton(
     num_kv_head,
     max_kv_splits,
     device_core_count,
+    sm70_min_split_tile,
     MAX_NUM_SEQ: tl.constexpr,
 ):
     # TODO: this method is tunable, we need more online serving data to tune it
@@ -1484,9 +1545,17 @@ def get_num_kv_splits_triton(
         # from triton_ops/decode_attention.py:_decode_grouped_att_m_fwd
         block_h = tl.minimum(block_h, num_kv_group)
         token_grid = num_seq * num_group * tl.cdiv(num_head, block_h)
-    max_kv_splits_2 = tl.minimum(
-        tl.cdiv(ext_device_core_count, token_grid), max_kv_splits
-    )
+    if sm70_min_split_tile > 0:
+        occupancy_splits = tl.cdiv(max_kv_splits, token_grid)
+        context_splits = tl.cdiv(max_seq_len, sm70_min_split_tile)
+        max_kv_splits_2 = tl.minimum(
+            tl.minimum(occupancy_splits, context_splits), max_kv_splits
+        )
+        max_kv_splits_2 = tl.maximum(max_kv_splits_2, 1)
+    else:
+        max_kv_splits_2 = tl.minimum(
+            tl.cdiv(ext_device_core_count, token_grid), max_kv_splits
+        )
     kv_chunk_size_2 = tl.cdiv(max_seq_len, max_kv_splits_2)
 
     num_kv_splits = tl.maximum(

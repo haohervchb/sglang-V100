@@ -280,11 +280,23 @@ class FusedMoE(torch.nn.Module):
             if quant_config is not None:
                 self.quant_method = quant_config.get_quant_method(self, prefix)
             if self.quant_method is None:
-                self.quant_method = UnquantizedFusedMoEMethod(
-                    self.use_triton_kernels,
-                    self.use_flashinfer_trtllm_moe,
-                    self.use_deep_gemm,
+                from sglang.srt.layers.quantization.sm70_fp16_moe import (
+                    SM70FP16MoEMethod,
+                    can_use_sm70_fp16_moe,
                 )
+
+                if (
+                    not with_bias
+                    and get_moe_a2a_backend().is_none()
+                    and can_use_sm70_fp16_moe(params_dtype)
+                ):
+                    self.quant_method = SM70FP16MoEMethod()
+                else:
+                    self.quant_method = UnquantizedFusedMoEMethod(
+                        self.use_triton_kernels,
+                        self.use_flashinfer_trtllm_moe,
+                        self.use_deep_gemm,
+                    )
 
         self.quant_method.create_weights(
             layer=self,
@@ -552,9 +564,15 @@ class FusedMoE(torch.nn.Module):
             if not is_bias and not self.use_presharded_weights:
                 if self.use_triton_kernels:
                     loaded_weight = loaded_weight.transpose(-2, -1)
-                loaded_weight = loaded_weight.narrow(
-                    shard_dim, shard_size * tp_rank, shard_size
-                )
+                # Only TP-shard the checkpoint slice when it is larger than
+                # the per-rank param shard. Some params are allocated "full"
+                # (e.g. w2 scales/qzeros for desc_act=False GPTQ-marlin carry
+                # all num_groups because is_k_full=True), so shard_size already
+                # equals the loaded dim and narrowing by tp_rank would overflow.
+                if loaded_weight.shape[shard_dim] > shard_size:
+                    loaded_weight = loaded_weight.narrow(
+                        shard_dim, shard_size * tp_rank, shard_size
+                    )
 
         # w2, down_proj: Load into only logical weight of w2.
         expert_data.copy_(loaded_weight)

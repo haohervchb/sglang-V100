@@ -8,11 +8,25 @@ from sglang.srt.utils.custom_op import register_custom_op
 
 _is_cuda = is_cuda()
 
+# sgl_kernel's moe_sum_reduce C++ op is excluded from V100 (SGL_KERNEL_V100_ONLY)
+# builds, so on SM70 fall back to the triton kernel (mirrors the TRITON runner
+# guard in moe_runner/triton_utils/fused_moe.py added in acbb390dc).
+_has_sgl_moe_sum_reduce = False
 if _is_cuda:
-    from sgl_kernel import moe_sum_reduce
-
     from sglang.jit_kernel.activation import silu_and_mul
     from sglang.jit_kernel.moe_wna16_marlin import moe_wna16_marlin_gemm
+    from sglang.srt.layers.moe.moe_runner.triton_utils.fused_moe_triton_kernels import (
+        moe_sum_reduce_triton,
+    )
+
+    try:
+        _cuda_major, _ = torch.cuda.get_device_capability()
+    except Exception:
+        _cuda_major = 0
+    if _cuda_major >= 8:
+        from sgl_kernel import moe_sum_reduce
+
+        _has_sgl_moe_sum_reduce = True
 
 
 def get_scalar_type(num_bits: int, has_zp: bool, scales: Optional[torch.Tensor] = None):
@@ -60,6 +74,7 @@ def fused_marlin_moe(
     topk_ids: torch.Tensor,
     global_num_experts: int = -1,
     expert_map: Optional[torch.Tensor] = None,
+    is_expert_parallel: bool = False,
     g_idx1: Optional[torch.Tensor] = None,
     g_idx2: Optional[torch.Tensor] = None,
     sort_indices1: Optional[torch.Tensor] = None,
@@ -183,6 +198,14 @@ def fused_marlin_moe(
         or torch.cuda.get_device_capability(hidden_states.device)[0] >= 9
     ) and (not is_mxfp4_marlin)
 
+    # SGLang's standard dispatcher has already converted global expert IDs to
+    # rank-local IDs and replaced remote routes with -1.  Unlike vLLM, there
+    # is therefore no expert_map to pass through to the alignment kernel.  We
+    # still need to tell Marlin that this is EP: invalid blocks must be skipped
+    # and, most importantly, their output slots must start at zero before the
+    # per-rank results are summed and all-reduced.
+    is_ep = is_expert_parallel or expert_map is not None
+
     intermediate_cache1 = moe_wna16_marlin_gemm(
         hidden_states,
         intermediate_cache1,
@@ -201,7 +224,7 @@ def fused_marlin_moe(
         moe_block_size=block_size_m,
         top_k=topk,
         mul_topk_weights=False,
-        is_ep=expert_map is not None,
+        is_ep=is_ep,
         b_q_type=scalar_type1,
         size_m=M,
         size_n=2 * N,
@@ -209,7 +232,7 @@ def fused_marlin_moe(
         is_k_full=is_k_full,
         use_atomic_add=use_atomic_add,
         use_fp32_reduce=True,
-        is_zp_float=False,
+        is_zp_float=w1_zeros is not None and w1_zeros.dtype != torch.int32,
     )
 
     if clamp_limit is not None:
@@ -221,7 +244,7 @@ def fused_marlin_moe(
     else:
         silu_and_mul(intermediate_cache1.view(-1, 2 * N), intermediate_cache2)
 
-    if expert_map is not None:
+    if is_ep:
         intermediate_cache3.zero_()
 
     intermediate_cache3 = moe_wna16_marlin_gemm(
@@ -242,7 +265,7 @@ def fused_marlin_moe(
         moe_block_size=block_size_m,
         top_k=1,
         mul_topk_weights=True,
-        is_ep=expert_map is not None,
+        is_ep=is_ep,
         b_q_type=scalar_type2,
         size_m=M * topk,
         size_n=K,
@@ -250,7 +273,7 @@ def fused_marlin_moe(
         is_k_full=is_k_full,
         use_atomic_add=use_atomic_add,
         use_fp32_reduce=True,
-        is_zp_float=False,
+        is_zp_float=w2_zeros is not None and w2_zeros.dtype != torch.int32,
     ).view(-1, topk, K)
 
     output = hidden_states if inplace else torch.empty_like(hidden_states)
@@ -261,9 +284,18 @@ def fused_marlin_moe(
         if routed_scaling_factor is None:
             routed_scaling_factor = 1.0
 
-        moe_sum_reduce(
-            intermediate_cache3,
-            output,
-            routed_scaling_factor,
-        )
+        if _has_sgl_moe_sum_reduce:
+            moe_sum_reduce(
+                intermediate_cache3,
+                output,
+                routed_scaling_factor,
+            )
+        else:
+            # SM70 (V100): sgl_kernel moe_sum_reduce op is unavailable; use the
+            # triton fallback (same kernel the TRITON MoE runner uses on SM70).
+            moe_sum_reduce_triton(
+                intermediate_cache3,
+                output,
+                routed_scaling_factor,
+            )
         return output

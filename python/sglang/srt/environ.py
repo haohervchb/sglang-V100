@@ -418,6 +418,8 @@ class Envs:
     # Flashinfer
     SGLANG_IS_FLASHINFER_AVAILABLE = EnvBool(True)
     SGLANG_FLASHINFER_USE_PAGED = EnvBool(False)
+    # Skip flashinfer norm kernels (CUTLASS-DSL uses cp.async which is sm80+ only)
+    SGLANG_DISABLE_FLASHINFER_NORM = EnvBool(False)
     # Default to the pick from flashinfer
     SGLANG_FLASHINFER_WORKSPACE_SIZE = EnvInt(384 * 1024 * 1024)
     # Enable per-token NVFP4 activation scaling path for FlashInfer TRT-LLM MoE.

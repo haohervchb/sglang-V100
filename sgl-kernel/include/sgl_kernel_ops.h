@@ -664,6 +664,7 @@ void top_k_renorm_probs(
 void top_p_renorm_probs(
     at::Tensor probs, at::Tensor renorm_probs, std::optional<at::Tensor> maybe_top_p_arr, double top_p_val);
 
+#if !defined(SGL_KERNEL_V100_ONLY)
 namespace flash {
 /*
  * From fa2 sparse
@@ -698,7 +699,7 @@ std::vector<at::Tensor> mha_varlen_fwd_sparse(
     const at::Tensor& cu_seqlens_k,         // b+1
     const c10::optional<at::Tensor>&
         seqused_k,  // b. If given, only this many elements of each batch element's keys are used.
-    const c10::optional<at::Tensor>& alibi_slopes_,  // num_heads or b x num_heads
+    const c10::optional<at::Tensor>& alibi_slopes_,  // num_heads or b+1
     int64_t max_seqlen_q,
     const int64_t max_seqlen_k,
     const double p_dropout,
@@ -709,6 +710,7 @@ std::vector<at::Tensor> mha_varlen_fwd_sparse(
     const bool return_softmax,
     c10::optional<at::Generator> gen_);
 }  // namespace flash
+#endif
 
 void convert_vertical_slash_indexes(
     torch::Tensor& block_count,      // [BATCH, N_HEADS, NUM_ROWS]

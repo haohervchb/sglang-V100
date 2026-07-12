@@ -33,7 +33,12 @@ CHUNK_SIZE = 64
     # NT_BUCKET is kept in the autotune key for forward-compatibility (allows
     # future per-bucket configs once the kernel is refactored to write final
     # state to a separate output buffer).
-    configs=[triton.Config({"BV": 32}, num_warps=4, num_stages=2)],
+    # (Hand-tuned for V100 via standalone sweep /tmp/opencode/sweep_fwd_h.py on
+    # Qwen3.6-27B GDN shapes H=12,Hg=4,K=128,V=128. BV=16/num_warps=8 is 12.6x
+    # faster than the previous BV=32/num_warps=4 — which was an H100-style
+    # default that left V100 deeply under-occupied. Single config stays safe:
+    # no autotune benchmark phase, so no in-place initial_state corruption.)
+    configs=[triton.Config({"BV": 16}, num_warps=8, num_stages=2)],
     key=["H", "K", "V", "BT", "USE_GK", "NT_BUCKET"],
     **autotune_cache_kwargs,
 )

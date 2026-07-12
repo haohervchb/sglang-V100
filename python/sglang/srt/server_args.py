@@ -178,6 +178,7 @@ ATTENTION_BACKEND_CHOICES = [
     "tokenspeed_mla",
     "trtllm_mha",
     "dual_chunk_flash_attn",
+    "flash_attn_v100",
     # AMD specific
     "aiter",
     "wave",
@@ -924,6 +925,7 @@ class ServerArgs:
         self._handle_npu_backends()
         self._handle_mps_backends()
         self._handle_xpu_backends()
+        self._handle_sm70_backends()
 
         # Allow OOT platform plugins to apply server args defaults.
         from sglang.srt.platforms import current_platform
@@ -1313,7 +1315,33 @@ class ServerArgs:
                     "XPU platform does not support piecewise CUDA graph, ignoring --disable-piecewise-cuda-graph"
                     " flag and disabling piecewise CUDA graph."
                 )
-            self.disable_piecewise_cuda_graph = True
+                self.disable_piecewise_cuda_graph = True
+
+    def _handle_sm70_backends(self):
+        # V100 (SM70): prefer the native flash_attn_v100 backend, which calls
+        # the ai-bond paged FA2 kernel directly at page_size=16 (coalesced KV
+        # reads). This avoids the page_size=1 scatter-gather that cripples V100
+        # prefill throughput, and delegates decode to the Triton backend
+        # (GooseLLM SM70 split-K tuned). No-op if the kernel is unavailable or
+        # the user explicitly chose a backend / page_size.
+        if not is_cuda():
+            return
+        if get_device_sm() != 70:
+            return
+        try:
+            import flash_attn_v100_cuda  # noqa: F401
+        except Exception:
+            return
+        if self.attention_backend is None:
+            self.attention_backend = "flash_attn_v100"
+            logger.info(
+                "SM70 (V100): auto-selecting 'flash_attn_v100' attention backend "
+                "(ai-bond paged prefill)."
+            )
+        if self.page_size is None:
+            self.page_size = 16
+            logger.info("SM70 (V100): auto-setting page_size=16.")
+
 
     def _handle_piecewise_cuda_graph(self):
         # Skip auto-disable when enforce flag is set (for testing)
@@ -2372,6 +2400,8 @@ class ServerArgs:
                     self.attention_backend = "trtllm_mha"
                 elif is_cuda() and get_device_sm() >= 80:
                     self.attention_backend = "fa3"
+                elif is_cuda() and is_flashinfer_available():
+                    self.attention_backend = "flashinfer"
                 else:
                     self.attention_backend = "triton"
 
@@ -2751,6 +2781,8 @@ class ServerArgs:
                     return "triton"
             elif is_mps():
                 return "torch_native"
+            elif is_flashinfer_available():
+                return "flashinfer"
             else:
                 return "triton"
 

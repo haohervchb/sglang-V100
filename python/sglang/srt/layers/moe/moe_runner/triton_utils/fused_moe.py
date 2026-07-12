@@ -52,9 +52,15 @@ _is_musa = is_musa()
 
 
 if _is_cuda:
-    from sgl_kernel import moe_sum_reduce
-
     from sglang.jit_kernel.activation import gelu_and_mul, silu_and_mul
+
+    _cuda_major, _ = torch.cuda.get_device_capability()
+    if _cuda_major >= 8:
+        from sgl_kernel import moe_sum_reduce
+
+        _has_sgl_moe_sum_reduce = True
+    else:
+        _has_sgl_moe_sum_reduce = False
 elif _is_cpu and _is_cpu_amx_available:
     pass
 elif _is_hip:
@@ -73,6 +79,9 @@ elif _is_musa:
     from sgl_kernel import moe_sum_reduce
 
     _silu_and_mul_musa = torch.nn.SwishGLU()
+
+# Default fallback for platforms where sgl_kernel moe_sum_reduce is unavailable (V100 SM70)
+_has_sgl_moe_sum_reduce = False
 
 # Try to import vllm_ops for non-CUDA/HIP/XPU platforms
 _has_vllm_ops = False
@@ -730,6 +739,12 @@ def _fused_moe_kernel_sequence(
             # According to micro benchmark results, torch.compile can get better performance for small token.
             if num_tokens <= 32:
                 moe_sum_reduce_torch_compile(
+                    intermediate_cache3.view(*intermediate_cache3.shape),
+                    out_hidden_states,
+                    routed_scaling_factor,
+                )
+            elif _is_cuda and not _has_sgl_moe_sum_reduce:
+                moe_sum_reduce_triton(
                     intermediate_cache3.view(*intermediate_cache3.shape),
                     out_hidden_states,
                     routed_scaling_factor,

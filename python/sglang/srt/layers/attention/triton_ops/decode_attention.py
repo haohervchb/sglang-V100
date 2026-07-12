@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 
 
 _MIN_BLOCK_KV = 32
+_BLOCK = 64  # decode-stage KV tile (module-level so V100 sweep can override)
+_BLOCK_GROUPED = 16  # grouped decode stage tile (V100: 16 matches WMMA, was 32)
+_STAGE1_WARPS = 4  # grouped decode stage1 warps
+_STAGE1_STAGES = 2  # grouped decode stage1 num_stages
+_STAGE2_WARPS = 4  # reduce (stage2) warps
+_STAGE2_STAGES = 2  # reduce (stage2) num_stages
 
 
 @triton.jit
@@ -193,7 +199,7 @@ def _decode_att_m_fwd(
     logit_cap,
     xai_temperature_len=-1,
 ):
-    BLOCK = 64
+    BLOCK = _BLOCK
     # [TODO] work around SGPR limit on MI3xx
     if _is_hip:
         BLOCK = 8
@@ -442,7 +448,7 @@ def _decode_grouped_att_m_fwd(
     has_mla=False,
     use_pdl=False,
 ):
-    BLOCK = 32
+    BLOCK = _BLOCK_GROUPED
     Lk = k_buffer.shape[-1]
     Lv = v_buffer.shape[-1]
 
@@ -473,7 +479,7 @@ def _decode_grouped_att_m_fwd(
     )
 
     extra_kargs = {}
-    num_stages = 2
+    num_stages = _STAGE1_STAGES
     if _is_hip:
         # https://rocm.docs.amd.com/en/docs-6.2.0/how-to/llm-fine-tuning-optimization/optimizing-triton-kernel.html
         # https://github.com/triton-lang/triton/blob/main/third_party/amd/backend/compiler.py
@@ -509,7 +515,7 @@ def _decode_grouped_att_m_fwd(
         MIN_BLOCK_KV=_MIN_BLOCK_KV,
         logit_cap=logit_cap,
         xai_temperature_len=xai_temperature_len,
-        num_warps=4,
+        num_warps=_STAGE1_WARPS,
         num_stages=num_stages,
         Lk=Lk,
         Lv=Lv,
@@ -640,8 +646,8 @@ def _decode_softmax_reducev_fwd(
         Lv=Lv,
         HAS_SINK=HAS_SINK,
         USE_PDL=use_pdl,
-        num_warps=4,
-        num_stages=2,
+        num_warps=_STAGE2_WARPS,
+        num_stages=_STAGE2_STAGES,
         **({"launch_pdl": True} if use_pdl else {}),
         **extra_kargs,
     )
