@@ -386,11 +386,17 @@ class FlashAttnV100Backend(AttentionBackend):
 
         k_cache, v_cache = self.token_to_kv_pool.get_kv_buffer(layer.layer_id)
         # paged_fwd requires 4D [num_blocks, block_size, num_kv_heads, head_dim].
-        # At page_size=1 the pool returns 3D [num_slots, kv_heads, head_dim]; add
-        # the (size-1) block dim so block_size=1 indexing works.
+        # SGLang's token pool is physically flat for every allocator page size,
+        # so expose its contiguous page groups as the 4D layout expected by the
+        # TileLang kernel.  Previously this only added a size-1 dimension and
+        # made the supported Mamba extra-buffer/page-16 mode fail at runtime.
         if k_cache.ndim == 3:
-            k_cache = k_cache.view(-1, 1, k_cache.shape[-2], k_cache.shape[-1])
-            v_cache = v_cache.view(-1, 1, v_cache.shape[-2], v_cache.shape[-1])
+            k_cache = k_cache.view(
+                -1, self.page_size, k_cache.shape[-2], k_cache.shape[-1]
+            )
+            v_cache = v_cache.view(
+                -1, self.page_size, v_cache.shape[-2], v_cache.shape[-1]
+            )
 
         out = torch.empty(
             num_tokens, layer.tp_q_head_num, layer.head_dim,
