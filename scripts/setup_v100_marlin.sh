@@ -68,7 +68,7 @@ export CUDAHOSTCXX
 log "CUDAHOSTCXX=$CUDAHOSTCXX"
 
 if [[ -z "${CUTLASS_DIR:-}" ]]; then
-  for cand \
+  for cand in \
     "$HOME/GooseLLM/.deps/cutlass-src" \
     "$HOME/tilelang/3rdparty/cutlass" \
     "$HOME/cutlass" ; do
@@ -84,6 +84,17 @@ log "CUTLASS_DIR=$CUTLASS_DIR"
 # --- make marlin_v100's build.sh use the active env's python --------------------
 mkdir -p "$REPO/.venv/bin"
 ln -sfn "$("$(which "$PYTHON")" -c 'import sys; print(sys.executable)')" "$REPO/.venv/bin/python"
+
+# CMake stores absolute Torch paths. If this checkout was previously built
+# from another Conda environment, discard only the stale CMake build tree so
+# the extension is actually linked against the active environment.
+ACTIVE_PREFIX="$("$PYTHON" -c 'import sys; print(sys.prefix)')"
+CMAKE_CACHE="$(find "$REPO/build" -name CMakeCache.txt -print -quit 2>/dev/null || true)"
+if [[ -n "$CMAKE_CACHE" ]] && ! grep -Fq "$ACTIVE_PREFIX" "$CMAKE_CACHE"; then
+  STALE_BUILD_DIR="$(dirname "$CMAKE_CACHE")"
+  warn "removing stale CMake cache from another Python env: $STALE_BUILD_DIR"
+  rm -rf "$STALE_BUILD_DIR"
+fi
 
 # --- build ----------------------------------------------------------------------
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"

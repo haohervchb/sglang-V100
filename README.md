@@ -55,7 +55,7 @@ if ! conda env list | awk '{print $1}' | grep -qx sglang-v100; then
   conda create -y -n sglang-v100 python=3.12 pip
 fi
 conda activate sglang-v100
-python -m pip install --upgrade pip setuptools wheel packaging
+python -m pip install --upgrade pip setuptools wheel
 
 # Install the CUDA 12.8 PyTorch build first and keep incompatible CUDA 13/
 # FlashAttention-4 wheels out of this SM70 environment.
@@ -63,32 +63,12 @@ python -m pip install \
   torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 \
   --index-url https://download.pytorch.org/whl/cu128
 
-python - <<'PY'
-import subprocess
-import sys
-import tomllib
-from pathlib import Path
-from packaging.requirements import Requirement
-
-deps = tomllib.loads(Path("python/pyproject.toml").read_text())["project"]["dependencies"]
-skip = {
-    "flash-attn-4",
-    "flashinfer-cubin",
-    "flashinfer-python",
-    "sglang-kernel",
-    "torch",
-    "torchaudio",
-    "torchvision",
-    "transformers",
-}
-deps = [dep for dep in deps if Requirement(dep).name.lower() not in skip]
-subprocess.check_call([sys.executable, "-m", "pip", "install", *deps])
-PY
-
+# Pin the transitive gRPC stack used by the tested environment, then install
+# this fork and its V100-compatible dependency set.
 python -m pip install \
-  flashinfer-python==0.6.12 flashinfer-cubin==0.6.11.post1 \
-  sglang-kernel==0.4.3 tilelang==0.1.8 transformers==5.8.1
-python -m pip install --no-deps -e ./python
+  grpcio==1.81.1 grpcio-health-checking==1.81.1 \
+  grpcio-reflection==1.81.1 protobuf==6.33.6 tilelang==0.1.8
+python -m pip install -e ./python
 
 # Marlin needs CUTLASS headers. The tested version is used here.
 if [[ ! -d "$HOME/cutlass/.git" ]]; then
