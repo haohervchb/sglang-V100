@@ -45,6 +45,60 @@ The FlashInfer package and cubin versions used by the working SM70 stack differ
 slightly, so the serving commands set `FLASHINFER_DISABLE_VERSION_CHECK=1`.
 This is expected for this fork.
 
+## Docker: copy, paste, and run
+
+The Docker image mirrors the host build: CUDA 12.8, Torch 2.9.1, the patched
+FlashInfer SM70 source, native V100 attention fallback, SM70-only
+`sglang-kernel`, V100 Marlin, and NCCL 2.27.5. BuildKit keeps every expensive
+native component in its own layer, so rerunning this exact command resumes from
+the last completed component:
+
+```bash
+cd "$HOME/sglang-V100"
+DOCKER_BUILDKIT=1 docker build --network=host \
+  -f docker/v100.Dockerfile \
+  -t sglang-v100:latest .
+```
+
+Build parallelism is selected from the CPUs and available memory visible to
+Docker. To impose a manual limit, add `--build-arg MAX_JOBS=16`.
+
+Launch the default Qwen3.5 GPTQ model on four V100s:
+
+```bash
+docker volume create sglang-v100-flashinfer
+docker volume create sglang-v100-tilelang
+
+docker run --rm --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -v sglang-v100-flashinfer:/root/.cache/flashinfer \
+  -v sglang-v100-tilelang:/root/.cache/tilelang \
+  -e HF_TOKEN="${HF_TOKEN:-}" \
+  sglang-v100:latest \
+  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --dtype float16 \
+  --quantization gptq_marlin \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.78 \
+  --context-length 262144 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 16384 \
+  --enable-nccl-nvls
+```
+
+The container validates the GPU stack and warms the FlashInfer sampler before
+starting SGLang. Its FlashInfer and TileLang caches are persistent volumes, so
+that cold JIT work survives container replacement. If the Docker Compose v2
+plugin is installed, the equivalent shorter command is:
+
+```bash
+docker compose -f docker/v100-compose.yaml up --build
+```
+
 ## Serve models
 
 Run `conda activate sglang-v100` first. Each example listens on port 8082 and

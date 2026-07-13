@@ -19,6 +19,9 @@
 #   MARLIN_V100_REF    pinned git revision (default: known-good SM70 base)
 #   CUTLASS_DIR        path to a CUTLASS checkout with include/{cute/cutlass}
 #   CUDAHOSTCXX        CUDA host compiler (default: auto-detect g++-12)
+#   MARLIN_V100_INSTALL_DIR install artifacts here instead of importing sglang
+#   MARLIN_V100_SKIP_SMOKE  set to 1 to validate in a later cached Docker layer
+#   MARLIN_V100_SKIP_BF16_COMPAT set to 1 with CUDA 12.8+ toolkit headers
 #   MAX_JOBS, NVCC_THREADS  parallelism handed to the build
 
 set -euo pipefail
@@ -42,8 +45,10 @@ MARLIN_V100_REF="${MARLIN_V100_REF:-6d72a49939701d26b15b617a4cd2423174adb2d1}"
 PATCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches"
 SM70_PATCHES=(
   "$PATCH_DIR/marlin-v100-qwen-sm70-tuning.patch"
-  "$PATCH_DIR/marlin-v100-sm70.patch"
 )
+if [[ "${MARLIN_V100_SKIP_BF16_COMPAT:-0}" != 1 ]]; then
+  SM70_PATCHES+=("$PATCH_DIR/marlin-v100-sm70.patch")
+fi
 if [[ ! -d "$REPO/.git" ]]; then
   log "cloning marlin_v100 to $REPO"
   git clone https://github.com/zhinianqin/marlin_v100.git "$REPO"
@@ -138,7 +143,11 @@ SO_MOE="$(ls "$REPO"/vllm/_moe_C*.so 2>/dev/null | head -1 || true)"
 log "built MoE extension: $SO_MOE"
 
 # --- install next to sglang's jit_kernel package --------------------------------
-PKG_DIR="$("$PYTHON" - <<'PY' || die "could not locate sglang.jit_kernel package dir."
+if [[ -n "${MARLIN_V100_INSTALL_DIR:-}" ]]; then
+  PKG_DIR="$MARLIN_V100_INSTALL_DIR"
+  mkdir -p "$PKG_DIR"
+else
+  PKG_DIR="$("$PYTHON" - <<'PY' || die "could not locate sglang.jit_kernel package dir."
 import os
 try:
     import sglang.jit_kernel as jk
@@ -147,6 +156,7 @@ except Exception as e:
 print(os.path.dirname(os.path.abspath(jk.__file__)))
 PY
 )"
+fi
 DEST="$PKG_DIR/_sm70_marlin_v100_moe.abi3.so"
 cp -f "$SO_MOE" "$DEST"
 log "installed -> $DEST"
@@ -159,13 +169,17 @@ if [[ -f "$SO_C" ]]; then
 fi
 
 # --- runtime smoke test ---------------------------------------------------------
-log "smoke test: load + op registration"
-"$PYTHON" - <<PY || die "smoke test failed; the .so did not register torch.ops._moe_C.moe_wna16_marlin_gemm."
+if [[ "${MARLIN_V100_SKIP_SMOKE:-0}" != 1 ]]; then
+  log "smoke test: load + op registration"
+  "$PYTHON" - <<PY || die "smoke test failed; the .so did not register torch.ops._moe_C.moe_wna16_marlin_gemm."
 import os, torch
 torch.ops.load_library("$DEST")
 assert hasattr(torch.ops._moe_C, "moe_wna16_marlin_gemm"), "op not registered"
 print("ok: torch.ops._moe_C.moe_wna16_marlin_gemm registered")
 PY
+else
+  log "smoke test deferred to a separate cached build layer"
+fi
 
 log "done. SGLang on SM70 will now auto-detect and use this kernel for AWQ/GPTQ MoE."
 log "tuning knobs (optional): SM70_MARLIN_MOE_CTA_GEOMETRY, SM70_MARLIN_MOE_SPLIT_K, SM70_MARLIN_MOE_METADATA_CACHE"
