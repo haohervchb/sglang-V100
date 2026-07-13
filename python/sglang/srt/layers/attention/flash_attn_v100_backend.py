@@ -1,10 +1,9 @@
 """FlashAttention-2 V100 (SM70) attention backend for sglang.
 
-Prefill (forward_extend): calls the ai-bond ``flash_attn_v100_cuda.paged_fwd``
-kernel directly through GooseLLM's ``flash_attn_v100.flash_attn_paged_forward``
-wrapper, reading the paged KV cache as ``[num_pages, page_size, num_kv_heads,
-head_dim]`` (block-major, page_size=16). This gives coalesced block reads on
-V100 instead of the page_size=1 scatter-gather that cripples prefill.
+Prefill (forward_extend): prefers the vendored TileLang FA2 kernel tuned for
+SM70 and falls back to ai-bond's ``flash_attn_v100_cuda.paged_fwd``. Both read
+the paged KV cache as ``[num_pages, page_size, num_kv_heads, head_dim]``
+(block-major, normally page_size=16), giving coalesced block reads on V100.
 
 Native prefix handling is via ``prefix_kv_lens`` — no ragged+paged+merge_state
 double-kernel, no FlattenKV, no FlashInfer wrapper ``plan()`` CPU overhead.
@@ -55,12 +54,13 @@ def _load_paged_forward():
         return _paged_forward
     _paged_forward_loaded = True
 
-    # Try vendored tilelang-fa-v100 first (preferred on SM70)
-    from sglang.srt.layers.attention.tilelang_fa_v100 import paged_forward as _tl_paged
-
+    # Try vendored tilelang-fa-v100 first (preferred on SM70).
     try:
         import tilelang  # noqa: F401
 
+        from sglang.srt.layers.attention.tilelang_fa_v100 import (
+            paged_forward as _tl_paged,
+        )
         from sglang.srt.utils.common import get_device_sm, is_cuda
 
         if is_cuda() and get_device_sm() == 70:
@@ -127,7 +127,7 @@ class FlashAttnV100ExtendMetadata:
 
 
 class FlashAttnV100Backend(AttentionBackend):
-    """V100 attention backend: ai-bond paged prefill + Triton decode."""
+    """V100 attention backend: TileLang/native paged prefill + Triton decode."""
 
     # Decode metadata is rebuilt by the triton backend from cuda-graph buffers;
     # this backend never reads seq_lens_cpu / seq_lens_sum for decode.
@@ -147,8 +147,9 @@ class FlashAttnV100Backend(AttentionBackend):
         if self.page_size != V100_PAGE_SIZE:
             logger.warning(
                 f"flash_attn_v100 backend expects page_size={V100_PAGE_SIZE}, "
-                f"got page_size={self.page_size}. Coalesced block reads require "
-                f"page_size=16."
+                f"got page_size={self.page_size}. page_size=1 is supported for "
+                "Mamba no_buffer scheduling, but page_size=16 gives coalesced "
+                "paged-prefill reads."
             )
 
         self.max_context_len = model_runner.model_config.context_len

@@ -1318,30 +1318,31 @@ class ServerArgs:
                 self.disable_piecewise_cuda_graph = True
 
     def _handle_sm70_backends(self):
-        # V100 (SM70): prefer the native flash_attn_v100 backend, which calls
-        # the ai-bond paged FA2 kernel directly at page_size=16 (coalesced KV
-        # reads). This avoids the page_size=1 scatter-gather that cripples V100
-        # prefill throughput, and delegates decode to the Triton backend
-        # (GooseLLM SM70 split-K tuned). No-op if the kernel is unavailable or
-        # the user explicitly chose a backend / page_size.
+        # V100 (SM70): prefer the vendored TileLang paged prefill backend and
+        # keep the ai-bond extension as its native fallback.  Do not gate the
+        # backend on flash_attn_v100_cuda: a lean installation can run the
+        # preferred TileLang path without importing that fallback.
         if not is_cuda():
             return
         if get_device_sm() != 70:
             return
-        try:
-            import flash_attn_v100_cuda  # noqa: F401
-        except Exception:
-            return
         if self.attention_backend is None:
+            try:
+                import tilelang  # noqa: F401
+
+                from sglang.srt.layers.attention.tilelang_fa_v100 import (  # noqa: F401
+                    paged_forward,
+                )
+            except Exception:
+                try:
+                    import flash_attn_v100_cuda  # noqa: F401
+                except Exception:
+                    return
             self.attention_backend = "flash_attn_v100"
-            logger.info(
-                "SM70 (V100): auto-selecting 'flash_attn_v100' attention backend "
-                "(ai-bond paged prefill)."
-            )
-        if self.page_size is None:
+            logger.info("SM70 (V100): auto-selecting 'flash_attn_v100'.")
+        if self.attention_backend == "flash_attn_v100" and self.page_size is None:
             self.page_size = 16
             logger.info("SM70 (V100): auto-setting page_size=16.")
-
 
     def _handle_piecewise_cuda_graph(self):
         # Skip auto-disable when enforce flag is set (for testing)

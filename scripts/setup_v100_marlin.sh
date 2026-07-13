@@ -16,7 +16,7 @@
 #
 # Knobs (env vars, all optional):
 #   MARLIN_V100_REPO   path to an existing marlin_v100 checkout (default: ~/marlin_v100)
-#   MARLIN_V100_REF    git ref to checkout when cloning (default: leave as-is)
+#   MARLIN_V100_REF    pinned git revision (default: known-good SM70 base)
 #   CUTLASS_DIR        path to a CUTLASS checkout with include/{cute/cutlass}
 #   CUDAHOSTCXX        CUDA host compiler (default: auto-detect g++-12)
 #   MAX_JOBS, NVCC_THREADS  parallelism handed to the build
@@ -38,14 +38,30 @@ log "torch=${TORCH_VER}  cuda=${CUDA_VER}"
 
 # --- locate / clone marlin_v100 -------------------------------------------------
 REPO="${MARLIN_V100_REPO:-$HOME/marlin_v100}"
+MARLIN_V100_REF="${MARLIN_V100_REF:-912eabfd5f7ef4b6e971813c0185760cde76e903}"
+SM70_PATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/marlin-v100-sm70.patch"
 if [[ ! -d "$REPO/.git" ]]; then
   log "cloning marlin_v100 to $REPO"
   git clone https://github.com/zhinianqin/marlin_v100.git "$REPO"
-  if [[ -n "${MARLIN_V100_REF:-}" ]]; then
-    git -C "$REPO" checkout "$MARLIN_V100_REF"
-  fi
+  git -C "$REPO" checkout --detach "$MARLIN_V100_REF"
 else
   log "using existing marlin_v100 at $REPO"
+  if [[ "$(git -C "$REPO" rev-parse HEAD)" != "$MARLIN_V100_REF" ]]; then
+    git -C "$REPO" diff --quiet && git -C "$REPO" diff --cached --quiet || \
+      die "$REPO has local changes on another revision; move it aside or set MARLIN_V100_REPO."
+    git -C "$REPO" fetch origin "$MARLIN_V100_REF"
+    git -C "$REPO" checkout --detach "$MARLIN_V100_REF"
+  fi
+fi
+
+[[ -f "$SM70_PATCH" ]] || die "missing SM70 compatibility patch: $SM70_PATCH"
+if git -C "$REPO" apply --reverse --check "$SM70_PATCH" >/dev/null 2>&1; then
+  log "SM70 bf16 compatibility patch is already applied"
+elif git -C "$REPO" apply --check "$SM70_PATCH"; then
+  git -C "$REPO" apply "$SM70_PATCH"
+  log "applied SM70 bf16 compatibility patch"
+else
+  die "SM70 compatibility patch does not apply cleanly to $REPO"
 fi
 
 # --- toolchain: CUDA, host compiler, CUTLASS -----------------------------------
@@ -83,7 +99,12 @@ log "CUTLASS_DIR=$CUTLASS_DIR"
 
 # --- make marlin_v100's build.sh use the active env's python --------------------
 mkdir -p "$REPO/.venv/bin"
-ln -sfn "$("$(which "$PYTHON")" -c 'import sys; print(sys.executable)')" "$REPO/.venv/bin/python"
+ACTIVE_PYTHON="$("$(which "$PYTHON")" -c 'import sys; print(sys.executable)')"
+# A symlink to a venv interpreter is not sufficient: Python discovers the
+# environment from pyvenv.cfg beside the symlink and silently falls back to the
+# system prefix. A forwarding launcher preserves both venv and Conda prefixes.
+printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$ACTIVE_PYTHON" > "$REPO/.venv/bin/python"
+chmod +x "$REPO/.venv/bin/python"
 
 # CMake stores absolute Torch paths. If this checkout was previously built
 # from another Conda environment, discard only the stale CMake build tree so
@@ -98,7 +119,7 @@ fi
 
 # --- build ----------------------------------------------------------------------
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-7.0}"
-export MAX_JOBS="${MAX_JOBS:-8}"
+export MAX_JOBS="${MAX_JOBS:-$(nproc)}"
 export NVCC_THREADS="${NVCC_THREADS:-1}"
 # keep ptxas quiet unless explicitly requested (cuts log noise massively)
 export CMAKE_ARGS="${CMAKE_ARGS:-}"

@@ -2367,6 +2367,8 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         if self._should_run_flashinfer_autotune():
             self._flashinfer_autotune()
 
+        self._warmup_sm70_flashinfer_sampling()
+
         # SM70 (V100) prefill warmup: the FlashInfer prefill kernels (paged +
         # ragged FA2 wrappers), Triton index kernels, and torch.compile'd functions
         # are all compiled lazily on first prefill call without this.  Run a
@@ -2374,14 +2376,76 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         if self.is_generation:
             major, _ = torch.cuda.get_device_capability()
             if major == 7:
-                self._warmup_prefill_kernels_extends()
+                # TileLang's paged-prefill cache key contains the request batch
+                # size.  Warm both the overwhelmingly common first-chat batch
+                # of one and the existing two-request shape before readiness.
+                for warmup_bs in (1, 2):
+                    self._warmup_prefill_kernels_extends(warmup_bs)
 
-    def _warmup_prefill_kernels_extends(self):
+    def _warmup_sm70_flashinfer_sampling(self):
+        """Build/load FlashInfer's SM70 sampling module before the first chat.
+
+        A clean FlashInfer cache takes roughly a minute to compile this module.
+        Rank zero builds it once, then the remaining TP ranks load the completed
+        artifact after the barrier instead of racing four Ninja builds.
+        """
+        if self.device != "cuda" or self.server_args.sampling_backend != "flashinfer":
+            return
+        major, _ = torch.cuda.get_device_capability()
+        if major != 7:
+            return
+
+        from flashinfer.sampling import top_k_top_p_sampling_from_probs
+
+        def run_once():
+            probs = torch.full(
+                (1, 128), 1.0 / 128, dtype=torch.float32, device=self.device
+            )
+            top_k = torch.tensor([20], dtype=torch.int32, device=self.device)
+            top_p = torch.tensor([0.8], dtype=torch.float32, device=self.device)
+            top_k_top_p_sampling_from_probs(
+                probs, top_k, top_p, filter_apply_order="joint"
+            )
+            torch.get_device_module(self.device).synchronize()
+
+        warmup_error = None
+        if self.tp_rank == 0:
+            try:
+                run_once()
+            except Exception as exc:  # propagate failure without stranding peers
+                warmup_error = exc
+        status = torch.tensor(
+            [0 if warmup_error is not None else 1],
+            dtype=torch.int32,
+            device=self.device,
+        )
+        dist.all_reduce(
+            status, op=dist.ReduceOp.MIN, group=self.tp_group.device_group
+        )
+        if not status.item():
+            raise RuntimeError(
+                "SM70 FlashInfer sampling warmup failed"
+            ) from warmup_error
+
+        if self.tp_rank != 0:
+            try:
+                run_once()
+            except Exception as exc:
+                warmup_error = exc
+        status.fill_(0 if warmup_error is not None else 1)
+        dist.all_reduce(
+            status, op=dist.ReduceOp.MIN, group=self.tp_group.device_group
+        )
+        if not status.item():
+            raise RuntimeError(
+                "SM70 FlashInfer sampling module failed to load"
+            ) from warmup_error
+
+    def _warmup_prefill_kernels_extends(self, warmup_bs: int = 1):
         """Run a single EXTEND-mode forward to warm up FlashInfer prefill kernels,
         Triton index-building kernels, and torch.compile'd functions on SM70.
         The decode-only _dummy_run doesn't compile these paths."""
 
-        warmup_bs = 2
         warmup_seq_len = 512
         num_tokens = warmup_bs * warmup_seq_len
 
