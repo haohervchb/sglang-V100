@@ -34,6 +34,13 @@ kept in this repository, verifies NCCL, and precompiles FlashInfer's sampling
 module. The last step moves its roughly minute-long cold JIT cost from the
 first chat into installation/startup.
 
+If only the final validation step fails, do not rerun the installer or rebuild
+anything. After pulling the latest changes, rerun validation directly:
+
+```bash
+bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
+```
+
 The FlashInfer package and cubin versions used by the working SM70 stack differ
 slightly, so the serving commands set `FLASHINFER_DISABLE_VERSION_CHECK=1`.
 This is expected for this fork.

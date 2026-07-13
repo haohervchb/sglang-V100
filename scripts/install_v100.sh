@@ -163,6 +163,18 @@ log "Building lean SM70-only sglang-kernel"
 # Remove the newer-GPU wheel first so pip cannot leave an orphaned common_ops
 # filename beside the locally built ABI3 module.
 python -m pip uninstall -y sglang-kernel || true
+# A prior in-place build can leave an ignored CPython .so inside the source
+# package. pip then silently bundles it beside the fresh ABI3 SM70 extension.
+find "$REPO_ROOT/sgl-kernel/python/sgl_kernel" \
+  -type f -name 'common_ops*.so' -delete
+python - <<'PY'
+import site
+from pathlib import Path
+
+for root in site.getsitepackages():
+    for artifact in (Path(root) / "sgl_kernel").glob("*/common_ops*.so"):
+        artifact.unlink()
+PY
 export CMAKE_ARGS="-DSGL_KERNEL_V100_ONLY=ON -DSGL_KERNEL_COMPILE_THREADS=$NVCC_THREADS"
 python -m pip install --no-deps --no-build-isolation "$REPO_ROOT/sgl-kernel"
 
@@ -176,50 +188,12 @@ export MARLIN_V100_REF="${MARLIN_V100_REF:-6d72a49939701d26b15b617a4cd2423174adb
 bash "$REPO_ROOT/scripts/setup_v100_marlin.sh"
 
 log "Running SM70 smoke checks and precompiling first-chat sampling"
-FLASHINFER_DISABLE_VERSION_CHECK=1 CUDA_VISIBLE_DEVICES=0 \
-  SGLANG_V100_FLASHINFER_DIR="$FLASHINFER_DIR" python - <<'PY'
-import glob
-import os
-from pathlib import Path
-
-import torch
-import flashinfer
-import flash_attn_v100_cuda
-import sgl_kernel
-import sglang
-import tilelang
-from flashinfer.sampling import top_k_top_p_sampling_from_probs
-from sglang.srt.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
-
-expected_flashinfer = Path(os.environ["SGLANG_V100_FLASHINFER_DIR"]).resolve()
-assert Path(flashinfer.__file__).resolve().is_relative_to(expected_flashinfer)
-assert torch.__version__.startswith("2.9.1")
-assert torch.version.cuda == "12.8"
-assert torch.cuda.is_available()
-assert torch.cuda.get_device_capability(0) == (7, 0)
-assert "/sm70/" in sgl_kernel.common_ops.__file__.replace("\\", "/")
-assert NCCLLibrary().ncclGetRawVersion() == 22705
-
-common_ops = glob.glob(
-    str(Path(sgl_kernel.__file__).parent / "sm70" / "common_ops*.so")
-)
-assert len(common_ops) == 1, f"stale common_ops variants remain: {common_ops}"
-
-# FlashInfer builds this native module lazily.  Paying the compilation cost now
-# prevents the first non-greedy chat request from stalling for ~90 seconds.
-probs = torch.full((1, 128), 1.0 / 128, device="cuda", dtype=torch.float32)
-top_k = torch.tensor([20], device="cuda", dtype=torch.int32)
-top_p = torch.tensor([0.8], device="cuda", dtype=torch.float32)
-top_k_top_p_sampling_from_probs(
-    probs, top_k, top_p, filter_apply_order="joint"
-)
-torch.cuda.synchronize()
-
-print("SGLang V100 environment is ready:", torch.__version__)
-print("FlashInfer SM70:", flashinfer.__file__)
-print("Native attention:", flash_attn_v100_cuda.__file__)
-print("SM70 kernel:", sgl_kernel.common_ops.__file__)
-print("NCCL:", NCCLLibrary().ncclGetVersion())
-PY
+if ! SGLANG_V100_FLASHINFER_DIR="$FLASHINFER_DIR" \
+  bash "$REPO_ROOT/scripts/smoke_v100.sh"; then
+  printf '\n[install_v100] All expensive builds completed successfully.\n' >&2
+  printf '[install_v100] Rerun only validation (no rebuild) with:\n' >&2
+  printf '  bash %q\n' "$REPO_ROOT/scripts/smoke_v100.sh" >&2
+  exit 1
+fi
 
 log "Complete. Run: conda activate sglang-v100"
