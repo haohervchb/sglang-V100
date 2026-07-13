@@ -1,0 +1,71 @@
+diff --git a/csrc/moe/marlin_moe_wna16/sm70_marlin_gemm.cuh b/csrc/moe/marlin_moe_wna16/sm70_marlin_gemm.cuh
+index 86550a9..cb75eb3 100644
+--- a/csrc/moe/marlin_moe_wna16/sm70_marlin_gemm.cuh
++++ b/csrc/moe/marlin_moe_wna16/sm70_marlin_gemm.cuh
+@@ -70,8 +70,13 @@ inline Sm70MarlinAutoParams sm70_marlin_moe_auto_params_from_env(
+ inline bool sm70_marlin_moe_try_select_quanttrio_qwen3_6_35b_a3b_awq_params(
+     Sm70MarlinMoeAutoParamsContext const& ctx,
+     Sm70MarlinAutoParams& params) {
++  // AWQ uses uint4 while symmetric GPTQ uses uint4b8.  Both formats share
++  // the same optimal CTA/split-K geometry for these model shapes; only their
++  // dequantization metadata differs.  In particular, EP exposes the full
++  // intermediate width and otherwise misses the GPTQ-only TP selector below.
+   if (ctx.quant_format == nullptr ||
+-      std::strcmp(ctx.quant_format, "uint4") != 0 ||
++      (std::strcmp(ctx.quant_format, "uint4") != 0 &&
++       std::strcmp(ctx.quant_format, "uint4b8") != 0) ||
+       ctx.group_size != 128 || ctx.size_m <= 0) {
+     return false;
+   }
+@@ -165,7 +170,8 @@ inline bool sm70_marlin_moe_try_select_quanttrio_qwen3_5_122b_a10b_awq_params(
+     Sm70MarlinMoeAutoParamsContext const& ctx,
+     Sm70MarlinAutoParams& params) {
+   if (ctx.quant_format == nullptr ||
+-      std::strcmp(ctx.quant_format, "uint4") != 0 ||
++      (std::strcmp(ctx.quant_format, "uint4") != 0 &&
++       std::strcmp(ctx.quant_format, "uint4b8") != 0) ||
+       ctx.group_size != 128 || ctx.size_m <= 0) {
+     return false;
+   }
+@@ -277,6 +283,29 @@ inline bool sm70_marlin_moe_try_select_quanttrio_qwen3_5_122b_a10b_awq_params(
+   return false;
+ }
+ 
++inline bool sm70_marlin_moe_try_select_qwen3_5_122b_a10b_gptq_int4_params(
++    Sm70MarlinMoeAutoParamsContext const& ctx,
++    Sm70MarlinAutoParams& params) {
++  // Qwen/Qwen3.5-122B-A10B-GPTQ-Int4, TP=4, batch-1 decode w13.
++  // GPTQ symmetric int4 reaches Marlin as uint4b8, so it cannot use the
++  // otherwise shape-compatible AWQ (uint4) selector above. An exhaustive
++  // SM70 env sweep measured 149.50 us with split-K 8 versus 239.10 us for
++  // the generic split-K 1 fallback on a V100-SXM2-32GB.
++  if (ctx.quant_format == nullptr ||
++      std::strcmp(ctx.quant_format, "uint4b8") != 0 ||
++      ctx.group_size != 128 || ctx.size_m != 1 ||
++      ctx.moe_block_size != 8 || ctx.top_k != 8 ||
++      ctx.size_n != 512 || ctx.size_k != 3072) {
++    return false;
++  }
++
++  params = {{32, 256, 32, 4, 32, 64, 32},
++            8,
++            true,
++            ctx.packed_macro_n};
++  return true;
++}
++
+ inline bool sm70_marlin_moe_try_select_quanttrio_minimax_m2_7_awq_params(
+     Sm70MarlinMoeAutoParamsContext const& ctx,
+     Sm70MarlinAutoParams& params) {
+@@ -2228,6 +2257,11 @@ inline Sm70MarlinAutoParams sm70_marlin_moe_auto_stage_params(
+     validate_sm70_marlin_auto_params("MoE", params);
+     return params;
+   }
++  if (sm70_marlin_moe_try_select_qwen3_5_122b_a10b_gptq_int4_params(
++          ctx, params)) {
++    validate_sm70_marlin_auto_params("MoE", params);
++    return params;
++  }
+   if (sm70_marlin_moe_try_select_quanttrio_minimax_m2_7_awq_params(
+           ctx, params)) {
+     validate_sm70_marlin_auto_params("MoE", params);

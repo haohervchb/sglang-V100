@@ -38,8 +38,12 @@ log "torch=${TORCH_VER}  cuda=${CUDA_VER}"
 
 # --- locate / clone marlin_v100 -------------------------------------------------
 REPO="${MARLIN_V100_REPO:-$HOME/marlin_v100}"
-MARLIN_V100_REF="${MARLIN_V100_REF:-912eabfd5f7ef4b6e971813c0185760cde76e903}"
-SM70_PATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/marlin-v100-sm70.patch"
+MARLIN_V100_REF="${MARLIN_V100_REF:-6d72a49939701d26b15b617a4cd2423174adb2d1}"
+PATCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches"
+SM70_PATCHES=(
+  "$PATCH_DIR/marlin-v100-qwen-sm70-tuning.patch"
+  "$PATCH_DIR/marlin-v100-sm70.patch"
+)
 if [[ ! -d "$REPO/.git" ]]; then
   log "cloning marlin_v100 to $REPO"
   git clone https://github.com/zhinianqin/marlin_v100.git "$REPO"
@@ -54,15 +58,17 @@ else
   fi
 fi
 
-[[ -f "$SM70_PATCH" ]] || die "missing SM70 compatibility patch: $SM70_PATCH"
-if git -C "$REPO" apply --reverse --check "$SM70_PATCH" >/dev/null 2>&1; then
-  log "SM70 bf16 compatibility patch is already applied"
-elif git -C "$REPO" apply --check "$SM70_PATCH"; then
-  git -C "$REPO" apply "$SM70_PATCH"
-  log "applied SM70 bf16 compatibility patch"
-else
-  die "SM70 compatibility patch does not apply cleanly to $REPO"
-fi
+for SM70_PATCH in "${SM70_PATCHES[@]}"; do
+  [[ -f "$SM70_PATCH" ]] || die "missing SM70 compatibility patch: $SM70_PATCH"
+  if git -C "$REPO" apply --reverse --check "$SM70_PATCH" >/dev/null 2>&1; then
+    log "already applied: $(basename "$SM70_PATCH")"
+  elif git -C "$REPO" apply --check "$SM70_PATCH"; then
+    git -C "$REPO" apply "$SM70_PATCH"
+    log "applied: $(basename "$SM70_PATCH")"
+  else
+    die "SM70 compatibility patch does not apply cleanly: $SM70_PATCH"
+  fi
+done
 
 # --- toolchain: CUDA, host compiler, CUTLASS -----------------------------------
 [[ -n "${CUDA_HOME:-}" ]] || CUDA_HOME="/usr/local/cuda-${CUDA_VER}"

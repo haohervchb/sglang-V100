@@ -172,7 +172,7 @@ python -m pip install --force-reinstall --no-deps nvidia-nccl-cu12==2.27.5
 
 log "Building V100 Marlin GPTQ/AWQ kernels"
 export MARLIN_V100_REPO="${MARLIN_V100_REPO:-$DEPS_ROOT/marlin-v100}"
-export MARLIN_V100_REF="${MARLIN_V100_REF:-912eabfd5f7ef4b6e971813c0185760cde76e903}"
+export MARLIN_V100_REF="${MARLIN_V100_REF:-6d72a49939701d26b15b617a4cd2423174adb2d1}"
 bash "$REPO_ROOT/scripts/setup_v100_marlin.sh"
 
 log "Running SM70 smoke checks and precompiling first-chat sampling"
