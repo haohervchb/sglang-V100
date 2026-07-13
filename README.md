@@ -55,7 +55,7 @@ if ! conda env list | awk '{print $1}' | grep -qx sglang-v100; then
   conda create -y -n sglang-v100 python=3.12 pip
 fi
 conda activate sglang-v100
-python -m pip install --upgrade pip setuptools wheel
+python -m pip install --upgrade pip setuptools wheel scikit-build-core
 
 # Install the CUDA 12.8 PyTorch build first and keep incompatible CUDA 13/
 # FlashAttention-4 wheels out of this SM70 environment.
@@ -77,23 +77,34 @@ if [[ ! -d "$HOME/cutlass/.git" ]]; then
 fi
 
 export CUDA_HOME=/usr/local/cuda-12.8
+export PATH="$CUDA_HOME/bin:$PATH"
 export CUDAHOSTCXX=/usr/bin/g++-12
 export CUTLASS_DIR="$HOME/cutlass"
 export TORCH_CUDA_ARCH_LIST=7.0
-export MAX_JOBS=8
+export MAX_JOBS="$(nproc)"
+export CMAKE_BUILD_PARALLEL_LEVEL="$MAX_JOBS"
+
+# The PyPI sglang-kernel wheel contains newer-GPU binaries. Replace it with
+# this fork's lean SM70-only build; this skips all SM80/89/90/100 targets.
+export CMAKE_ARGS="-DSGL_KERNEL_V100_ONLY=ON -DSGL_KERNEL_COMPILE_THREADS=1"
+python -m pip install --force-reinstall --no-deps --no-build-isolation ./sgl-kernel
+
 bash scripts/setup_v100_marlin.sh
 
-# Final smoke checks.
+# Final smoke checks, including the compiled kernel that serving imports.
 FLASHINFER_DISABLE_VERSION_CHECK=1 python - <<'PY'
 import torch
 import tilelang
 import sglang
+import sgl_kernel
 
 assert torch.__version__.startswith("2.9.1")
 assert torch.version.cuda == "12.8"
 assert torch.cuda.is_available()
 assert torch.cuda.get_device_capability(0) == (7, 0)
+assert "/sm70/" in sgl_kernel.common_ops.__file__.replace("\\", "/")
 print("SGLang V100 environment is ready:", torch.__version__)
+print("SM70 kernel:", sgl_kernel.common_ops.__file__)
 PY
 ```
 
@@ -126,8 +137,7 @@ python -m sglang.launch_server \
   --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 16384 \
-  --enable-profile-cuda-graph \
-  --enable-nccl-nvls
+  --enable-profile-cuda-graph
 ```
 
 ### Qwen3.5-122B-A10B AWQ
@@ -150,8 +160,7 @@ python -m sglang.launch_server \
   --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 16384 \
-  --enable-profile-cuda-graph \
-  --enable-nccl-nvls
+  --enable-profile-cuda-graph
 ```
 
 ### Qwen3.6-35B-A3B AWQ
@@ -174,8 +183,7 @@ python -m sglang.launch_server \
   --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 16384 \
-  --enable-profile-cuda-graph \
-  --enable-nccl-nvls
+  --enable-profile-cuda-graph
 ```
 
 ### Qwen3.6-27B dense FP16
@@ -197,9 +205,12 @@ python -m sglang.launch_server \
   --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 16384 \
-  --enable-profile-cuda-graph \
-  --enable-nccl-nvls
+  --enable-profile-cuda-graph
 ```
+
+`NCCL_P2P_LEVEL=NVL` selects direct NVLink peer-to-peer transport on the V100s.
+NCCL NVLS (NVLink SHARP) is a distinct newer feature, so the V100 commands do not
+use `--enable-nccl-nvls`.
 
 The first launch downloads the model from Hugging Face. For gated models,
 export `HF_TOKEN` before launching. Reduce `--context-length` or
