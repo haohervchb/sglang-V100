@@ -21,7 +21,9 @@ services:
     volumes:
       - ${HOME}/.cache/huggingface:/root/.cache/huggingface
       - sglang-v100-flashinfer:/root/.cache/flashinfer
-      - sglang-v100-tilelang:/root/.cache/tilelang
+      - sglang-v100-tilelang:/root/.tilelang
+      - sglang-v100-triton:/root/.triton
+      - sglang-v100-inductor:/tmp/torchinductor_root
     ulimits:
       memlock: -1
       stack: 67108864
@@ -60,3 +62,5 @@ services:
 volumes:
   sglang-v100-flashinfer:
   sglang-v100-tilelang:
+  sglang-v100-triton:
+  sglang-v100-inductor:

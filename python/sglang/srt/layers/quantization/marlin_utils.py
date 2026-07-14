@@ -117,8 +117,21 @@ def _sm70_marlin_v100_repack_ops():
     import torch  # noqa: F811
 
     here = os.path.dirname(os.path.abspath(__file__))
+    # setup_v100_marlin.sh installs the portable artifacts beside SGLang's
+    # JIT kernels.  The old lookup only checked this quantization source
+    # directory and ~/marlin_v100, so container images (which intentionally do
+    # not retain the full source checkout) silently fell back to SGLang's SM80+
+    # zero-output repack stub on V100.
+    jit_kernel_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(here))), "jit_kernel"
+    )
     home = os.path.expanduser("~")
-    candidates = sorted(glob.glob(os.path.join(here, "_sm70_marlin_v100_dense*.so")))
+    candidates = sorted(
+        glob.glob(os.path.join(jit_kernel_dir, "_sm70_marlin_v100_dense*.so"))
+    )
+    candidates += sorted(
+        glob.glob(os.path.join(here, "_sm70_marlin_v100_dense*.so"))
+    )
     candidates += sorted(glob.glob(os.path.join(home, "marlin_v100", "vllm", "_C*.so")))
     for path in candidates:
         try:

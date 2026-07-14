@@ -207,7 +207,7 @@ RUN chmod +x /opt/sglang/scripts/smoke_v100.sh /usr/local/bin/v100-entrypoint
 
 WORKDIR /opt/sglang
 EXPOSE 8082
-VOLUME ["/root/.cache/huggingface", "/root/.cache/flashinfer", "/root/.cache/tilelang"]
+VOLUME ["/root/.cache/huggingface", "/root/.cache/flashinfer", "/root/.tilelang", "/root/.triton", "/tmp/torchinductor_root"]
 
 ENTRYPOINT ["/usr/local/bin/v100-entrypoint"]
 CMD ["--help"]

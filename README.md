@@ -68,12 +68,16 @@ Launch the default Qwen3.5 GPTQ model on four V100s:
 ```bash
 docker volume create sglang-v100-flashinfer
 docker volume create sglang-v100-tilelang
+docker volume create sglang-v100-triton
+docker volume create sglang-v100-inductor
 
 docker run --rm --gpus all --network host --ipc host \
   --ulimit memlock=-1 --ulimit stack=67108864 \
   -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
   -v sglang-v100-flashinfer:/root/.cache/flashinfer \
-  -v sglang-v100-tilelang:/root/.cache/tilelang \
+  -v sglang-v100-tilelang:/root/.tilelang \
+  -v sglang-v100-triton:/root/.triton \
+  -v sglang-v100-inductor:/tmp/torchinductor_root \
   -e HF_TOKEN="${HF_TOKEN:-}" \
   sglang-v100:latest \
   --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
@@ -90,10 +94,11 @@ docker run --rm --gpus all --network host --ipc host \
   --enable-nccl-nvls
 ```
 
-The container validates the GPU stack and warms the FlashInfer sampler before
-starting SGLang. Its FlashInfer and TileLang caches are persistent volumes, so
-that cold JIT work survives container replacement. If the Docker Compose v2
-plugin is installed, the equivalent shorter command is:
+The container validates the GPU stack, verifies the real SM70 Marlin repack,
+and warms the FlashInfer sampler before starting SGLang. Its FlashInfer,
+TileLang, Triton, and TorchInductor caches are persistent volumes, so cold JIT
+work survives container replacement. If the Docker Compose v2 plugin is
+installed, the equivalent shorter command is:
 
 ```bash
 docker compose -f docker/v100-compose.yaml up --build

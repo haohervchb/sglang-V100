@@ -33,6 +33,9 @@ import flash_attn_v100_cuda
 import sgl_kernel
 from flashinfer.sampling import top_k_top_p_sampling_from_probs
 from sglang.srt.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
+from sglang.srt.layers.quantization.marlin_utils import (
+    _sm70_marlin_v100_repack_ops,
+)
 
 expected = os.environ.get("SGLANG_V100_FLASHINFER_DIR")
 sampling_path = Path(flashinfer_sampling.__file__).resolve()
@@ -48,6 +51,12 @@ assert torch.cuda.is_available()
 assert torch.cuda.get_device_capability(0) == (7, 0)
 assert "/sm70/" in sgl_kernel.common_ops.__file__.replace("\\", "/")
 assert NCCLLibrary().ncclGetRawVersion() == 22705
+gptq_repack, awq_repack = _sm70_marlin_v100_repack_ops()
+assert gptq_repack is not None, (
+    "marlin_v100 GPTQ repack is missing; the stock SM70 repack silently "
+    "produces zero weights"
+)
+assert awq_repack is not None, "marlin_v100 AWQ repack is missing"
 
 loaded_common_ops = Path(sgl_kernel.common_ops.__file__).resolve()
 assert loaded_common_ops.name == "common_ops.abi3.so", loaded_common_ops
@@ -78,5 +87,6 @@ print("SGLang V100 environment is ready:", torch.__version__)
 print("FlashInfer SM70 sampling:", sampling_path)
 print("Native attention:", flash_attn_v100_cuda.__file__)
 print("SM70 kernel:", sgl_kernel.common_ops.__file__)
+print("SM70 Marlin repack: registered")
 print("NCCL:", NCCLLibrary().ncclGetVersion())
 PY
