@@ -7,6 +7,7 @@ import torch
 from sglang.srt.arg_groups.speculative_hook import _handle_dflash, _handle_eagle_family
 from sglang.srt.layers.attention.flash_attn_v100_backend import (
     FlashAttnV100Backend,
+    _get_native_paged_attention_params,
     _should_skip_triton_prefill,
 )
 from sglang.srt.layers.radix_attention import AttentionType
@@ -145,8 +146,31 @@ def test_mtp_maps_flash_attn_v100_to_triton(kind):
     assert result is sentinel
 
 
-def test_dflash_uses_triton_draft_attention_on_v100():
-    assert _resolve_dflash_draft_attention_backend("flash_attn_v100") == "triton"
+def test_dflash_uses_native_draft_attention_on_v100():
+    assert (
+        _resolve_dflash_draft_attention_backend("flash_attn_v100")
+        == "flash_attn_v100"
+    )
+
+
+@pytest.mark.parametrize(
+    ("attn_type", "window", "expected"),
+    [
+        (AttentionType.DECODER, 2047, (True, 2047)),
+        (AttentionType.DECODER, -1, (True, -1)),
+        (AttentionType.ENCODER_ONLY, -1, (False, -1)),
+    ],
+)
+def test_v100_native_attention_uses_per_layer_dflash_mask(
+    attn_type, window, expected
+):
+    layer = SimpleNamespace(
+        is_cross_attention=False,
+        attn_type=attn_type,
+        sliding_window_size=window,
+    )
+
+    assert _get_native_paged_attention_params(layer, True) == expected
 
 
 def test_dflash_v100_triton_verify_skips_redundant_custom_mask():
@@ -276,7 +300,7 @@ def test_v100_mtp_linear_verify_builds_native_causal_metadata():
     backend._triton.init_forward_metadata.assert_not_called()
 
 
-def test_v100_dflash_verify_metadata_delegates_to_triton():
+def test_v100_dflash_verify_builds_native_causal_metadata():
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend.model_runner = SimpleNamespace(
         spec_algorithm=SimpleNamespace(
@@ -286,12 +310,25 @@ def test_v100_dflash_verify_metadata_delegates_to_triton():
         server_args=SimpleNamespace(speculative_eagle_topk=1),
     )
     backend._triton = Mock()
-    forward_batch = SimpleNamespace(forward_mode=_ForwardMode(target_verify=True))
+    backend._build_extend_metadata = Mock(return_value="native-metadata")
+    prefix_lens = torch.tensor([9000], dtype=torch.int32)
+    forward_batch = SimpleNamespace(
+        forward_mode=_ForwardMode(target_verify=True),
+        req_pool_indices="req-pool-indices",
+        seq_lens=prefix_lens,
+        spec_info=SimpleNamespace(draft_token_num=16),
+    )
 
     backend.init_forward_metadata(forward_batch)
 
-    backend._triton.init_forward_metadata.assert_called_once_with(forward_batch)
-    assert backend.forward_metadata is None
+    args = backend._build_extend_metadata.call_args.args
+    assert args[0] == "req-pool-indices"
+    assert args[1].tolist() == [9016]
+    assert args[2].tolist() == [16]
+    assert args[3] is prefix_lens
+    assert backend._build_extend_metadata.call_args.kwargs == {"causal": True}
+    assert backend.forward_metadata == "native-metadata"
+    backend._triton.init_forward_metadata.assert_not_called()
 
 
 def test_v100_spec_v2_metadata_delegates_to_triton():

@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", message="Field.*duplicates an ancestor field")
 def paged_forward(q, k_cache, v_cache, block_table, seq_lens,
                   query_start_loc, prefix_kv_lens, out=None,
                   block_size=16, num_kv_heads=None, softmax_scale=None,
-                  causal=True):
+                  causal=True, sliding_window_size=-1):
     num_tokens, num_heads, D = q.shape
     heads_kv = num_kv_heads or k_cache.shape[2]
     B = block_table.shape[0]
@@ -31,6 +31,7 @@ def paged_forward(q, k_cache, v_cache, block_table, seq_lens,
         batch=B, heads=num_heads, heads_kv=heads_kv, dim=D,
         block_size=block_size, num_pages=num_blocks,
         max_blocks=max_blocks, causal=causal,
+        sliding_window_size=sliding_window_size,
     )
 
     # Pass 4D cache directly + block_table as page indices

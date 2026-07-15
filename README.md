@@ -236,8 +236,11 @@ To pair the dense Qwen3.6-27B target with its DFlash draft, add:
   --mamba-scheduler-strategy extra_buffer
 ```
 
-On V100, DFlash draft attention (causal SWA plus the final bidirectional layer),
-DFlash target verification, and MTP draft extension automatically use Triton.
+On V100, DFlash draft attention and linear target verification automatically
+use the native SM70 paged-attention kernel. The kernel applies each draft
+layer's causal sliding window or bidirectional full-attention semantics. MTP
+draft extension uses Triton, while its linear target verification uses the
+native SM70 kernel.
 Top-k-1 MTP target verification uses the native TileLang paged-prefill kernel;
 tree verification continues to use Triton's custom-mask path. Ordinary target
 prefill remains on `flash_attn_v100`. Block size 16 is the low-concurrency

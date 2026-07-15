@@ -53,14 +53,13 @@ def _resolve_dflash_draft_attention_backend(draft_backend: Optional[str]) -> str
         return "triton" if torch.version.hip else "flashinfer"
 
     if draft_backend == "flash_attn_v100":
-        # Qwen3.6 DFlash interleaves causal SWA and bidirectional full-attention
-        # layers. The V100 paged-prefill kernel is causal-only, while Triton
-        # selects causality and the window from each RadixAttention layer.
+        # The native SM70 path selects causality and the left window from each
+        # RadixAttention layer. This is important for Qwen3.6 DFlash, whose
+        # draft interleaves causal SWA and bidirectional full attention.
         logger.info(
-            "DFLASH draft worker is using 'triton' for per-layer draft "
-            "attention with the 'flash_attn_v100' target backend."
+            "DFLASH draft worker is using native per-layer SM70 attention."
         )
-        return "triton"
+        return "flash_attn_v100"
 
     if draft_backend == "trtllm_mha":
         fallback = "triton" if torch.version.hip else "flashinfer"

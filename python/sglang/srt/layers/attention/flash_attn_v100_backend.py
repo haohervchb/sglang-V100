@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Optional
 import torch
 
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
+from sglang.srt.layers.radix_attention import AttentionType
 
 if TYPE_CHECKING:
     from sglang.srt.layers.radix_attention import RadixAttention
@@ -48,6 +49,23 @@ _use_tilelang = None  # None = unset, True/False = cached
 def _should_skip_triton_prefill(model_runner: "ModelRunner") -> bool:
     """Keep baseline decode lean while allocating metadata needed by spec verify."""
     return not model_runner.spec_algorithm.is_speculative()
+
+
+def _get_native_paged_attention_params(
+    layer: "RadixAttention", default_causal: bool
+) -> tuple[bool, int]:
+    """Resolve the per-layer mask used by the native paged extend kernel."""
+    causal = default_causal and not (
+        layer.is_cross_attention or layer.attn_type == AttentionType.ENCODER_ONLY
+    )
+    sliding_window_size = (
+        int(layer.sliding_window_size)
+        if causal
+        and layer.sliding_window_size is not None
+        and layer.sliding_window_size >= 0
+        else -1
+    )
+    return causal, sliding_window_size
 
 
 def _load_paged_forward():
@@ -191,10 +209,7 @@ class FlashAttnV100Backend(AttentionBackend):
         if not forward_mode.is_target_verify():
             return False
         spec_algorithm = self.model_runner.spec_algorithm
-        # DFlash block-16 verification stays on Triton.  The native SM70
-        # paged-prefill path produces incorrect states when a rolling batch is
-        # CUDA-graph padded after requests finish and replacements are merged.
-        return (
+        return spec_algorithm.is_dflash() or (
             spec_algorithm.is_eagle()
             and self.model_runner.server_args.speculative_eagle_topk <= 1
         )
@@ -492,10 +507,9 @@ class FlashAttnV100Backend(AttentionBackend):
             forward_batch.forward_mode.is_target_verify()
             and not self._uses_native_linear_verify(forward_batch.forward_mode)
         ) or forward_batch.forward_mode.is_draft_extend(include_v2=True):
-            # Tree verification needs Triton's custom mask; draft extend may
-            # be non-causal. DFlash also stays here because rolling block-16
-            # verification is not safe on the native SM70 paged-prefill path.
-            # Top-k=1 MTP remains on the native V100 path.
+            # Tree verification needs Triton's custom mask. DRAFT_EXTEND may
+            # also carry a non-linear mask; linear DFlash and top-k=1 MTP
+            # TARGET_VERIFY use the native SM70 path below.
             return self._triton.forward_extend(
                 q,
                 k,
@@ -518,7 +532,12 @@ class FlashAttnV100Backend(AttentionBackend):
 
         md = self.forward_metadata
         num_tokens = q.shape[0]
-        q3 = q.reshape(num_tokens, layer.tp_q_head_num, layer.head_dim)
+        # DFlash's fused QKV projection can return Q as a strided view of the
+        # wider projection buffer. TileLang specializes tensor strides, so
+        # pack the small extend/verify block before entering the kernel.
+        q3 = q.reshape(
+            num_tokens, layer.tp_q_head_num, layer.head_dim
+        ).contiguous()
 
         k_cache, v_cache = self.token_to_kv_pool.get_kv_buffer(layer.layer_id)
         # paged_fwd requires 4D [num_blocks, block_size, num_kv_heads, head_dim].
@@ -540,6 +559,9 @@ class FlashAttnV100Backend(AttentionBackend):
         )
 
         paged_forward = _load_paged_forward()
+        causal, sliding_window_size = _get_native_paged_attention_params(
+            layer, md.causal
+        )
         paged_forward(
             q3,
             k_cache,
@@ -551,7 +573,8 @@ class FlashAttnV100Backend(AttentionBackend):
             out=out,
             block_size=self.page_size,
             softmax_scale=layer.scaling,
-            causal=md.causal,
+            causal=causal,
+            sliding_window_size=sliding_window_size,
             num_kv_heads=layer.tp_k_head_num,
         )
         return out.reshape(num_tokens, layer.tp_q_head_num * layer.head_dim)
