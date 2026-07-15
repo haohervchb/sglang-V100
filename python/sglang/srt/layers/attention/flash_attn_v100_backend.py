@@ -45,6 +45,11 @@ _paged_forward_loaded = False
 _use_tilelang = None  # None = unset, True/False = cached
 
 
+def _should_skip_triton_prefill(model_runner: "ModelRunner") -> bool:
+    """Keep baseline decode lean while allocating metadata needed by spec verify."""
+    return not model_runner.spec_algorithm.is_speculative()
+
+
 def _load_paged_forward():
     """Lazy-load the paged forward kernel. Prefers the vendored tilelang-fa-v100
     on SM70 (from GooseLLM, tuned for V100); falls back to the ai-bond kernel
@@ -163,9 +168,13 @@ class FlashAttnV100Backend(AttentionBackend):
         _load_paged_forward()
 
         # Decode is delegated to the Triton backend (GooseLLM SM70 split-K
-        # tuning already lives there). skip_prefill=True so it does not build
-        # prefill cuda-graph buffers we will not use.
-        self._triton = TritonAttnBackend(model_runner, skip_prefill=True)
+        # tuning already lives there). Speculative target verification also
+        # delegates its extend pass, so it needs Triton's qo/mask indptr
+        # buffers; ordinary decoding can retain the lean decode-only setup.
+        self._triton = TritonAttnBackend(
+            model_runner,
+            skip_prefill=_should_skip_triton_prefill(model_runner),
+        )
 
         self.forward_metadata: Optional[FlashAttnV100ExtendMetadata] = None
         # Buffers for piecewise cuda-graph capture of extend.
@@ -178,6 +187,15 @@ class FlashAttnV100Backend(AttentionBackend):
     # ------------------------------------------------------------------
     # Metadata construction
     # ------------------------------------------------------------------
+    def _uses_native_linear_verify(self, forward_mode) -> bool:
+        if not forward_mode.is_target_verify():
+            return False
+        spec_algorithm = self.model_runner.spec_algorithm
+        return spec_algorithm.is_dflash() or (
+            spec_algorithm.is_eagle()
+            and self.model_runner.server_args.speculative_eagle_topk <= 1
+        )
+
     def _build_extend_metadata(
         self,
         req_pool_indices: torch.Tensor,
@@ -230,20 +248,30 @@ class FlashAttnV100Backend(AttentionBackend):
         mode = forward_batch.forward_mode
         if (
             mode.is_decode_or_idle()
-            or mode.is_target_verify()
             or mode.is_draft_extend(include_v2=True)
+            or (mode.is_target_verify() and not self._uses_native_linear_verify(mode))
         ):
             # Decode / spec paths run on the Triton backend.
             self._triton.init_forward_metadata(forward_batch)
             self.forward_metadata = None
             return
 
+        if self._uses_native_linear_verify(mode):
+            prefix_lens = forward_batch.seq_lens
+            draft_token_num = int(forward_batch.spec_info.draft_token_num)
+            extend_seq_lens = torch.full_like(prefix_lens, draft_token_num)
+            seq_lens = prefix_lens + draft_token_num
+        else:
+            prefix_lens = forward_batch.extend_prefix_lens
+            extend_seq_lens = forward_batch.extend_seq_lens
+            seq_lens = forward_batch.seq_lens
+
         causal = True
         md = self._build_extend_metadata(
             forward_batch.req_pool_indices,
-            forward_batch.seq_lens,
-            forward_batch.extend_seq_lens,
-            forward_batch.extend_prefix_lens,
+            seq_lens,
+            extend_seq_lens,
+            prefix_lens,
             causal=causal,
         )
         self.forward_metadata = md
@@ -285,8 +313,11 @@ class FlashAttnV100Backend(AttentionBackend):
     ):
         if (
             forward_mode.is_decode_or_idle()
-            or forward_mode.is_target_verify()
             or forward_mode.is_draft_extend(include_v2=True)
+            or (
+                forward_mode.is_target_verify()
+                and not self._uses_native_linear_verify(forward_mode)
+            )
         ):
             return self._triton.init_forward_metadata_capture_cuda_graph(
                 bs,
@@ -297,6 +328,14 @@ class FlashAttnV100Backend(AttentionBackend):
                 forward_mode,
                 spec_info,
             )
+        if self._uses_native_linear_verify(forward_mode):
+            self._set_linear_verify_cuda_graph_metadata(
+                bs,
+                req_pool_indices,
+                seq_lens,
+                int(spec_info.draft_token_num),
+            )
+            return
         # Extend capture: metadata buffers are filled at replay time.
         self.forward_metadata = FlashAttnV100ExtendMetadata(
             page_table=self._cg_page_table[:bs],
@@ -319,8 +358,11 @@ class FlashAttnV100Backend(AttentionBackend):
     ):
         if (
             forward_mode.is_decode_or_idle()
-            or forward_mode.is_target_verify()
             or forward_mode.is_draft_extend(include_v2=True)
+            or (
+                forward_mode.is_target_verify()
+                and not self._uses_native_linear_verify(forward_mode)
+            )
         ):
             return self._triton.init_forward_metadata_replay_cuda_graph(
                 bs,
@@ -332,6 +374,14 @@ class FlashAttnV100Backend(AttentionBackend):
                 spec_info,
                 seq_lens_cpu,
             )
+        if self._uses_native_linear_verify(forward_mode):
+            self._set_linear_verify_cuda_graph_metadata(
+                bs,
+                req_pool_indices,
+                seq_lens,
+                int(spec_info.draft_token_num),
+            )
+            return
 
         # Extend replay: refresh page table + seq metadata from the new batch.
         seq_lens_b = seq_lens[:bs].to(torch.int32)
@@ -353,12 +403,52 @@ class FlashAttnV100Backend(AttentionBackend):
         self._cg_query_start_loc[1 : bs + 1] = torch.cumsum(seq_lens_b, dim=0)
         self._cg_prefix_kv_lens[:bs].zero_()
 
+    def _set_linear_verify_cuda_graph_metadata(
+        self,
+        bs: int,
+        req_pool_indices: torch.Tensor,
+        prefix_lens: torch.Tensor,
+        draft_token_num: int,
+    ):
+        """Refresh fixed buffers for a top-k=1 linear causal verify block."""
+        prefix_lens_b = prefix_lens[:bs].to(torch.int32)
+        seq_lens_b = prefix_lens_b + draft_token_num
+        max_len = int(seq_lens_b.max().item()) if bs > 0 else 0
+        max_pages = (max_len + self.page_size - 1) // self.page_size
+        if max_pages > 0:
+            token_indices = self.req_to_token[
+                req_pool_indices[:bs, None],
+                self._cg_strided[:max_pages][None, :],
+            ]
+            self._cg_page_table[:bs, :max_pages].copy_(
+                (token_indices // self.page_size).to(torch.int32)
+            )
+        self._cg_seq_lens[:bs].copy_(seq_lens_b)
+        self._cg_query_start_loc[: bs + 1].copy_(
+            torch.arange(
+                0,
+                (bs + 1) * draft_token_num,
+                step=draft_token_num,
+                dtype=torch.int32,
+                device=self.device,
+            )
+        )
+        self._cg_prefix_kv_lens[:bs].copy_(prefix_lens_b)
+        self.forward_metadata = FlashAttnV100ExtendMetadata(
+            page_table=self._cg_page_table[:bs],
+            seq_lens=self._cg_seq_lens[:bs],
+            query_start_loc=self._cg_query_start_loc[: bs + 1],
+            prefix_kv_lens=self._cg_prefix_kv_lens[:bs],
+            causal=True,
+        )
+
     def get_cuda_graph_seq_len_fill_value(self):
         return 1
 
     def get_verify_buffers_to_fill_after_draft(self):
-        # Speculative verify is implemented by the delegated Triton backend, so
-        # CUDA-graph callers must fill the Triton mask buffers as well.
+        # Tree verification uses these Triton buffers. Linear verification does
+        # not consume the custom mask, but EAGLE's shared tree builder may still
+        # fill it while constructing the acceptance metadata.
         return self._triton.get_verify_buffers_to_fill_after_draft()
 
     def update_verify_buffers_to_fill_after_draft(
@@ -395,12 +485,13 @@ class FlashAttnV100Backend(AttentionBackend):
         save_kv_cache: bool = True,
         **kwargs,
     ):
-        if forward_batch.forward_mode.is_target_verify() or (
-            forward_batch.forward_mode.is_draft_extend(include_v2=True)
-        ):
-            # MTP and DFlash prepare Triton metadata (including their custom
-            # verification masks) for speculative extend/verify forwards.  The
-            # V100 paged-prefill kernel only implements ordinary causal extend.
+        if (
+            forward_batch.forward_mode.is_target_verify()
+            and not self._uses_native_linear_verify(forward_batch.forward_mode)
+        ) or forward_batch.forward_mode.is_draft_extend(include_v2=True):
+            # Tree verification needs Triton's custom mask; draft extend may
+            # be non-causal. Top-k=1 MTP and DFlash verification are linear
+            # causal blocks and use the native V100 paged-prefill path.
             return self._triton.forward_extend(
                 q,
                 k,

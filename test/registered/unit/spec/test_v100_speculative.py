@@ -2,10 +2,12 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import torch
 
 from sglang.srt.arg_groups.speculative_hook import _handle_dflash, _handle_eagle_family
 from sglang.srt.layers.attention.flash_attn_v100_backend import (
     FlashAttnV100Backend,
+    _should_skip_triton_prefill,
 )
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
 from sglang.srt.models.dflash import (
@@ -17,6 +19,7 @@ from sglang.srt.models.qwen3_5_mtp import _is_mtp_dynamically_unquantized
 from sglang.srt.speculative.dflash_worker import (
     _resolve_dflash_draft_attention_backend,
 )
+from sglang.srt.speculative.dflash_utils import resolve_dflash_verify_mask_policy
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
 
 
@@ -27,6 +30,9 @@ class _ForwardMode:
 
     def is_target_verify(self):
         return self._target_verify
+
+    def is_decode_or_idle(self):
+        return False
 
     def is_draft_extend(self, include_v2=False):
         return self._draft_extend
@@ -140,6 +146,15 @@ def test_dflash_uses_triton_draft_attention_on_v100():
     assert _resolve_dflash_draft_attention_backend("flash_attn_v100") == "triton"
 
 
+def test_dflash_uses_native_v100_causal_target_verify():
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+
+    assert resolve_dflash_verify_mask_policy(backend) == (
+        "FlashAttnV100Backend",
+        False,
+    )
+
+
 def test_dflash_reads_transformers_v5_rope_parameters():
     config = SimpleNamespace(
         rope_theta=None,
@@ -168,9 +183,30 @@ def test_dflash_interleaved_sliding_window_layers():
     assert _resolve_dflash_sliding_window(config, 2) == -1
 
 
+@pytest.mark.parametrize(
+    ("is_speculative", "expected_skip_prefill"),
+    [(False, True), (True, False)],
+)
+def test_v100_triton_allocates_prefill_metadata_for_speculation(
+    is_speculative, expected_skip_prefill
+):
+    model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(is_speculative=lambda: is_speculative)
+    )
+
+    assert _should_skip_triton_prefill(model_runner) is expected_skip_prefill
+
+
 @pytest.mark.parametrize("mode", ["target_verify", "draft_extend"])
 def test_v100_speculative_extend_delegates_to_triton(mode):
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(
+            is_dflash=lambda: False,
+            is_eagle=lambda: False,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
     backend._triton = Mock()
     backend._triton.forward_extend.return_value = "triton-output"
     forward_batch = SimpleNamespace(
@@ -198,6 +234,41 @@ def test_v100_speculative_extend_delegates_to_triton(mode):
         forward_batch,
         save_kv_cache=False,
     )
+
+
+@pytest.mark.parametrize(
+    ("is_dflash", "is_eagle"),
+    [(True, False), (False, True)],
+)
+def test_v100_linear_verify_builds_native_causal_metadata(is_dflash, is_eagle):
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(
+            is_dflash=lambda: is_dflash,
+            is_eagle=lambda: is_eagle,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
+    backend._triton = Mock()
+    backend._build_extend_metadata = Mock(return_value="native-metadata")
+    prefix_lens = torch.tensor([17, 33], dtype=torch.int32)
+    forward_batch = SimpleNamespace(
+        forward_mode=_ForwardMode(target_verify=True),
+        req_pool_indices="req-pool-indices",
+        seq_lens=prefix_lens,
+        spec_info=SimpleNamespace(draft_token_num=8),
+    )
+
+    backend.init_forward_metadata(forward_batch)
+
+    args = backend._build_extend_metadata.call_args.args
+    assert args[0] == "req-pool-indices"
+    assert args[1].tolist() == [25, 41]
+    assert args[2].tolist() == [8, 8]
+    assert args[3] is prefix_lens
+    assert backend._build_extend_metadata.call_args.kwargs == {"causal": True}
+    assert backend.forward_metadata == "native-metadata"
+    backend._triton.init_forward_metadata.assert_not_called()
 
 
 def test_v100_spec_v2_metadata_delegates_to_triton():

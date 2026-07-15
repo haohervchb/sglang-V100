@@ -1517,7 +1517,7 @@ def get_num_kv_splits_triton(
     num_kv_head,
     max_kv_splits,
     device_core_count,
-    sm70_min_split_tile,
+    sm70_min_split_tile: tl.constexpr,
     MAX_NUM_SEQ: tl.constexpr,
 ):
     # TODO: this method is tunable, we need more online serving data to tune it

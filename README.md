@@ -236,12 +236,13 @@ To pair the dense Qwen3.6-27B target with its DFlash draft, add:
   --mamba-scheduler-strategy extra_buffer
 ```
 
-On V100, the DFlash draft and speculative verification paths automatically use
-the Triton attention implementation required for bidirectional draft blocks;
-ordinary target prefill continues to use `flash_attn_v100`. Block size 16 is
-the low-concurrency starting point. Try block size 8 for the 122B draft when
-serving more concurrent requests and compare acceptance rate and inter-token
-latency on the actual workload.
+On V100, non-causal DFlash draft attention and MTP draft extension automatically
+use Triton. Linear target verification for DFlash and top-k-1 MTP uses the
+native TileLang paged-prefill kernel; tree verification continues to use
+Triton's custom-mask path. Ordinary target prefill remains on
+`flash_attn_v100`. Block size 16 is the low-concurrency starting point. Try
+block size 8 for the 122B draft when serving more concurrent requests and
+compare acceptance rate and inter-token latency on the actual workload.
 
 The first launch downloads the model from Hugging Face. For gated models,
 export `HF_TOKEN` before launching. Reduce `--context-length` or
