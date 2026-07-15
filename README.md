@@ -247,38 +247,28 @@ compare acceptance rate and inter-token latency on the actual workload.
 ### Validated 4x V100 serving commands
 
 The following commands are the configurations used for end-to-end validation
-on four V100-SXM2-32GB GPUs. Run one server at a time. The conservative
+on four V100-SXM2-32GB GPUs. Like the examples above, each command includes its
+runtime environment variables inline and listens on port 8082. The conservative
 `--mem-fraction-static 0.70` leaves room for the speculative draft weights and
 CUDA graph capture.
-
-Set up the shell environment first:
-
-```bash
-cd /home/rah/sglang-V100
-
-source /home/rah/miniconda3/etc/profile.d/conda.sh
-conda activate sglang-v100
-
-export PYTHONPATH="$PWD/python"
-export FLASHINFER_DISABLE_VERSION_CHECK=1
-export NCCL_P2P_LEVEL=NVL
-export SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage
-export SGLANG_MAMBA_CONV_DTYPE=float16
-export SGLANG_MAMBA_SSM_DTYPE=float16
-export SGLANG_ENABLE_SPEC_V2=1
-```
 
 Qwen3.5-122B-A10B GPTQ-Int4 with its built-in MTP layer:
 
 ```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
-  --model-path Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
   --dtype float16 \
   --quantization gptq_marlin \
   --attention-backend flash_attn_v100 \
-  --tp 4 \
+  --tensor-parallel-size 4 \
   --host 0.0.0.0 \
-  --port 30000 \
+  --port 8082 \
   --mem-fraction-static 0.70 \
   --context-length 8192 \
   --max-running-requests 4 \
@@ -296,14 +286,20 @@ sglang serve \
 Qwen3.5-122B-A10B GPTQ-Int4 with DFlash:
 
 ```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
-  --model-path Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
   --dtype float16 \
   --quantization gptq_marlin \
   --attention-backend flash_attn_v100 \
-  --tp 4 \
+  --tensor-parallel-size 4 \
   --host 0.0.0.0 \
-  --port 30000 \
+  --port 8082 \
   --mem-fraction-static 0.70 \
   --context-length 8192 \
   --max-running-requests 4 \
@@ -320,13 +316,19 @@ sglang serve \
 Qwen3.6-27B dense FP16 with its built-in MTP layer:
 
 ```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
-  --model-path Qwen/Qwen3.6-27B \
+  --model Qwen/Qwen3.6-27B \
   --dtype float16 \
   --attention-backend flash_attn_v100 \
-  --tp 4 \
+  --tensor-parallel-size 4 \
   --host 0.0.0.0 \
-  --port 30000 \
+  --port 8082 \
   --mem-fraction-static 0.70 \
   --context-length 8192 \
   --max-running-requests 4 \
@@ -344,13 +346,19 @@ sglang serve \
 Qwen3.6-27B dense FP16 with DFlash:
 
 ```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
-  --model-path Qwen/Qwen3.6-27B \
+  --model Qwen/Qwen3.6-27B \
   --dtype float16 \
   --attention-backend flash_attn_v100 \
-  --tp 4 \
+  --tensor-parallel-size 4 \
   --host 0.0.0.0 \
-  --port 30000 \
+  --port 8082 \
   --mem-fraction-static 0.70 \
   --context-length 8192 \
   --max-running-requests 4 \
