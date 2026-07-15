@@ -191,7 +191,10 @@ class FlashAttnV100Backend(AttentionBackend):
         if not forward_mode.is_target_verify():
             return False
         spec_algorithm = self.model_runner.spec_algorithm
-        return spec_algorithm.is_dflash() or (
+        # DFlash block-16 verification stays on Triton.  The native SM70
+        # paged-prefill path produces incorrect states when a rolling batch is
+        # CUDA-graph padded after requests finish and replacements are merged.
+        return (
             spec_algorithm.is_eagle()
             and self.model_runner.server_args.speculative_eagle_topk <= 1
         )
@@ -490,8 +493,9 @@ class FlashAttnV100Backend(AttentionBackend):
             and not self._uses_native_linear_verify(forward_batch.forward_mode)
         ) or forward_batch.forward_mode.is_draft_extend(include_v2=True):
             # Tree verification needs Triton's custom mask; draft extend may
-            # be non-causal. Top-k=1 MTP and DFlash verification are linear
-            # causal blocks and use the native V100 paged-prefill path.
+            # be non-causal. DFlash also stays here because rolling block-16
+            # verification is not safe on the native SM70 paged-prefill path.
+            # Top-k=1 MTP remains on the native V100 path.
             return self._triton.forward_extend(
                 q,
                 k,

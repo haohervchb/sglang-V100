@@ -9,17 +9,20 @@ from sglang.srt.layers.attention.flash_attn_v100_backend import (
     FlashAttnV100Backend,
     _should_skip_triton_prefill,
 )
+from sglang.srt.layers.radix_attention import AttentionType
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
 from sglang.srt.models.dflash import (
-    _resolve_dflash_model_sliding_window,
+    _get_dflash_layer_attention_params,
     _resolve_dflash_rope_config,
-    _resolve_dflash_sliding_window,
 )
 from sglang.srt.models.qwen3_5_mtp import _is_mtp_dynamically_unquantized
 from sglang.srt.speculative.dflash_worker import (
     _resolve_dflash_draft_attention_backend,
 )
-from sglang.srt.speculative.dflash_utils import resolve_dflash_verify_mask_policy
+from sglang.srt.speculative.dflash_utils import (
+    get_dflash_attention_sliding_window_size,
+    resolve_dflash_verify_mask_policy,
+)
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
 
 
@@ -146,7 +149,7 @@ def test_dflash_uses_triton_draft_attention_on_v100():
     assert _resolve_dflash_draft_attention_backend("flash_attn_v100") == "triton"
 
 
-def test_dflash_uses_native_v100_causal_target_verify():
+def test_dflash_v100_triton_verify_skips_redundant_custom_mask():
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
 
     assert resolve_dflash_verify_mask_policy(backend) == (
@@ -178,9 +181,15 @@ def test_dflash_interleaved_sliding_window_layers():
         sliding_window=2048,
     )
 
-    assert _resolve_dflash_model_sliding_window(config) == 2048
-    assert _resolve_dflash_sliding_window(config, 0) == 2048
-    assert _resolve_dflash_sliding_window(config, 2) == -1
+    assert get_dflash_attention_sliding_window_size(config) == 2047
+    assert _get_dflash_layer_attention_params(config, 0) == (
+        2047,
+        AttentionType.DECODER,
+    )
+    assert _get_dflash_layer_attention_params(config, 2) == (
+        -1,
+        AttentionType.ENCODER_ONLY,
+    )
 
 
 @pytest.mark.parametrize(
@@ -236,16 +245,12 @@ def test_v100_speculative_extend_delegates_to_triton(mode):
     )
 
 
-@pytest.mark.parametrize(
-    ("is_dflash", "is_eagle"),
-    [(True, False), (False, True)],
-)
-def test_v100_linear_verify_builds_native_causal_metadata(is_dflash, is_eagle):
+def test_v100_mtp_linear_verify_builds_native_causal_metadata():
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend.model_runner = SimpleNamespace(
         spec_algorithm=SimpleNamespace(
-            is_dflash=lambda: is_dflash,
-            is_eagle=lambda: is_eagle,
+            is_dflash=lambda: False,
+            is_eagle=lambda: True,
         ),
         server_args=SimpleNamespace(speculative_eagle_topk=1),
     )
@@ -269,6 +274,24 @@ def test_v100_linear_verify_builds_native_causal_metadata(is_dflash, is_eagle):
     assert backend._build_extend_metadata.call_args.kwargs == {"causal": True}
     assert backend.forward_metadata == "native-metadata"
     backend._triton.init_forward_metadata.assert_not_called()
+
+
+def test_v100_dflash_verify_metadata_delegates_to_triton():
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(
+            is_dflash=lambda: True,
+            is_eagle=lambda: False,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
+    backend._triton = Mock()
+    forward_batch = SimpleNamespace(forward_mode=_ForwardMode(target_verify=True))
+
+    backend.init_forward_metadata(forward_batch)
+
+    backend._triton.init_forward_metadata.assert_called_once_with(forward_batch)
+    assert backend.forward_metadata is None
 
 
 def test_v100_spec_v2_metadata_delegates_to_triton():

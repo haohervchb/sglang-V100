@@ -29,6 +29,8 @@ from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.models.utils import apply_qk_norm
 from sglang.srt.speculative.dflash_utils import (
     can_dflash_slice_qkv_weight,
+    get_dflash_attention_sliding_window_size,
+    get_dflash_layer_types,
     parse_dflash_draft_config,
 )
 from sglang.srt.utils import is_npu
@@ -54,40 +56,31 @@ def _resolve_dflash_rope_config(config) -> tuple[float, Optional[dict]]:
     return float(rope_theta), rope_scaling
 
 
-def _resolve_dflash_sliding_window(config, layer_id: int) -> int:
-    """Return the per-layer SWA size, or -1 for full attention."""
-    layer_types = getattr(config, "layer_types", None)
+def _get_dflash_layer_attention_params(
+    config, layer_id: int
+) -> Tuple[int, AttentionType]:
+    """Resolve the checkpoint's per-layer causal/SWA attention semantics."""
+    layer_types = get_dflash_layer_types(config)
     if layer_types is None:
-        return -1
+        return -1, AttentionType.ENCODER_ONLY
     if layer_id >= len(layer_types):
         raise ValueError(
-            "DFLASH layer_types is shorter than num_hidden_layers: "
-            f"layer_id={layer_id}, len(layer_types)={len(layer_types)}."
+            "DFLASH config.layer_types must contain one entry per draft layer. "
+            f"Got {len(layer_types)} entries, layer_id={layer_id}."
         )
 
     layer_type = layer_types[layer_id]
     if layer_type == "full_attention":
-        return -1
-    if layer_type != "sliding_attention":
-        raise ValueError(
-            f"Unsupported DFLASH attention layer type {layer_type!r} at layer {layer_id}."
-        )
-
-    sliding_window = getattr(config, "sliding_window", None)
-    if sliding_window is None or int(sliding_window) <= 0:
-        raise ValueError(
-            "DFLASH sliding_attention requires a positive config.sliding_window, "
-            f"got {sliding_window!r}."
-        )
-    return int(sliding_window)
-
-
-def _resolve_dflash_model_sliding_window(config) -> Optional[int]:
-    layer_types = getattr(config, "layer_types", None)
-    if layer_types is None or "sliding_attention" not in layer_types:
-        return None
-    return _resolve_dflash_sliding_window(
-        config, layer_types.index("sliding_attention")
+        # The final diffusion layer attends bidirectionally over the full block.
+        return -1, AttentionType.ENCODER_ONLY
+    if layer_type == "sliding_attention":
+        sliding_window_size = get_dflash_attention_sliding_window_size(config)
+        assert sliding_window_size is not None
+        # Qwen3.6 DFlash's SWA layers are causal, unlike its final full layer.
+        return sliding_window_size, AttentionType.DECODER
+    raise ValueError(
+        "Unsupported DFLASH draft layer type. "
+        f"layer_types[{layer_id}]={layer_type!r}."
     )
 
 
@@ -164,15 +157,17 @@ class DFlashAttention(nn.Module):
         )
 
         self.scaling = head_dim**-0.5
-        # DFlash uses non-causal attention over the draft block.
+        self.sliding_window_size, self.attn_type = _get_dflash_layer_attention_params(
+            config, layer_id
+        )
         self.attn = RadixAttention(
             num_heads=self.num_heads,
             head_dim=head_dim,
             scaling=self.scaling,
             num_kv_heads=self.num_kv_heads,
             layer_id=layer_id,
-            attn_type=AttentionType.ENCODER_ONLY,
-            sliding_window_size=_resolve_dflash_sliding_window(config, layer_id),
+            attn_type=self.attn_type,
+            sliding_window_size=self.sliding_window_size,
         )
 
     def forward_prepare_npu(self, positions, hidden_states):
@@ -373,10 +368,7 @@ class DFlashDraftModel(nn.Module):
         self.block_size = draft_config.resolve_block_size(default=16)
 
     def get_attention_sliding_window_size(self) -> Optional[int]:
-        # Keep a regular full-size KV pool because DFlash shares the target's
-        # allocator.  Triton still builds windowed indices for SWA layers, so
-        # attention semantics match the checkpoint without a second allocator.
-        return _resolve_dflash_model_sliding_window(self.config)
+        return get_dflash_attention_sliding_window_size(self.config)
 
     def project_target_hidden(self, target_hidden: torch.Tensor) -> torch.Tensor:
         """Project concatenated target-layer hidden states into draft hidden_size."""

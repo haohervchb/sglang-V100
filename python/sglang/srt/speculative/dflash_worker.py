@@ -48,15 +48,16 @@ _SUPPORTED_DFLASH_DRAFT_BACKENDS = (
 
 
 def _resolve_dflash_draft_attention_backend(draft_backend: Optional[str]) -> str:
-    """Resolve a backend that supports DFlash's bidirectional draft blocks."""
+    """Resolve a backend that supports DFlash's per-layer draft attention."""
     if draft_backend is None:
         return "triton" if torch.version.hip else "flashinfer"
 
     if draft_backend == "flash_attn_v100":
-        # The V100 paged-prefill kernel is causal-only.  Its enclosing backend
-        # delegates speculative extend/verify attention to Triton.
+        # Qwen3.6 DFlash interleaves causal SWA and bidirectional full-attention
+        # layers. The V100 paged-prefill kernel is causal-only, while Triton
+        # selects causality and the window from each RadixAttention layer.
         logger.info(
-            "DFLASH draft worker is using 'triton' for non-causal draft "
+            "DFLASH draft worker is using 'triton' for per-layer draft "
             "attention with the 'flash_attn_v100' target backend."
         )
         return "triton"

@@ -236,13 +236,14 @@ To pair the dense Qwen3.6-27B target with its DFlash draft, add:
   --mamba-scheduler-strategy extra_buffer
 ```
 
-On V100, non-causal DFlash draft attention and MTP draft extension automatically
-use Triton. Linear target verification for DFlash and top-k-1 MTP uses the
-native TileLang paged-prefill kernel; tree verification continues to use
-Triton's custom-mask path. Ordinary target prefill remains on
-`flash_attn_v100`. Block size 16 is the low-concurrency starting point. Try
-block size 8 for the 122B draft when serving more concurrent requests and
-compare acceptance rate and inter-token latency on the actual workload.
+On V100, DFlash draft attention (causal SWA plus the final bidirectional layer),
+DFlash target verification, and MTP draft extension automatically use Triton.
+Top-k-1 MTP target verification uses the native TileLang paged-prefill kernel;
+tree verification continues to use Triton's custom-mask path. Ordinary target
+prefill remains on `flash_attn_v100`. Block size 16 is the low-concurrency
+starting point. Try block size 8 for the 122B draft when serving more concurrent
+requests and compare acceptance rate and inter-token latency on the actual
+workload.
 
 ### Validated 4x V100 serving commands
 
@@ -291,7 +292,6 @@ NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
 SGLANG_MAMBA_SSM_DTYPE=float16 \
-SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
   --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
   --dtype float16 \
@@ -351,7 +351,6 @@ NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
 SGLANG_MAMBA_SSM_DTYPE=float16 \
-SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
   --model Qwen/Qwen3.6-27B \
   --dtype float16 \
