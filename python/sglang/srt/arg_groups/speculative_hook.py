@@ -9,6 +9,28 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_BUILTIN_MTP_MODEL_ARCHS = {
+    "DeepseekV32ForCausalLM",
+    "DeepseekV3ForCausalLM",
+    "DeepseekV4ForCausalLM",
+    "Glm4MoeForCausalLM",
+    "Glm4MoeLiteForCausalLM",
+    "GlmMoeDsaForCausalLM",
+    "BailingMoeForCausalLM",
+    "BailingMoeV2ForCausalLM",
+    "BailingMoeV2_5ForCausalLM",
+    "Qwen3NextForCausalLM",
+    "Qwen3MoeForCausalLM",
+    "Qwen3_5ForConditionalGeneration",
+    "Qwen3_5MoeForConditionalGeneration",
+    "HYV3ForCausalLM",
+}
+
+_OPTIONAL_EXTERNAL_MTP_MODEL_ARCHS = {
+    "MistralLarge3ForCausalLM",
+    "PixtralForConditionalGeneration",
+}
+
 
 def _resolve_speculative_algorithm_alias(
     speculative_algorithm: Optional[str],
@@ -135,6 +157,36 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
             "DFLASH speculative decoding requires setting --speculative-draft-model-path."
         )
 
+    # ServerArgs normally inherits the target quantization for a draft model.
+    # DFlash checkpoints are independent models and may use a different format
+    # (for example, an unquantized DFlash draft with a GPTQ target).
+    draft_hf_config = None
+    try:
+        from sglang.srt.utils.hf_transformers_utils import get_config
+
+        draft_hf_config = get_config(
+            server_args.speculative_draft_model_path,
+            trust_remote_code=server_args.trust_remote_code,
+            revision=server_args.speculative_draft_model_revision,
+            model_override_args=json.loads(server_args.json_model_override_args),
+        )
+    except Exception as e:
+        logger.warning(
+            "Failed to inspect the DFLASH draft config before model loading: %s", e
+        )
+
+    if (
+        draft_hf_config is not None
+        and getattr(draft_hf_config, "quantization_config", None) is None
+        and server_args.speculative_draft_model_quantization is not None
+    ):
+        logger.info(
+            "The DFLASH draft checkpoint is unquantized; ignoring inherited "
+            "draft quantization %r from the target model.",
+            server_args.speculative_draft_model_quantization,
+        )
+        server_args.speculative_draft_model_quantization = None
+
     # DFLASH does not use EAGLE-style `num_steps`/`topk`, but those fields still
     # affect generic scheduler/KV-cache accounting (buffer sizing, KV freeing,
     # RoPE reservation). Force them to 1 to avoid surprising memory behavior.
@@ -182,20 +234,12 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
             parse_dflash_draft_config,
         )
 
-        model_override_args = json.loads(server_args.json_model_override_args)
         inferred_block_size = None
         try:
-            from sglang.srt.utils.hf_transformers_utils import get_config
-
-            draft_hf_config = get_config(
-                server_args.speculative_draft_model_path,
-                trust_remote_code=server_args.trust_remote_code,
-                revision=server_args.speculative_draft_model_revision,
-                model_override_args=model_override_args,
-            )
-            inferred_block_size = parse_dflash_draft_config(
-                draft_hf_config=draft_hf_config
-            ).resolve_block_size(default=None)
+            if draft_hf_config is not None:
+                inferred_block_size = parse_dflash_draft_config(
+                    draft_hf_config=draft_hf_config
+                ).resolve_block_size(default=None)
         except Exception as e:
             logger.warning(
                 "Failed to infer DFLASH block_size from draft model config; "
@@ -307,31 +351,18 @@ def _handle_eagle_family(server_args: "ServerArgs") -> None:
         )
 
     model_arch = server_args.get_model_config().hf_config.architectures[0]
-    if model_arch in [
-        "DeepseekV32ForCausalLM",
-        "DeepseekV3ForCausalLM",
-        "DeepseekV4ForCausalLM",
-        "Glm4MoeForCausalLM",
-        "Glm4MoeLiteForCausalLM",
-        "GlmMoeDsaForCausalLM",
-        "BailingMoeForCausalLM",
-        "BailingMoeV2ForCausalLM",
-        "BailingMoeV2_5ForCausalLM",
-        "MistralLarge3ForCausalLM",
-        "PixtralForConditionalGeneration",
-        "HYV3ForCausalLM",
-    ]:
+    if model_arch in (
+        _BUILTIN_MTP_MODEL_ARCHS | _OPTIONAL_EXTERNAL_MTP_MODEL_ARCHS
+    ):
         if server_args.speculative_draft_model_path is None:
             server_args.speculative_draft_model_path = server_args.model_path
             server_args.speculative_draft_model_revision = server_args.revision
-        else:
-            if model_arch not in [
-                "MistralLarge3ForCausalLM",
-                "PixtralForConditionalGeneration",
-            ]:
-                logger.warning(
-                    "DeepSeek MTP does not require setting speculative_draft_model_path."
-                )
+        elif model_arch in _BUILTIN_MTP_MODEL_ARCHS:
+            logger.warning(
+                "%s has a built-in MTP layer and does not require setting "
+                "speculative_draft_model_path.",
+                model_arch,
+            )
 
     if server_args.speculative_num_steps is None:
         assert (

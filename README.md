@@ -199,6 +199,50 @@ sglang serve \
   --enable-nccl-nvls
 ```
 
+## Decode acceleration with MTP or DFlash
+
+MTP and DFlash are alternative speculative decoders; enable one at a time.
+Both target checkpoints above include a built-in MTP layer. To enable it, add
+these arguments to either the Qwen3.5-122B GPTQ or Qwen3.6-27B command:
+
+```bash
+  --speculative-algorithm EAGLE \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4 \
+  --mamba-scheduler-strategy extra_buffer
+```
+
+Do not set `--speculative-draft-model-path` for MTP. SGLang selects the MTP
+layer from the target checkpoint, including the unquantized MTP weights stored
+inside the factory GPTQ-Int4 checkpoint.
+
+To pair the factory Qwen3.5-122B-A10B GPTQ-Int4 target with its DFlash draft,
+add:
+
+```bash
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
+  --speculative-dflash-block-size 16 \
+  --mamba-scheduler-strategy extra_buffer
+```
+
+To pair the dense Qwen3.6-27B target with its DFlash draft, add:
+
+```bash
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
+  --speculative-dflash-block-size 16 \
+  --mamba-scheduler-strategy extra_buffer
+```
+
+On V100, the DFlash draft and speculative verification paths automatically use
+the Triton attention implementation required for bidirectional draft blocks;
+ordinary target prefill continues to use `flash_attn_v100`. Block size 16 is
+the low-concurrency starting point. Try block size 8 for the 122B draft when
+serving more concurrent requests and compare acceptance rate and inter-token
+latency on the actual workload.
+
 The first launch downloads the model from Hugging Face. For gated models,
 export `HF_TOKEN` before launching. Reduce `--context-length` or
 `--mem-fraction-static` if other processes are using GPU memory.

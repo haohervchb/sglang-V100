@@ -38,6 +38,51 @@ logger = logging.getLogger(__name__)
 
 _FusedKVMaterializeHelper = None
 
+_SUPPORTED_DFLASH_DRAFT_BACKENDS = (
+    "flashinfer",
+    "fa3",
+    "fa4",
+    "triton",
+    "ascend",
+)
+
+
+def _resolve_dflash_draft_attention_backend(draft_backend: Optional[str]) -> str:
+    """Resolve a backend that supports DFlash's bidirectional draft blocks."""
+    if draft_backend is None:
+        return "triton" if torch.version.hip else "flashinfer"
+
+    if draft_backend == "flash_attn_v100":
+        # The V100 paged-prefill kernel is causal-only.  Its enclosing backend
+        # delegates speculative extend/verify attention to Triton.
+        logger.info(
+            "DFLASH draft worker is using 'triton' for non-causal draft "
+            "attention with the 'flash_attn_v100' target backend."
+        )
+        return "triton"
+
+    if draft_backend == "trtllm_mha":
+        fallback = "triton" if torch.version.hip else "flashinfer"
+        logger.warning(
+            "DFLASH draft worker does not support 'trtllm_mha' because the "
+            "draft path requires non-causal attention. Falling back to '%s'.",
+            fallback,
+        )
+        return fallback
+
+    if draft_backend not in _SUPPORTED_DFLASH_DRAFT_BACKENDS:
+        fallback = "triton" if torch.version.hip else "flashinfer"
+        logger.warning(
+            "DFLASH draft worker only supports attention_backend in %s for now, "
+            "but got %r. Falling back to '%s'.",
+            _SUPPORTED_DFLASH_DRAFT_BACKENDS,
+            draft_backend,
+            fallback,
+        )
+        return fallback
+
+    return draft_backend
+
 
 def _get_fused_kv_materialize_helper():
     global _FusedKVMaterializeHelper
@@ -101,37 +146,9 @@ class DFlashWorker:
         draft_server_args = deepcopy(server_args)
         draft_server_args.skip_tokenizer_init = True
         draft_backend = draft_server_args.speculative_draft_attention_backend
-        supported_draft_backends = ("flashinfer", "fa3", "fa4", "triton", "ascend")
         if draft_backend is None:
             draft_backend, _ = draft_server_args.get_attention_backends()
-        if draft_backend is None:
-            # Use triton on ROCm (no FlashInfer), flashinfer on CUDA
-            import torch as _torch
-
-            draft_backend = "triton" if _torch.version.hip else "flashinfer"
-        elif draft_backend == "trtllm_mha":
-            import torch as _torch
-
-            _fb = "triton" if _torch.version.hip else "flashinfer"
-            logger.warning(
-                "DFLASH draft worker does not support 'trtllm_mha' because the "
-                "draft path requires non-causal attention. Falling back to "
-                "'%s'.",
-                _fb,
-            )
-            draft_backend = _fb
-        elif draft_backend not in supported_draft_backends:
-            import torch as _torch
-
-            _fb = "triton" if _torch.version.hip else "flashinfer"
-            logger.warning(
-                "DFLASH draft worker only supports attention_backend in %s for now, "
-                "but got %r. Falling back to '%s'.",
-                supported_draft_backends,
-                draft_backend,
-                _fb,
-            )
-            draft_backend = _fb
+        draft_backend = _resolve_dflash_draft_attention_backend(draft_backend)
         # Make the draft worker backend explicit and self-contained (no further overrides).
         draft_server_args.speculative_draft_attention_backend = None
         draft_server_args.prefill_attention_backend = None

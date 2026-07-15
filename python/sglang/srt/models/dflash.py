@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Iterable, Optional, Tuple
 
 import torch
@@ -36,6 +37,58 @@ _is_npu = is_npu()
 if _is_npu:
     from sgl_kernel_npu.norm.split_qkv_rmsnorm_rope import split_qkv_rmsnorm_rope
 logger = logging.getLogger(__name__)
+
+
+def _resolve_dflash_rope_config(config) -> tuple[float, Optional[dict]]:
+    """Normalize Transformers v4/v5 RoPE fields used by DFlash checkpoints."""
+    rope_scaling = getattr(config, "rope_scaling", None)
+    if rope_scaling is None:
+        rope_scaling = getattr(config, "rope_parameters", None)
+
+    rope_theta = getattr(config, "rope_theta", None)
+    if rope_theta is None and isinstance(rope_scaling, Mapping):
+        rope_theta = rope_scaling.get("rope_theta")
+    if rope_theta is None:
+        rope_theta = 1000000
+
+    return float(rope_theta), rope_scaling
+
+
+def _resolve_dflash_sliding_window(config, layer_id: int) -> int:
+    """Return the per-layer SWA size, or -1 for full attention."""
+    layer_types = getattr(config, "layer_types", None)
+    if layer_types is None:
+        return -1
+    if layer_id >= len(layer_types):
+        raise ValueError(
+            "DFLASH layer_types is shorter than num_hidden_layers: "
+            f"layer_id={layer_id}, len(layer_types)={len(layer_types)}."
+        )
+
+    layer_type = layer_types[layer_id]
+    if layer_type == "full_attention":
+        return -1
+    if layer_type != "sliding_attention":
+        raise ValueError(
+            f"Unsupported DFLASH attention layer type {layer_type!r} at layer {layer_id}."
+        )
+
+    sliding_window = getattr(config, "sliding_window", None)
+    if sliding_window is None or int(sliding_window) <= 0:
+        raise ValueError(
+            "DFLASH sliding_attention requires a positive config.sliding_window, "
+            f"got {sliding_window!r}."
+        )
+    return int(sliding_window)
+
+
+def _resolve_dflash_model_sliding_window(config) -> Optional[int]:
+    layer_types = getattr(config, "layer_types", None)
+    if layer_types is None or "sliding_attention" not in layer_types:
+        return None
+    return _resolve_dflash_sliding_window(
+        config, layer_types.index("sliding_attention")
+    )
 
 
 class DFlashAttention(nn.Module):
@@ -94,8 +147,7 @@ class DFlashAttention(nn.Module):
         self.q_norm = RMSNorm(head_dim, eps=rms_norm_eps)
         self.k_norm = RMSNorm(head_dim, eps=rms_norm_eps)
 
-        rope_theta = float(getattr(config, "rope_theta", 1000000))
-        rope_scaling = getattr(config, "rope_scaling", None)
+        rope_theta, rope_scaling = _resolve_dflash_rope_config(config)
         rope_is_neox_style = bool(
             getattr(
                 config, "rope_is_neox_style", getattr(config, "is_neox_style", True)
@@ -120,6 +172,7 @@ class DFlashAttention(nn.Module):
             num_kv_heads=self.num_kv_heads,
             layer_id=layer_id,
             attn_type=AttentionType.ENCODER_ONLY,
+            sliding_window_size=_resolve_dflash_sliding_window(config, layer_id),
         )
 
     def forward_prepare_npu(self, positions, hidden_states):
@@ -318,6 +371,12 @@ class DFlashDraftModel(nn.Module):
         self.hidden_norm = RMSNorm(hidden_size, eps=rms_norm_eps)
 
         self.block_size = draft_config.resolve_block_size(default=16)
+
+    def get_attention_sliding_window_size(self) -> Optional[int]:
+        # Keep a regular full-size KV pool because DFlash shares the target's
+        # allocator.  Triton still builds windowed indices for SWA layers, so
+        # attention semantics match the checkpoint without a second allocator.
+        return _resolve_dflash_model_sliding_window(self.config)
 
     def project_target_hidden(self, target_hidden: torch.Tensor) -> torch.Tensor:
         """Project concatenated target-layer hidden states into draft hidden_size."""

@@ -228,7 +228,11 @@ class FlashAttnV100Backend(AttentionBackend):
 
     def init_forward_metadata(self, forward_batch: "ForwardBatch"):
         mode = forward_batch.forward_mode
-        if mode.is_decode_or_idle() or mode.is_target_verify() or mode.is_draft_extend():
+        if (
+            mode.is_decode_or_idle()
+            or mode.is_target_verify()
+            or mode.is_draft_extend(include_v2=True)
+        ):
             # Decode / spec paths run on the Triton backend.
             self._triton.init_forward_metadata(forward_batch)
             self.forward_metadata = None
@@ -279,7 +283,11 @@ class FlashAttnV100Backend(AttentionBackend):
         forward_mode,
         spec_info,
     ):
-        if forward_mode.is_decode_or_idle() or forward_mode.is_target_verify():
+        if (
+            forward_mode.is_decode_or_idle()
+            or forward_mode.is_target_verify()
+            or forward_mode.is_draft_extend(include_v2=True)
+        ):
             return self._triton.init_forward_metadata_capture_cuda_graph(
                 bs,
                 num_tokens,
@@ -309,7 +317,11 @@ class FlashAttnV100Backend(AttentionBackend):
         spec_info,
         seq_lens_cpu,
     ):
-        if forward_mode.is_decode_or_idle() or forward_mode.is_target_verify():
+        if (
+            forward_mode.is_decode_or_idle()
+            or forward_mode.is_target_verify()
+            or forward_mode.is_draft_extend(include_v2=True)
+        ):
             return self._triton.init_forward_metadata_replay_cuda_graph(
                 bs,
                 req_pool_indices,
@@ -344,6 +356,18 @@ class FlashAttnV100Backend(AttentionBackend):
     def get_cuda_graph_seq_len_fill_value(self):
         return 1
 
+    def get_verify_buffers_to_fill_after_draft(self):
+        # Speculative verify is implemented by the delegated Triton backend, so
+        # CUDA-graph callers must fill the Triton mask buffers as well.
+        return self._triton.get_verify_buffers_to_fill_after_draft()
+
+    def update_verify_buffers_to_fill_after_draft(
+        self, spec_info, cuda_graph_bs: Optional[int]
+    ):
+        return self._triton.update_verify_buffers_to_fill_after_draft(
+            spec_info, cuda_graph_bs
+        )
+
     # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
@@ -371,6 +395,22 @@ class FlashAttnV100Backend(AttentionBackend):
         save_kv_cache: bool = True,
         **kwargs,
     ):
+        if forward_batch.forward_mode.is_target_verify() or (
+            forward_batch.forward_mode.is_draft_extend(include_v2=True)
+        ):
+            # MTP and DFlash prepare Triton metadata (including their custom
+            # verification masks) for speculative extend/verify forwards.  The
+            # V100 paged-prefill kernel only implements ordinary causal extend.
+            return self._triton.forward_extend(
+                q,
+                k,
+                v,
+                layer,
+                forward_batch,
+                save_kv_cache=save_kv_cache,
+                **kwargs,
+            )
+
         cache_loc = (
             forward_batch.out_cache_loc
             if not layer.is_cross_attention
