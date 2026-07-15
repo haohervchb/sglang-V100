@@ -244,6 +244,131 @@ Triton's custom-mask path. Ordinary target prefill remains on
 block size 8 for the 122B draft when serving more concurrent requests and
 compare acceptance rate and inter-token latency on the actual workload.
 
+### Validated 4x V100 serving commands
+
+The following commands are the configurations used for end-to-end validation
+on four V100-SXM2-32GB GPUs. Run one server at a time. The conservative
+`--mem-fraction-static 0.70` leaves room for the speculative draft weights and
+CUDA graph capture.
+
+Set up the shell environment first:
+
+```bash
+cd /home/rah/sglang-V100
+
+source /home/rah/miniconda3/etc/profile.d/conda.sh
+conda activate sglang-v100
+
+export PYTHONPATH="$PWD/python"
+export FLASHINFER_DISABLE_VERSION_CHECK=1
+export NCCL_P2P_LEVEL=NVL
+export SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage
+export SGLANG_MAMBA_CONV_DTYPE=float16
+export SGLANG_MAMBA_SSM_DTYPE=float16
+export SGLANG_ENABLE_SPEC_V2=1
+```
+
+Qwen3.5-122B-A10B GPTQ-Int4 with its built-in MTP layer:
+
+```bash
+sglang serve \
+  --model-path Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --dtype float16 \
+  --quantization gptq_marlin \
+  --attention-backend flash_attn_v100 \
+  --tp 4 \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --mem-fraction-static 0.70 \
+  --context-length 8192 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm EAGLE \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
+
+Qwen3.5-122B-A10B GPTQ-Int4 with DFlash:
+
+```bash
+sglang serve \
+  --model-path Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --dtype float16 \
+  --quantization gptq_marlin \
+  --attention-backend flash_attn_v100 \
+  --tp 4 \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --mem-fraction-static 0.70 \
+  --context-length 8192 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
+  --speculative-dflash-block-size 16
+```
+
+Qwen3.6-27B dense FP16 with its built-in MTP layer:
+
+```bash
+sglang serve \
+  --model-path Qwen/Qwen3.6-27B \
+  --dtype float16 \
+  --attention-backend flash_attn_v100 \
+  --tp 4 \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --mem-fraction-static 0.70 \
+  --context-length 8192 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm EAGLE \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
+
+Qwen3.6-27B dense FP16 with DFlash:
+
+```bash
+sglang serve \
+  --model-path Qwen/Qwen3.6-27B \
+  --dtype float16 \
+  --attention-backend flash_attn_v100 \
+  --tp 4 \
+  --host 0.0.0.0 \
+  --port 30000 \
+  --mem-fraction-static 0.70 \
+  --context-length 8192 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
+  --speculative-dflash-block-size 16
+```
+
+For MTP, do not set `--speculative-draft-model-path`; SGLang loads the built-in
+MTP layer from the target checkpoint. Increase `--context-length` or
+`--mem-fraction-static` only after checking the available memory left for draft
+weights and CUDA graphs.
+
 The first launch downloads the model from Hugging Face. For gated models,
 export `HF_TOKEN` before launching. Reduce `--context-length` or
 `--mem-fraction-static` if other processes are using GPU memory.
