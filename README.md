@@ -266,33 +266,9 @@ layer with a 16-token block on one V100 (TP4 per-rank head shapes):
 
 Do not use repeated-token prompts to estimate application throughput. They can
 produce unusually high DFlash acceptance and make end-to-end numbers too
-optimistic. The following batch-one, greedy measurements use source files from
-this repository as the prompt and report the steady decode bucket after
-prefill. They were collected with the validated spec-v2 commands below:
-
-| Target and workload | Prompt context | Accept length | Output tok/s |
-| --- | ---: | ---: | ---: |
-| Qwen3.6-27B, short quicksort | short | 5.07 | 119.0 |
-| Qwen3.6-27B, code-context quicksort | 93,477 | 6.78 | 120.5 |
-| Qwen3.6-27B, code-context quicksort | 161,058 | 6.72 | 100.6 |
-| Qwen3.6-27B, hard code analysis | 93,489 | 2.10 | 37.6 |
-| Qwen3.5-122B-A10B, short quicksort | short | 7.01 | 182.6 |
-| Qwen3.5-122B-A10B, code-context quicksort | 93,477 | 6.48 | 134.9 |
-
-The 27B model therefore holds about 100 output tok/s through 161K context when
-the draft accepts roughly 6.7 tokens per verify. Acceptance is still the main
-workload-dependent variable: the harder analysis prompt accepted only about
-2.1 tokens and reached 37.6 tok/s on the same server. Benchmark actual prompts
-and sampling settings, and always record `spec_accept_length` beside output
-tok/s.
-
-This is consistent with the checkpoint status: the
-[Qwen3.6-27B DFlash model card](https://huggingface.co/z-lab/Qwen3.6-27B-DFlash)
-says that checkpoint is still under training and publishes no benchmark
-results. The mature
-[Qwen3.5-122B-A10B DFlash model card](https://huggingface.co/z-lab/Qwen3.5-122B-A10B-DFlash)
-reports mean block-16 accept lengths from about 5.4 to 8.7 depending on the
-workload.
+optimistic. The audited cold-prompt benchmark below records acceptance beside
+decode speed and retains generated text so corrupt output cannot masquerade as
+performance.
 
 The serving implementation uses the cumulative mainline spec-v2 relay and
 scheduling architecture by default while retaining the native SM70 draft and
@@ -382,8 +358,11 @@ build layers remain reusable. The first DFlash launch may populate the existing
 Triton and TorchInductor caches.
 
 Run `conda activate sglang-v100` before using either command. Both commands are
-the exact batch-one configurations used for the measurements above and leave
-CUDA-graph capture at batch sizes 1 and 2 to conserve VRAM.
+the four-request configurations used for the audited measurements below.
+Hybrid DFlash target verification requires an exact CUDA graph for every live
+batch size. The runtime therefore expands `--cuda-graph-bs 1 2 4` to target
+graphs 1, 2, 3, and 4; the added batch-three graph used about 20–30 MiB per GPU
+in these runs.
 
 ### Qwen3.6-27B dense FP16 with DFlash
 
@@ -407,8 +386,8 @@ sglang serve \
   --max-running-requests 4 \
   --chunked-prefill-size 4096 \
   --mamba-scheduler-strategy extra_buffer \
-  --cuda-graph-max-bs 2 \
-  --cuda-graph-bs 1 2 \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
@@ -433,18 +412,60 @@ sglang serve \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
-  --mem-fraction-static 0.70 \
+  --mem-fraction-static 0.78 \
   --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 4096 \
   --mamba-scheduler-strategy extra_buffer \
-  --cuda-graph-max-bs 2 \
-  --cuda-graph-bs 1 2 \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
   --speculative-dflash-block-size 16
 ```
+
+### Audited 1K–25K context scaling
+
+These measurements use four V100-SXM2-32GB GPUs, TP4, greedy decoding, cold
+unique repository-source prompts, and up to 256 output tokens per request. The
+matrix covers 13 prompt lengths (1K through 25K in 2K increments) at 1, 2, and
+4 concurrent clients for both models: 78 cells total. Every cell had zero
+cached prompt tokens and passed a generated-text repetition/diversity audit;
+the 91 request-level prompt hashes are identical across models.
+
+"Decode" below and in the plots means the median per-request client-visible
+decode rate, not summed batch throughput. TTFT is client request start to the
+first non-empty stream event. Acceptance is output tokens divided by DFlash
+verify calls. One audited cold-cache trial was collected per cell, so the
+point-to-point variation is real workload variation, not a confidence band.
+Each length uses a different unique source slice; DFlash acceptance is
+prompt-dependent, so its unsmoothed line is expected to be jagged.
+
+| Concurrency | Target | Decode at 1K | Decode at 25K | TTFT at 1K | TTFT at 25K | Accept at 1K | Accept at 25K |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 27B FP16 | 102.0 tok/s | 87.1 tok/s | 0.36 s | 6.90 s | 4.49 | 4.13 |
+| 1 | 122B GPTQ-Int4 | 108.1 tok/s | 87.5 tok/s | 0.31 s | 5.27 s | 4.13 | 3.61 |
+| 2 | 27B FP16 | 91.2 tok/s | 49.9 tok/s | 0.58 s | 11.21 s | 4.88 | 3.85 |
+| 2 | 122B GPTQ-Int4 | 107.0 tok/s | 51.0 tok/s | 0.54 s | 8.44 s | 4.79 | 3.53 |
+| 4 | 27B FP16 | 66.3 tok/s | 18.0 tok/s | 1.19 s | 17.88 s | 4.53 | 4.72 |
+| 4 | 122B GPTQ-Int4 | 78.0 tok/s | 44.4 tok/s | 0.84 s | 13.58 s | 4.08 | 3.82 |
+
+![DFlash context scaling at concurrency 1](benchmark/dflash_v100_20260716/plots/dflash_concurrency_1.svg)
+
+![DFlash context scaling at concurrency 2](benchmark/dflash_v100_20260716/plots/dflash_concurrency_2.svg)
+
+![DFlash context scaling at concurrency 4](benchmark/dflash_v100_20260716/plots/dflash_concurrency_4.svg)
+
+The effective input-rate panel is total prompt tokens divided by the latest
+first-token time; it includes scheduling and chunked-prefill behavior and is
+not an isolated kernel microbenchmark. The full generated text, raw timings,
+server arguments, CSV summaries, audit rules, and reproduction commands are in
+[the benchmark directory](benchmark/dflash_v100_20260716/README.md). The first
+122B 1K/concurrency-4 attempt incurred a one-off 10.9-second first-token stall;
+the identical prompt hashes were rerun after that prefill/JIT path was resident,
+and the disclosed 0.84-second steady result is plotted. No other cell was
+replaced.
 
 For Docker, keep the device, network, IPC, and cache-volume prefix from the
 earlier `docker run` example, pass `SGLANG_ENABLE_SPEC_V2=1` and
@@ -454,13 +475,14 @@ entrypoint adds `sglang serve` automatically. These are runtime settings; the
 image and Compose build commands remain unchanged.
 
 `--context-length` is an upper bound, not a promise that the KV pool can hold
-that many live tokens. At
-`--mem-fraction-static 0.70`, the 122B DFlash spec-v2 configuration has 116,064
-target/draft KV slots on this machine and resolves the requested
-`--max-running-requests 4` to three concurrent requests. Leave space for
-generated tokens and concurrent requests. Increase `--mem-fraction-static`
-only after checking the memory left for draft weights, JIT compilation, and
-CUDA graphs.
+that many live tokens. At `--mem-fraction-static 0.78`, the measured 122B
+configuration allocated 225,040 target/draft KV slots, admitted four requests,
+and left about 1.6 GiB on the tightest rank after draft graph capture. At 0.70,
+it allocated 116,064 slots and resolved the requested four requests to three.
+If the service only needs one or two live requests, using
+`--cuda-graph-max-bs 2 --cuda-graph-bs 1 2` with 0.70 conserves both KV and graph
+memory. Leave space for generated tokens, JIT compilation, and other GPU
+processes before increasing the static fraction.
 
 The first launch downloads the model from Hugging Face. For gated models,
 export `HF_TOKEN` before launching. Reduce `--context-length` or

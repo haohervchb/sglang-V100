@@ -538,6 +538,17 @@ def get_batch_sizes_to_capture(model_runner: ModelRunner, num_tokens_per_bs=1):
     return capture_bs, compile_bs
 
 
+def _get_safe_dflash_capture_bs(
+    capture_bs: List[int], speculative_algorithm, attn_backend
+) -> List[int]:
+    """Use exact target graph sizes when DFlash verifies a hybrid GDN model."""
+    if speculative_algorithm.is_dflash() and hasattr(
+        attn_backend, "linear_attn_backend"
+    ):
+        return list(range(1, max(capture_bs) + 1))
+    return capture_bs
+
+
 # Reuse this memory pool across all cuda graph runners.
 global_graph_memory_pool = None
 
@@ -644,6 +655,29 @@ class CudaGraphRunner:
         self.capture_bs, self.compile_bs = get_batch_sizes_to_capture(
             model_runner, self.num_tokens_per_bs
         )
+        exact_capture_bs = _get_safe_dflash_capture_bs(
+            self.capture_bs, model_runner.spec_algorithm, self.attn_backend
+        )
+        if exact_capture_bs != self.capture_bs:
+            # DFlash target verification updates recurrent GDN state. Padding a
+            # live batch into a larger CUDA graph can let the synthetic row
+            # contaminate that state, so hybrid targets must replay an exact
+            # batch-size graph. The additional graphs are small (for the usual
+            # max_bs=4 this only adds bs=3) and preserve both correctness and
+            # graph-backed decode performance.
+            log_info_on_rank0(
+                logger,
+                "DFlash hybrid target: adding exact CUDA graph batch sizes "
+                f"{sorted(set(exact_capture_bs) - set(self.capture_bs))} to "
+                "avoid recurrent-state corruption from graph padding.",
+            )
+            self.capture_bs = exact_capture_bs
+            if self.enable_torch_compile:
+                self.compile_bs = [
+                    bs
+                    for bs in self.capture_bs
+                    if bs <= model_runner.server_args.torch_compile_max_bs
+                ]
         log_info_on_rank0(logger, f"Capture cuda graph bs {self.capture_bs}")
         if KTRANSFORMERS_AVAILABLE:
             KTMoEWrapper.set_capture_batch_sizes(self.capture_bs)
