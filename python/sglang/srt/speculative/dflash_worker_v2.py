@@ -78,6 +78,14 @@ class DFlashWorkerV2(DFlashWorker):
         self._out_tokens_bufs: List[torch.Tensor] = []
         self._new_seq_lens_bufs: List[torch.Tensor] = []
 
+    @property
+    def spec_v2_attn_backends(self) -> tuple:
+        """All attention backends touched by a DFlash v2 iteration."""
+        return (
+            self.target_worker.model_runner.attn_backend,
+            self.draft_model_runner.attn_backend,
+        )
+
     def _ensure_accept_bonus_buffers(self, bs: int) -> None:
         if self._accept_bonus_buffer_cap >= int(bs):
             return

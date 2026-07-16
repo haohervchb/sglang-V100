@@ -11,6 +11,7 @@ from sglang.srt.layers.attention.flash_attn_v100_backend import (
     _should_skip_triton_prefill,
 )
 from sglang.srt.layers.radix_attention import AttentionType
+from sglang.srt.managers.overlap_utils import decide_needs_cpu_seq_lens
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
 from sglang.srt.model_executor.model_runner import ModelRunner
 from sglang.srt.models.dflash import (
@@ -24,9 +25,11 @@ from sglang.srt.speculative.dflash_worker import (
 )
 from sglang.srt.speculative.dflash_utils import (
     get_dflash_attention_sliding_window_size,
+    parse_dflash_draft_config,
     resolve_dflash_verify_mask_policy,
 )
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
+from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 
 
 class _ForwardMode:
@@ -155,6 +158,48 @@ def test_dflash_uses_native_draft_attention_on_v100():
     )
 
 
+@pytest.mark.parametrize("enable_spec_v2", [True, False])
+def test_dflash_worker_selection_tracks_spec_v2_env(enable_spec_v2):
+    from sglang.srt.environ import envs
+
+    with envs.SGLANG_ENABLE_SPEC_V2.override(enable_spec_v2):
+        worker_cls = SpeculativeAlgorithm.DFLASH.create_worker(SimpleNamespace())
+
+        assert SpeculativeAlgorithm.DFLASH.supports_spec_v2() is enable_spec_v2
+        if enable_spec_v2:
+            from sglang.srt.speculative.dflash_worker_v2 import DFlashWorkerV2
+
+            assert worker_cls is DFlashWorkerV2
+        else:
+            assert worker_cls is DFlashWorker
+
+
+def test_dflash_v2_reports_target_and_draft_attention_capabilities():
+    from sglang.srt.speculative.dflash_worker_v2 import DFlashWorkerV2
+
+    target_backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    draft_backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    worker = DFlashWorkerV2.__new__(DFlashWorkerV2)
+    worker.target_worker = SimpleNamespace(
+        model_runner=SimpleNamespace(attn_backend=target_backend)
+    )
+    worker.draft_model_runner = SimpleNamespace(attn_backend=draft_backend)
+    server_args = SimpleNamespace(
+        enable_two_batch_overlap=False,
+        disable_piecewise_cuda_graph=True,
+    )
+
+    assert worker.spec_v2_attn_backends == (target_backend, draft_backend)
+    assert not decide_needs_cpu_seq_lens(
+        server_args, worker.spec_v2_attn_backends
+    )
+
+    worker.draft_model_runner.attn_backend = SimpleNamespace(
+        needs_cpu_seq_lens=True
+    )
+    assert decide_needs_cpu_seq_lens(server_args, worker.spec_v2_attn_backends)
+
+
 def test_dflash_draft_skips_irrelevant_sm70_prefill_warmup(monkeypatch):
     runner = ModelRunner.__new__(ModelRunner)
     runner.device = "cuda"
@@ -228,6 +273,75 @@ def test_dflash_reads_transformers_v5_rope_parameters():
 
     assert rope_theta == 10_000_000
     assert rope_scaling == config.rope_scaling
+
+
+@pytest.mark.parametrize(
+    (
+        "config",
+        "expected_block_size",
+        "expected_target_layers",
+        "expected_mask_token_id",
+        "expected_window",
+    ),
+    [
+        (
+            SimpleNamespace(
+                num_hidden_layers=5,
+                num_target_layers=64,
+                block_size=16,
+                dflash_config={
+                    "mask_token_id": 248070,
+                    "target_layer_ids": [1, 16, 31, 46, 61],
+                },
+                layer_types=["sliding_attention"] * 4 + ["full_attention"],
+                sliding_window=2048,
+            ),
+            16,
+            [1, 16, 31, 46, 61],
+            248070,
+            2047,
+        ),
+        (
+            SimpleNamespace(
+                num_hidden_layers=6,
+                num_target_layers=48,
+                dflash_config={
+                    "block_size": 16,
+                    "mask_token_id": 248077,
+                    "target_layer_ids": [1, 7, 14, 20, 26, 32, 39, 45],
+                },
+                layer_types=["sliding_attention"] * 5 + ["full_attention"],
+                sliding_window=4096,
+            ),
+            16,
+            [1, 7, 14, 20, 26, 32, 39, 45],
+            248077,
+            4095,
+        ),
+    ],
+)
+def test_dflash_checkpoint_config_layouts(
+    config,
+    expected_block_size,
+    expected_target_layers,
+    expected_mask_token_id,
+    expected_window,
+):
+    parsed = parse_dflash_draft_config(draft_hf_config=config)
+
+    assert parsed.resolve_block_size() == expected_block_size
+    assert parsed.resolve_target_layer_ids(
+        target_num_layers=config.num_target_layers
+    ) == expected_target_layers
+    assert parsed.mask_token_id == expected_mask_token_id
+    assert get_dflash_attention_sliding_window_size(config) == expected_window
+    assert _get_dflash_layer_attention_params(config, 0) == (
+        expected_window,
+        AttentionType.DECODER,
+    )
+    assert _get_dflash_layer_attention_params(
+        config, config.num_hidden_layers - 1
+    ) == (-1, AttentionType.ENCODER_ONLY)
 
 
 def test_dflash_interleaved_sliding_window_layers():
