@@ -300,13 +300,11 @@ verification kernels. Set `SGLANG_ENABLE_SPEC_V2=0` only to diagnose the legacy
 v1 worker. The complete known-good v1 source is tagged
 `dev-dflash-v1-sm70-baseline-20260716`.
 
-### Validated 4x V100 serving commands
+### Validated MTP serving commands
 
-The following commands are the configurations used for end-to-end validation
-on four V100-SXM2-32GB GPUs. Like the examples above, each command includes its
-runtime environment variables inline and listens on port 8082. The conservative
-`--mem-fraction-static 0.70` leaves room for the speculative draft weights and
-CUDA graph capture.
+The following MTP commands were validated on four V100-SXM2-32GB GPUs. Each
+command includes its runtime environment variables inline and listens on port
+8082.
 
 Qwen3.5-122B-A10B GPTQ-Int4 with its built-in MTP layer:
 
@@ -339,37 +337,6 @@ sglang serve \
   --speculative-num-draft-tokens 4
 ```
 
-Qwen3.5-122B-A10B GPTQ-Int4 with DFlash:
-
-```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
-NCCL_P2P_LEVEL=NVL \
-SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
-SGLANG_MAMBA_CONV_DTYPE=float16 \
-SGLANG_MAMBA_SSM_DTYPE=float16 \
-SGLANG_ENABLE_SPEC_V2=1 \
-SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
-sglang serve \
-  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
-  --dtype float16 \
-  --quantization gptq_marlin \
-  --attention-backend flash_attn_v100 \
-  --tensor-parallel-size 4 \
-  --host 0.0.0.0 \
-  --port 8082 \
-  --mem-fraction-static 0.70 \
-  --context-length 262144 \
-  --max-running-requests 4 \
-  --chunked-prefill-size 4096 \
-  --mamba-scheduler-strategy extra_buffer \
-  --cuda-graph-max-bs 2 \
-  --cuda-graph-bs 1 2 \
-  --enable-nccl-nvls \
-  --speculative-algorithm DFLASH \
-  --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
-  --speculative-dflash-block-size 16
-```
-
 Qwen3.6-27B dense FP16 with its built-in MTP layer:
 
 ```bash
@@ -400,7 +367,25 @@ sglang serve \
   --speculative-num-draft-tokens 4
 ```
 
-Qwen3.6-27B dense FP16 with DFlash:
+For MTP, do not set `--speculative-draft-model-path`; SGLang loads the built-in
+MTP layer from the target checkpoint.
+
+## DFlash support
+
+DFlash spec-v2 is implemented entirely in the Python runtime plus Triton JIT
+kernels. It adds no package, compiler, patch, or native-extension requirement,
+so the existing local and Docker build commands are unchanged. On a local
+editable install, pulling this branch exposes the new modules immediately. In
+Docker, the source change invalidates only the late `COPY python` application
+layer; the cached FlashInfer, native V100 attention, `sglang-kernel`, and Marlin
+build layers remain reusable. The first DFlash launch may populate the existing
+Triton and TorchInductor caches.
+
+Run `conda activate sglang-v100` before using either command. Both commands are
+the exact batch-one configurations used for the measurements above and leave
+CUDA-graph capture at batch sizes 1 and 2 to conserve VRAM.
+
+### Qwen3.6-27B dense FP16 with DFlash
 
 ```bash
 FLASHINFER_DISABLE_VERSION_CHECK=1 \
@@ -430,9 +415,46 @@ sglang serve \
   --speculative-dflash-block-size 16
 ```
 
-For MTP, do not set `--speculative-draft-model-path`; SGLang loads the built-in
-MTP layer from the target checkpoint. `--context-length` is an upper bound, not
-a promise that the KV pool can hold that many live tokens. At
+### Qwen3.5-122B-A10B GPTQ-Int4 with DFlash
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --dtype float16 \
+  --quantization gptq_marlin \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.70 \
+  --context-length 262144 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 2 \
+  --cuda-graph-bs 1 2 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
+  --speculative-dflash-block-size 16
+```
+
+For Docker, keep the device, network, IPC, and cache-volume prefix from the
+earlier `docker run` example, pass `SGLANG_ENABLE_SPEC_V2=1` and
+`SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1` with `-e`, and copy the selected command's
+arguments beginning with `--model` after `sglang-v100:latest`. The image
+entrypoint adds `sglang serve` automatically. These are runtime settings; the
+image and Compose build commands remain unchanged.
+
+`--context-length` is an upper bound, not a promise that the KV pool can hold
+that many live tokens. At
 `--mem-fraction-static 0.70`, the 122B DFlash spec-v2 configuration has 116,064
 target/draft KV slots on this machine and resolves the requested
 `--max-running-requests 4` to three concurrent requests. Leave space for
