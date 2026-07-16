@@ -442,7 +442,7 @@ class DFlashWorker:
     def _compute_compact_draft_seq_lens(self, seq_lens: torch.Tensor) -> torch.Tensor:
         assert self.draft_window_size is not None
         visible_lens = torch.clamp(
-            seq_lens.to(dtype=torch.int32, device=self.device),
+            seq_lens.to(dtype=torch.int32),
             max=int(self.draft_window_size),
         )
         if self.page_size <= 1:
@@ -615,7 +615,21 @@ class DFlashWorker:
         torch.add(block_start, int(self.block_size), out=block_end)
 
         seq_lens_cpu = self._draft_seq_lens_cpu_buf[:bs]
-        seq_lens_cpu.copy_(draft_prefix_lens.to(device="cpu", dtype=torch.int32))
+        if batch.seq_lens_cpu is not None:
+            # The scheduler already maintains exact committed lengths on CPU.
+            # Reuse them instead of synchronizing draft_prefix_lens from CUDA
+            # before every draft graph replay. The old D2H copy serialized the
+            # target commit, draft KV materialization, and the next draft launch.
+            if self.use_compact_draft_cache:
+                seq_lens_cpu.copy_(
+                    self._compute_compact_draft_seq_lens(batch.seq_lens_cpu)
+                )
+            else:
+                seq_lens_cpu.copy_(batch.seq_lens_cpu)
+        else:
+            seq_lens_cpu.copy_(
+                draft_prefix_lens.to(device="cpu", dtype=torch.int32)
+            )
         allocator = self.draft_model_runner.token_to_kv_pool_allocator
         token_to_kv_pool_state_backup = allocator.backup_state()
         try:
@@ -655,7 +669,9 @@ class DFlashWorker:
             # derive kv_len by adding `draft_token_num`.
             draft_spec_info = self._draft_block_spec_info
             seq_lens = draft_prefix_lens
-            seq_lens_sum = int(draft_prefix_lens.sum().item())
+            # Use the host mirror for planning metadata.  Reading the equivalent
+            # CUDA reduction with .item() introduced a second stream sync here.
+            seq_lens_sum = int(seq_lens_cpu.sum())
             forward_batch = ForwardBatch(
                 forward_mode=ForwardMode.TARGET_VERIFY,
                 batch_size=bs,

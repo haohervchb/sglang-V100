@@ -253,19 +253,32 @@ partitions KV work across up to 80 V100 SMs and processes GQA heads in groups of
 up to four. This replaces the ordinary extend kernel's serial full-prefix scan
 and avoids reloading the same K/V data once per query head.
 
-Long-context single-request results on 4x V100-SXM2-32GB, using DFlash block
-size 16, CUDA graphs for batch sizes 1 and 2, and 256 requested output tokens:
+The long-context kernel improvement is best measured independently of draft
+acceptance. The following is the raw time for one full-attention target verify
+layer with a 16-token block on one V100 (TP4 per-rank head shapes):
 
-| Target | Input tokens | Mean TPOT | Decode rate |
+| Target shape | Context | Old serial scan | Split-KV verify |
 | --- | ---: | ---: | ---: |
-| Qwen3.6-27B FP16 | 100,000 | 7.48 ms | 133.7 tok/s |
-| Qwen3.6-27B FP16 | 150,000 | 9.75 ms | 102.6 tok/s |
-| Qwen3.5-122B-A10B GPTQ-Int4 | 100,000 | 3.74 ms | 267.4 tok/s |
+| Qwen3.6-27B | 100,000 | 18.83 ms | 1.04 ms |
+| Qwen3.6-27B | 150,000 | 27.58 ms | 1.54 ms |
+| Qwen3.5-122B-A10B | 100,000 | 19.17 ms | 1.04 ms |
+| Qwen3.5-122B-A10B | 150,000 | 27.34 ms | 1.53 ms |
 
-These measurements used a ShareGPT-derived repeated-token prompt and
-`--mem-fraction-static 0.70`. DFlash acceptance depends on the prompt and
-sampling settings, so measure the decode rate and acceptance length on the
-intended agent workload as well.
+Do not use repeated-token prompts to estimate application throughput. They can
+produce unusually high DFlash acceptance and previously made the end-to-end
+numbers in this README too optimistic. In agent-style testing on this 4x V100
+box, plan around roughly 60 output tok/s for Qwen3.6-27B and 80 output tok/s
+for Qwen3.5-122B-A10B at long context, then benchmark the actual prompts and
+sampling settings. The rate is approximately accept length divided by verify
+iteration time, so it can vary by several times on the same server.
+
+This is consistent with the checkpoint status: the
+[Qwen3.6-27B DFlash model card](https://huggingface.co/z-lab/Qwen3.6-27B-DFlash)
+says that checkpoint is still under training and publishes no benchmark
+results. The mature
+[Qwen3.5-122B-A10B DFlash model card](https://huggingface.co/z-lab/Qwen3.5-122B-A10B-DFlash)
+reports mean block-16 accept lengths from about 5.4 to 8.7 depending on the
+workload. Always record `spec_accept_length` beside output tok/s.
 
 ### Validated 4x V100 serving commands
 
@@ -323,12 +336,12 @@ sglang serve \
   --host 0.0.0.0 \
   --port 8082 \
   --mem-fraction-static 0.70 \
-  --context-length 8192 \
+  --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 4096 \
   --mamba-scheduler-strategy extra_buffer \
-  --cuda-graph-max-bs 4 \
-  --cuda-graph-bs 1 2 4 \
+  --cuda-graph-max-bs 2 \
+  --cuda-graph-bs 1 2 \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
@@ -381,12 +394,12 @@ sglang serve \
   --host 0.0.0.0 \
   --port 8082 \
   --mem-fraction-static 0.70 \
-  --context-length 8192 \
+  --context-length 262144 \
   --max-running-requests 4 \
   --chunked-prefill-size 4096 \
   --mamba-scheduler-strategy extra_buffer \
-  --cuda-graph-max-bs 4 \
-  --cuda-graph-bs 1 2 4 \
+  --cuda-graph-max-bs 2 \
+  --cuda-graph-bs 1 2 \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
@@ -394,9 +407,12 @@ sglang serve \
 ```
 
 For MTP, do not set `--speculative-draft-model-path`; SGLang loads the built-in
-MTP layer from the target checkpoint. Increase `--context-length` or
-`--mem-fraction-static` only after checking the available memory left for draft
-weights and CUDA graphs.
+MTP layer from the target checkpoint. `--context-length` is an upper bound, not
+a promise that the KV pool can hold that many live tokens. At
+`--mem-fraction-static 0.70`, the 122B DFlash configuration has approximately
+100,800 target/draft KV slots on this machine; leave space for generated tokens
+and concurrent requests. Increase `--mem-fraction-static` only after checking
+the memory left for draft weights, JIT compilation, and CUDA graphs.
 
 The first launch downloads the model from Hugging Face. For gated models,
 export `HF_TOKEN` before launching. Reduce `--context-length` or

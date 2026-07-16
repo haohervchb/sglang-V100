@@ -12,12 +12,14 @@ from sglang.srt.layers.attention.flash_attn_v100_backend import (
 )
 from sglang.srt.layers.radix_attention import AttentionType
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
+from sglang.srt.model_executor.model_runner import ModelRunner
 from sglang.srt.models.dflash import (
     _get_dflash_layer_attention_params,
     _resolve_dflash_rope_config,
 )
 from sglang.srt.models.qwen3_5_mtp import _is_mtp_dynamically_unquantized
 from sglang.srt.speculative.dflash_worker import (
+    DFlashWorker,
     _resolve_dflash_draft_attention_backend,
 )
 from sglang.srt.speculative.dflash_utils import (
@@ -151,6 +153,40 @@ def test_dflash_uses_native_draft_attention_on_v100():
         _resolve_dflash_draft_attention_backend("flash_attn_v100")
         == "flash_attn_v100"
     )
+
+
+def test_dflash_draft_skips_irrelevant_sm70_prefill_warmup(monkeypatch):
+    runner = ModelRunner.__new__(ModelRunner)
+    runner.device = "cuda"
+    runner.is_generation = True
+    runner.is_draft_worker = True
+    runner.spec_algorithm = SimpleNamespace(
+        is_dflash=lambda: True,
+        is_speculative=lambda: True,
+    )
+    runner._should_run_flashinfer_autotune = Mock(return_value=False)
+    runner._flashinfer_autotune = Mock()
+    runner._warmup_sm70_flashinfer_sampling = Mock()
+    runner._warmup_prefill_kernels_extends = Mock()
+    monkeypatch.setattr(torch.cuda, "get_device_capability", lambda: (7, 0))
+
+    runner.kernel_warmup()
+
+    runner._warmup_sm70_flashinfer_sampling.assert_called_once_with()
+    runner._warmup_prefill_kernels_extends.assert_not_called()
+
+
+def test_dflash_compact_length_preserves_cpu_host_mirror():
+    worker = DFlashWorker.__new__(DFlashWorker)
+    worker.draft_window_size = 4096
+    worker.page_size = 16
+    worker.device = "cuda"
+    seq_lens_cpu = torch.tensor([100, 10_005], dtype=torch.int32)
+
+    compact = worker._compute_compact_draft_seq_lens(seq_lens_cpu)
+
+    assert compact.device.type == "cpu"
+    assert compact.tolist() == [100, 4101]
 
 
 @pytest.mark.parametrize(
