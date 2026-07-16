@@ -248,6 +248,25 @@ starting point. Try block size 8 for the 122B draft when serving more concurrent
 requests and compare acceptance rate and inter-token latency on the actual
 workload.
 
+For full-attention 16-token verification blocks, the long-context SM70 path
+partitions KV work across up to 80 V100 SMs and processes GQA heads in groups of
+up to four. This replaces the ordinary extend kernel's serial full-prefix scan
+and avoids reloading the same K/V data once per query head.
+
+Long-context single-request results on 4x V100-SXM2-32GB, using DFlash block
+size 16, CUDA graphs for batch sizes 1 and 2, and 256 requested output tokens:
+
+| Target | Input tokens | Mean TPOT | Decode rate |
+| --- | ---: | ---: | ---: |
+| Qwen3.6-27B FP16 | 100,000 | 7.48 ms | 133.7 tok/s |
+| Qwen3.6-27B FP16 | 150,000 | 9.75 ms | 102.6 tok/s |
+| Qwen3.5-122B-A10B GPTQ-Int4 | 100,000 | 3.74 ms | 267.4 tok/s |
+
+These measurements used a ShareGPT-derived repeated-token prompt and
+`--mem-fraction-static 0.70`. DFlash acceptance depends on the prompt and
+sampling settings, so measure the decode rate and acceptance length on the
+intended agent workload as well.
+
 ### Validated 4x V100 serving commands
 
 The following commands are the configurations used for end-to-end validation

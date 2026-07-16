@@ -576,6 +576,10 @@ class FlashAttnV100Backend(AttentionBackend):
             causal=causal,
             sliding_window_size=sliding_window_size,
             num_kv_heads=layer.tp_k_head_num,
+            linear_verify=(
+                self._uses_native_linear_verify(forward_batch.forward_mode)
+                and bool(_use_tilelang)
+            ),
         )
         return out.reshape(num_tokens, layer.tp_q_head_num * layer.head_dim)
 
