@@ -286,34 +286,6 @@ workload-dependent variable: the harder analysis prompt accepted only about
 and sampling settings, and always record `spec_accept_length` beside output
 tok/s.
 
-### Cold-cache DFlash scaling benchmark
-
-The following plots compare Qwen3.6-27B FP16 and Qwen3.5-122B-A10B GPTQ-Int4
-on four V100-SXM2-32GB GPUs. Each point is the median of three cold-cache
-coding-agent trials with exact 1K, 3K, ..., 25K input lengths and 256 greedy
-output tokens per request. Shading is the observed min-max range. Target and
-draft CUDA graphs were captured at batch sizes 1, 2, and 4. The 122B run used
-`--mem-fraction-static 0.72` so SGLang finalized four real request slots; at
-0.70 it resolves to three and cannot produce a valid concurrency-four result.
-
-#### Concurrency 1
-
-![DFlash V100 scaling at concurrency 1](benchmark/dflash_v100_20260716/plots/concurrency_1.png)
-
-#### Concurrency 2
-
-![DFlash V100 scaling at concurrency 2](benchmark/dflash_v100_20260716/plots/concurrency_2.png)
-
-#### Concurrency 4
-
-![DFlash V100 scaling at concurrency 4](benchmark/dflash_v100_20260716/plots/concurrency_4.png)
-
-See the [full benchmark report](benchmark/dflash_v100_20260716/README.md) for
-all 78 result cells, metric definitions, server configurations, raw JSONL,
-summary CSV/JSON, and the reproducible plotting and streaming harnesses. This
-sweep has no non-DFlash baseline, so it characterizes current DFlash behavior
-but does not by itself establish a speculative-decoding speedup.
-
 This is consistent with the checkpoint status: the
 [Qwen3.6-27B DFlash model card](https://huggingface.co/z-lab/Qwen3.6-27B-DFlash)
 says that checkpoint is still under training and publishes no benchmark
