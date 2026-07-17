@@ -370,6 +370,15 @@ class DFlashDraftModel(nn.Module):
     def get_attention_sliding_window_size(self) -> Optional[int]:
         return get_dflash_attention_sliding_window_size(self.config)
 
+    def _to_runtime_dtype(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Match target-owned inputs to the loaded draft weight dtype.
+
+        Runtime dtype metadata can remain BF16 after V100 converts the actual
+        draft weights to FP16. The loaded projection weight is authoritative.
+        """
+        runtime_dtype = self.fc.weight.dtype
+        return tensor if tensor.dtype == runtime_dtype else tensor.to(runtime_dtype)
+
     def project_target_hidden(self, target_hidden: torch.Tensor) -> torch.Tensor:
         """Project concatenated target-layer hidden states into draft hidden_size."""
         expected = int(self.fc.in_features)
@@ -382,6 +391,7 @@ class DFlashDraftModel(nn.Module):
                 "This usually means the target model is capturing a different number of layer features than "
                 "the draft checkpoint/config expects."
             )
+        target_hidden = self._to_runtime_dtype(target_hidden)
         return self.hidden_norm(self.fc(target_hidden))
 
     @torch.no_grad()
@@ -398,7 +408,7 @@ class DFlashDraftModel(nn.Module):
             raise ValueError(
                 "DFlashDraftModel requires `input_embeds` (use the target embedding)."
             )
-        hidden_states = input_embeds
+        hidden_states = self._to_runtime_dtype(input_embeds)
         residual: Optional[torch.Tensor] = None
 
         for layer in self.layers:

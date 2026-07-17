@@ -15,6 +15,7 @@ from sglang.srt.managers.overlap_utils import decide_needs_cpu_seq_lens
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
 from sglang.srt.model_executor.model_runner import ModelRunner
 from sglang.srt.models.dflash import (
+    DFlashDraftModel,
     _get_dflash_layer_attention_params,
     _resolve_dflash_rope_config,
 )
@@ -46,6 +47,19 @@ class _ForwardMode:
 
     def is_draft_extend(self, include_v2=False):
         return self._draft_extend
+
+
+def test_dflash_normalizes_target_tensors_to_loaded_weight_dtype():
+    model = object.__new__(DFlashDraftModel)
+    torch.nn.Module.__init__(model)
+    model.fc = torch.nn.Linear(4, 4, bias=False, dtype=torch.float16)
+    bf16_target_embedding = torch.randn(2, 4, dtype=torch.bfloat16)
+
+    normalized = model._to_runtime_dtype(bf16_target_embedding)
+
+    assert normalized.dtype == torch.float16
+    already_normalized = torch.randn(2, 4, dtype=torch.float16)
+    assert model._to_runtime_dtype(already_normalized) is already_normalized
 
 
 def test_dflash_sampling_results_are_synchronized_across_tp():
