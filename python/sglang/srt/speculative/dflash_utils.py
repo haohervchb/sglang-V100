@@ -799,10 +799,33 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
         deterministic=True,
     )
 
-    correct_len = accept_token_num
+    # The target-only kernel is expected to return an accepted-draft count in
+    # [0, draft_token_num - 1].  Keep that invariant at the boundary: a stale
+    # or invalid negative value would otherwise become a zero commit length and
+    # can corrupt the overlap scheduler's per-request state.
+    correct_len = accept_token_num.clamp_(min=0, max=draft_token_num - 1)
     row_ids = torch.arange(bs, dtype=torch.long, device=device)
     accept_pos = accept_index[row_ids, correct_len.to(torch.long)].to(torch.long)
     bonus = predicts[accept_pos].to(torch.int64)
+    return correct_len, bonus
+
+
+def synchronize_dflash_sampling_results(
+    *,
+    correct_len: torch.Tensor,
+    bonus: torch.Tensor,
+    tp_group: Any,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Make non-greedy DFlash verification deterministic across TP ranks.
+
+    Each TP scheduler must commit the same number of tokens and the same bonus
+    token.  Sampling locally on every rank is unsafe because RNG state and tiny
+    floating-point differences can produce different decisions.  Rank 0 is the
+    canonical sampler, matching the synchronization used by EAGLE verification.
+    """
+    if int(tp_group.world_size) > 1:
+        tp_group.broadcast(correct_len, src=0)
+        tp_group.broadcast(bonus, src=0)
     return correct_len, bonus
 
 

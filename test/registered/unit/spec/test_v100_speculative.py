@@ -27,6 +27,7 @@ from sglang.srt.speculative.dflash_utils import (
     get_dflash_attention_sliding_window_size,
     parse_dflash_draft_config,
     resolve_dflash_verify_mask_policy,
+    synchronize_dflash_sampling_results,
 )
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
@@ -45,6 +46,85 @@ class _ForwardMode:
 
     def is_draft_extend(self, include_v2=False):
         return self._draft_extend
+
+
+def test_dflash_sampling_results_are_synchronized_across_tp():
+    tp_group = SimpleNamespace(world_size=4, broadcast=Mock())
+    correct_len = torch.tensor([0, 3], dtype=torch.int32)
+    bonus = torch.tensor([42, 99], dtype=torch.int64)
+
+    synchronized = synchronize_dflash_sampling_results(
+        correct_len=correct_len,
+        bonus=bonus,
+        tp_group=tp_group,
+    )
+
+    assert synchronized[0] is correct_len
+    assert synchronized[1] is bonus
+    assert tp_group.broadcast.call_args_list == [
+        ((correct_len,), {"src": 0}),
+        ((bonus,), {"src": 0}),
+    ]
+
+
+def test_dflash_sampling_sync_is_noop_for_single_tp_rank():
+    tp_group = SimpleNamespace(world_size=1, broadcast=Mock())
+    correct_len = torch.tensor([2], dtype=torch.int32)
+    bonus = torch.tensor([7], dtype=torch.int64)
+
+    synchronize_dflash_sampling_results(
+        correct_len=correct_len,
+        bonus=bonus,
+        tp_group=tp_group,
+    )
+
+    tp_group.broadcast.assert_not_called()
+
+
+def test_dflash_sampling_clamps_invalid_kernel_acceptance(monkeypatch):
+    from sglang.srt.speculative import dflash_utils
+
+    def fake_target_only_kernel(**kwargs):
+        kwargs["accept_token_num"].fill_(-1)
+        kwargs["accept_index"].copy_(kwargs["retrive_index"].to(torch.int32))
+        kwargs["predicts"].copy_(
+            torch.arange(
+                kwargs["predicts"].numel(),
+                dtype=torch.int32,
+                device=kwargs["predicts"].device,
+            )
+            + 10
+        )
+
+    monkeypatch.setattr(dflash_utils, "_DFLASH_SAMPLING_VERIFY_AVAILABLE", True)
+    monkeypatch.setattr(
+        dflash_utils,
+        "tree_speculative_sampling_target_only",
+        fake_target_only_kernel,
+    )
+    candidates = torch.tensor([[1, 2, 3], [4, 5, 6]], dtype=torch.int64)
+    logits = torch.zeros((6, 8), dtype=torch.float32)
+    sampling_info = SimpleNamespace(
+        temperatures=torch.ones((2, 1), dtype=torch.float32),
+        need_top_k_sampling=False,
+        need_top_p_sampling=False,
+    )
+
+    correct_len, bonus = (
+        dflash_utils.compute_dflash_sampling_correct_drafts_and_bonus(
+            candidates=candidates,
+            next_token_logits=logits,
+            sampling_info=sampling_info,
+            threshold_single=1.0,
+            threshold_acc=1.0,
+            uniform_samples=torch.zeros((2, 3), dtype=torch.float32),
+            uniform_samples_for_final_sampling=torch.zeros((2,), dtype=torch.float32),
+            use_sparse_topk=False,
+        )
+    )
+
+    assert correct_len.tolist() == [0, 0]
+    assert bonus.tolist() == [10, 13]
 
 
 @pytest.mark.parametrize(
@@ -315,6 +395,23 @@ def test_dflash_reads_transformers_v5_rope_parameters():
             ),
             16,
             [1, 7, 14, 20, 26, 32, 39, 45],
+            248077,
+            4095,
+        ),
+        (
+            SimpleNamespace(
+                num_hidden_layers=6,
+                num_target_layers=40,
+                dflash_config={
+                    "block_size": 16,
+                    "mask_token_id": 248077,
+                    "target_layer_ids": [1, 6, 11, 16, 22, 27, 32, 37],
+                },
+                layer_types=["sliding_attention"] * 5 + ["full_attention"],
+                sliding_window=4096,
+            ),
+            16,
+            [1, 6, 11, 16, 22, 27, 32, 37],
             248077,
             4095,
         ),

@@ -202,8 +202,8 @@ sglang serve \
 ## Decode acceleration with MTP or DFlash
 
 MTP and DFlash are alternative speculative decoders; enable one at a time.
-Both target checkpoints above include a built-in MTP layer. To enable it, add
-these arguments to either the Qwen3.5-122B GPTQ or Qwen3.6-27B command:
+The supported Qwen target checkpoints include a built-in MTP layer. To enable
+it, add these arguments to the corresponding non-DFlash serving command:
 
 ```bash
   --speculative-algorithm EAGLE \
@@ -236,6 +236,16 @@ To pair the dense Qwen3.6-27B target with its DFlash draft, add:
   --mamba-scheduler-strategy extra_buffer
 ```
 
+To pair either the unquantized or AWQ Qwen3.6-35B-A3B target with its DFlash
+draft, add:
+
+```bash
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
+  --speculative-dflash-block-size 8 \
+  --mamba-scheduler-strategy extra_buffer
+```
+
 On V100, DFlash draft attention and linear target verification automatically
 use the native SM70 paged-attention kernel. The kernel applies each draft
 layer's causal sliding window or bidirectional full-attention semantics. MTP
@@ -244,9 +254,10 @@ native SM70 kernel.
 Top-k-1 MTP target verification uses the native TileLang paged-prefill kernel;
 tree verification continues to use Triton's custom-mask path. Ordinary target
 prefill remains on `flash_attn_v100`. Block size 16 is the low-concurrency
-starting point. Try block size 8 for the 122B draft when serving more concurrent
-requests and compare acceptance rate and inter-token latency on the actual
-workload.
+starting point for the 27B and 122B drafts. Block size 8 is the tested default
+for 35B-A3B with four live requests; also try it for the 122B draft when serving
+more concurrent requests. Compare acceptance rate and inter-token latency on
+the actual workload.
 
 For full-attention 16-token verification blocks, the long-context SM70 path
 partitions KV work across up to 80 V100 SMs and processes GQA heads in groups of
@@ -357,8 +368,8 @@ layer; the cached FlashInfer, native V100 attention, `sglang-kernel`, and Marlin
 build layers remain reusable. The first DFlash launch may populate the existing
 Triton and TorchInductor caches.
 
-Run `conda activate sglang-v100` before using either command. Both commands are
-the four-request configurations used for the audited measurements below.
+Run `conda activate sglang-v100` before using these commands. They are
+four-request configurations tested on this machine.
 Hybrid DFlash target verification requires an exact CUDA graph for every live
 batch size. The runtime therefore expands `--cuda-graph-bs 1 2 4` to target
 graphs 1, 2, 3, and 4; the added batch-three graph used about 20–30 MiB per GPU
@@ -393,6 +404,76 @@ sglang serve \
   --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
   --speculative-dflash-block-size 16
 ```
+
+### Qwen3.6-35B-A3B FP16 with DFlash
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --model Qwen/Qwen3.6-35B-A3B \
+  --dtype float16 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.78 \
+  --context-length 262144 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
+  --speculative-dflash-block-size 8
+```
+
+The FP16 target is compatible with the same draft, but its unquantized target
+weights make it slower than AWQ on V100. Prefer AWQ for serving throughput and
+use FP16 when retaining the unquantized target weights is more important.
+
+### Qwen3.6-35B-A3B AWQ with DFlash
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --model QuantTrio/Qwen3.6-35B-A3B-AWQ \
+  --dtype float16 \
+  --quantization awq_marlin \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.78 \
+  --context-length 262144 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
+  --speculative-dflash-block-size 8
+```
+
+The 35B-A3B draft checkpoint was trained with 40K sequences. The runtime can
+serve longer target contexts, but DFlash acceptance and acceleration beyond
+that training range are workload-dependent. Use block size 16 when optimizing
+for one live request and compare it with the block-size-8 default above.
 
 ### Qwen3.5-122B-A10B GPTQ-Int4 with DFlash
 
@@ -479,6 +560,10 @@ that many live tokens. At `--mem-fraction-static 0.78`, the measured 122B
 configuration allocated 225,040 target/draft KV slots, admitted four requests,
 and left about 1.6 GiB on the tightest rank after draft graph capture. At 0.70,
 it allocated 116,064 slots and resolved the requested four requests to three.
+The 35B-A3B AWQ block-size-8 configuration allocated 943,472 target/draft KV
+slots and left about 2.3 GiB on the tightest rank after graph capture. The
+unquantized FP16 configuration allocated 370,048 target/draft KV slots and also
+left about 2.3 GiB of runtime-reported headroom on the tightest rank.
 If the service only needs one or two live requests, using
 `--cuda-graph-max-bs 2 --cuda-graph-bs 1 2` with 0.70 conserves both KV and graph
 memory. Leave space for generated tokens, JIT compilation, and other GPU

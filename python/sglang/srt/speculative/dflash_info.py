@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import torch
 
+from sglang.srt.distributed import get_tp_group
 from sglang.srt.layers.attention.utils import create_flashinfer_kv_indices_triton
 from sglang.srt.layers.logits_processor import LogitsProcessorOutput
 from sglang.srt.managers.schedule_batch import ScheduleBatch
@@ -23,6 +24,7 @@ from sglang.srt.speculative.dflash_utils import (
     compute_dflash_correct_drafts_and_bonus,
     compute_dflash_sampling_correct_drafts_and_bonus,
     is_dflash_sampling_verify_available,
+    synchronize_dflash_sampling_results,
 )
 from sglang.srt.speculative.spec_info import SpecInput, SpecInputType
 from sglang.srt.speculative.spec_utils import assign_req_to_token_pool_func
@@ -406,6 +408,11 @@ class DFlashVerifyInput(SpecInput):
                     if top_ks and all(top_k == top_ks[0] for top_k in top_ks)
                     else None
                 ),
+            )
+            correct_len, bonus = synchronize_dflash_sampling_results(
+                correct_len=correct_len,
+                bonus=bonus,
+                tp_group=get_tp_group(),
             )
         else:
             target_predict = torch.argmax(logits_output.next_token_logits, dim=-1).view(

@@ -190,11 +190,13 @@ class DFlashWorker:
             model_block_size = draft_config.block_size
             if model_block_size is None:
                 model_block_size = getattr(self.draft_model, "block_size", None)
-            if model_block_size is not None and int(model_block_size) != int(
-                self.block_size
+            if (
+                self.tp_rank == 0
+                and model_block_size is not None
+                and int(model_block_size) != int(self.block_size)
             ):
-                logger.warning(
-                    "DFLASH block size mismatch: using speculative_num_draft_tokens=%s but draft config block_size=%s.",
+                logger.info(
+                    "DFLASH using requested block size %s instead of checkpoint default %s.",
                     self.block_size,
                     model_block_size,
                 )

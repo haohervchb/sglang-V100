@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import torch
 
+from sglang.srt.distributed import get_tp_group
 from sglang.srt.managers.schedule_batch import ScheduleBatch
 from sglang.srt.managers.scheduler import GenerationBatchResult
 from sglang.srt.managers.tp_worker import TpModelWorker
@@ -20,6 +21,7 @@ from sglang.srt.speculative.dflash_utils import (
     compute_dflash_correct_drafts_and_bonus,
     compute_dflash_sampling_correct_drafts_and_bonus,
     is_dflash_sampling_verify_available,
+    synchronize_dflash_sampling_results,
 )
 from sglang.srt.speculative.dflash_worker import DFlashWorker
 from sglang.srt.speculative.eagle_info_v2 import assign_extend_cache_locs_func
@@ -531,6 +533,11 @@ class DFlashWorkerV2(DFlashWorker):
                 sampling_info=sampling_info,
                 max_top_k=draft_input.max_top_k,
                 uniform_top_k_value=draft_input.uniform_top_k_value,
+            )
+            accept_len, bonus = synchronize_dflash_sampling_results(
+                correct_len=accept_len,
+                bonus=bonus,
+                tp_group=get_tp_group(),
             )
             commit_lens = accept_len.to(torch.int32) + 1  # [bs]
             out_tokens = torch.empty(
