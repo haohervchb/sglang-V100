@@ -57,18 +57,23 @@ container. Pull the published image with:
 docker pull geesegeesegeese/sglang-v100:latest
 ```
 
-Model checkpoints are not embedded in the image. The public Qwen and z-lab
-checkpoints download on first launch into the `sglang-v100-cache` Docker volume,
-which Docker creates automatically. The same volume retains FlashInfer,
-TileLang, Triton, and TorchInductor JIT output. It starts empty and contains no
-files that are required from the image publisher.
+Model checkpoints are not embedded in the image. The command below bind-mounts
+the host Hugging Face cache, so it reuses checkpoints already downloaded by a
+host install and keeps any new downloads in `$HOME/.cache/huggingface`. This is
+intentional: the 122B target is about 75 GB, and hiding another copy inside an
+empty Docker volume can fill the host filesystem. A separate, much smaller
+`sglang-v100-jit` Docker volume retains FlashInfer, TileLang, Triton, and
+TorchInductor JIT output.
 
 Serve Qwen3.5-122B-A10B GPTQ-Int4 with DFlash on four V100s:
 
 ```bash
+mkdir -p "$HOME/.cache/huggingface"
+
 docker run --rm --gpus all --network host --ipc host \
   --ulimit memlock=-1 --ulimit stack=67108864 \
-  -v sglang-v100-cache:/root/.cache \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -v sglang-v100-jit:/root/sglang-v100-jit \
   -e SGLANG_ENABLE_SPEC_V2=1 \
   -e SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
   geesegeesegeese/sglang-v100:latest \
@@ -96,10 +101,26 @@ The explicit CUDA-graph limit is important on 32 GB V100s. Without it,
 SGLang's general low-memory TP4 heuristic can select a maximum graph batch of
 80 even when `--max-running-requests 4` is set, consuming the headroom needed
 by first-request JIT kernels. The published command uses 0.76 for a cold cache.
-After the volume is warm and measured headroom permits it, 0.78 provides more
-KV capacity. Omit the cache volume only for an intentionally disposable run;
-with `--rm`, the downloaded 75 GB target checkpoint would otherwise be
-discarded.
+After the JIT volume is warm and measured headroom permits it, 0.78 provides
+more KV capacity. Before the first download, make sure the filesystem containing
+`$HOME/.cache/huggingface` has at least 80 GB free for the target and draft
+checkpoints. Do not replace the Hugging Face bind mount with a new named volume
+unless a separate, private copy of every model is genuinely wanted.
+
+Earlier README versions mounted `sglang-v100-cache` over all of `/root/.cache`.
+That volume starts empty even when the host Hugging Face cache is populated, so
+Docker downloads the models again. After stopping containers that use it, an
+unneeded old cache can be inspected and then removed with:
+
+```bash
+docker run --rm -v sglang-v100-cache:/cache alpine du -sh /cache
+docker volume rm sglang-v100-cache
+```
+
+The removal command permanently deletes everything stored in that old volume;
+run it only after confirming that it contains no checkpoint copy you need. A
+warning that a z-lab DFlash draft repository has no `generation_config.json` is
+expected: generation settings come from the target model.
 
 For a local image build, BuildKit keeps every expensive native component in
 its own layer, so rerunning this exact command resumes from the last completed

@@ -196,9 +196,10 @@ ENV FLASHINFER_DISABLE_VERSION_CHECK=1 \
     SGLANG_MAMBA_CONV_DTYPE=float16 \
     SGLANG_MAMBA_SSM_DTYPE=float16 \
     HF_HOME=/root/.cache/huggingface \
-    TILELANG_CACHE_DIR=/root/.cache/tilelang \
-    TRITON_CACHE_DIR=/root/.cache/triton \
-    TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor \
+    FLASHINFER_WORKSPACE_BASE=/root/sglang-v100-jit \
+    TILELANG_CACHE_DIR=/root/sglang-v100-jit/tilelang \
+    TRITON_CACHE_DIR=/root/sglang-v100-jit/triton \
+    TORCHINDUCTOR_CACHE_DIR=/root/sglang-v100-jit/torchinductor \
     SGLANG_V100_PYTHON=/opt/venv/bin/python
 
 COPY --from=builder /opt/venv /opt/venv

@@ -21,7 +21,8 @@ services:
       SGLANG_ENABLE_SPEC_V2: "1"
       SGLANG_ENABLE_OVERLAP_PLAN_STREAM: "1"
     volumes:
-      - sglang-v100-cache:/root/.cache
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - sglang-v100-jit:/root/sglang-v100-jit
     ulimits:
       memlock: -1
       stack: 67108864
@@ -72,4 +73,4 @@ services:
       - "16"
 
 volumes:
-  sglang-v100-cache:
+  sglang-v100-jit:
