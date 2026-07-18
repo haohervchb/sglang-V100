@@ -45,13 +45,65 @@ The FlashInfer package and cubin versions used by the working SM70 stack differ
 slightly, so the serving commands set `FLASHINFER_DISABLE_VERSION_CHECK=1`.
 This is expected for this fork.
 
-## Docker: copy, paste, and run
+## Docker: pull and run
 
 The Docker image mirrors the host build: CUDA 12.8, Torch 2.9.1, the patched
 FlashInfer SM70 source, native V100 attention fallback, SM70-only
-`sglang-kernel`, V100 Marlin, and NCCL 2.27.5. BuildKit keeps every expensive
-native component in its own layer, so rerunning this exact command resumes from
-the last completed component:
+`sglang-kernel`, V100 Marlin, and NCCL 2.27.5. It contains the complete serving
+runtime; no repository checkout or host Python environment is mounted into the
+container. Pull the published image with:
+
+```bash
+docker pull geesegeesegeese/sglang-v100:latest
+```
+
+Model checkpoints are not embedded in the image. The public Qwen and z-lab
+checkpoints download on first launch into the `sglang-v100-cache` Docker volume,
+which Docker creates automatically. The same volume retains FlashInfer,
+TileLang, Triton, and TorchInductor JIT output. It starts empty and contains no
+files that are required from the image publisher.
+
+Serve Qwen3.5-122B-A10B GPTQ-Int4 with DFlash on four V100s:
+
+```bash
+docker run --rm --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v sglang-v100-cache:/root/.cache \
+  -e SGLANG_ENABLE_SPEC_V2=1 \
+  -e SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+  geesegeesegeese/sglang-v100:latest \
+  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
+  --dtype float16 \
+  --quantization gptq_marlin \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.76 \
+  --context-length 262144 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 4096 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
+  --speculative-dflash-block-size 16
+```
+
+The explicit CUDA-graph limit is important on 32 GB V100s. Without it,
+SGLang's general low-memory TP4 heuristic can select a maximum graph batch of
+80 even when `--max-running-requests 4` is set, consuming the headroom needed
+by first-request JIT kernels. The published command uses 0.76 for a cold cache.
+After the volume is warm and measured headroom permits it, 0.78 provides more
+KV capacity. Omit the cache volume only for an intentionally disposable run;
+with `--rm`, the downloaded 75 GB target checkpoint would otherwise be
+discarded.
+
+For a local image build, BuildKit keeps every expensive native component in
+its own layer, so rerunning this exact command resumes from the last completed
+component:
 
 ```bash
 cd "$HOME/sglang-V100"
@@ -61,44 +113,13 @@ DOCKER_BUILDKIT=1 docker build --network=host \
 ```
 
 Build parallelism is selected from the CPUs and available memory visible to
-Docker. To impose a manual limit, add `--build-arg MAX_JOBS=16`.
-
-Launch the default Qwen3.5 GPTQ model on four V100s:
-
-```bash
-docker volume create sglang-v100-flashinfer
-docker volume create sglang-v100-tilelang
-docker volume create sglang-v100-triton
-docker volume create sglang-v100-inductor
-
-docker run --rm --gpus all --network host --ipc host \
-  --ulimit memlock=-1 --ulimit stack=67108864 \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  -v sglang-v100-flashinfer:/root/.cache/flashinfer \
-  -v sglang-v100-tilelang:/root/.tilelang \
-  -v sglang-v100-triton:/root/.triton \
-  -v sglang-v100-inductor:/tmp/torchinductor_root \
-  -e HF_TOKEN="${HF_TOKEN:-}" \
-  sglang-v100:latest \
-  --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
-  --dtype float16 \
-  --quantization gptq_marlin \
-  --attention-backend flash_attn_v100 \
-  --tensor-parallel-size 4 \
-  --host 0.0.0.0 \
-  --port 8082 \
-  --mem-fraction-static 0.78 \
-  --context-length 262144 \
-  --max-running-requests 4 \
-  --chunked-prefill-size 16384 \
-  --enable-nccl-nvls
-```
+Docker. To impose a manual limit, add `--build-arg MAX_JOBS=16`. Replace the
+published image name in the serving command with `sglang-v100:latest` to use
+the local build.
 
 The container validates the GPU stack, verifies the real SM70 Marlin repack,
-and warms the FlashInfer sampler before starting SGLang. Its FlashInfer,
-TileLang, Triton, and TorchInductor caches are persistent volumes, so cold JIT
-work survives container replacement. If the Docker Compose v2 plugin is
-installed, the equivalent shorter command is:
+and warms the FlashInfer sampler before starting SGLang. If the Docker Compose
+v2 plugin is installed, the equivalent local-build command is:
 
 ```bash
 docker compose -f docker/v100-compose.yaml up --build
@@ -548,12 +569,10 @@ the identical prompt hashes were rerun after that prefill/JIT path was resident,
 and the disclosed 0.84-second steady result is plotted. No other cell was
 replaced.
 
-For Docker, keep the device, network, IPC, and cache-volume prefix from the
-earlier `docker run` example, pass `SGLANG_ENABLE_SPEC_V2=1` and
-`SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1` with `-e`, and copy the selected command's
-arguments beginning with `--model` after `sglang-v100:latest`. The image
-entrypoint adds `sglang serve` automatically. These are runtime settings; the
-image and Compose build commands remain unchanged.
+For Docker, keep the device, network, IPC, single cache-volume, and environment
+prefix from the earlier `docker run` example, then replace its arguments
+beginning with `--model` with those from the selected command above. The image
+entrypoint adds `sglang serve` automatically.
 
 `--context-length` is an upper bound, not a promise that the KV pool can hold
 that many live tokens. At `--mem-fraction-static 0.78`, the measured 122B

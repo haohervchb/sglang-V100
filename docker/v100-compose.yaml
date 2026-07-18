@@ -18,12 +18,10 @@ services:
       SGLANG_CUSTOM_ALLREDUCE_ALGO: 1stage
       SGLANG_MAMBA_CONV_DTYPE: float16
       SGLANG_MAMBA_SSM_DTYPE: float16
+      SGLANG_ENABLE_SPEC_V2: "1"
+      SGLANG_ENABLE_OVERLAP_PLAN_STREAM: "1"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
-      - sglang-v100-flashinfer:/root/.cache/flashinfer
-      - sglang-v100-tilelang:/root/.tilelang
-      - sglang-v100-triton:/root/.triton
-      - sglang-v100-inductor:/tmp/torchinductor_root
+      - sglang-v100-cache:/root/.cache
     ulimits:
       memlock: -1
       stack: 67108864
@@ -50,17 +48,28 @@ services:
       - --port
       - "8082"
       - --mem-fraction-static
-      - "0.78"
+      - "0.76"
       - --context-length
       - "262144"
       - --max-running-requests
       - "4"
       - --chunked-prefill-size
-      - "16384"
+      - "4096"
+      - --mamba-scheduler-strategy
+      - extra_buffer
+      - --cuda-graph-max-bs
+      - "4"
+      - --cuda-graph-bs
+      - "1"
+      - "2"
+      - "4"
       - --enable-nccl-nvls
+      - --speculative-algorithm
+      - DFLASH
+      - --speculative-draft-model-path
+      - z-lab/Qwen3.5-122B-A10B-DFlash
+      - --speculative-dflash-block-size
+      - "16"
 
 volumes:
-  sglang-v100-flashinfer:
-  sglang-v100-tilelang:
-  sglang-v100-triton:
-  sglang-v100-inductor:
+  sglang-v100-cache:
