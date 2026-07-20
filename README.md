@@ -57,6 +57,10 @@ container. Pull the published image with:
 docker pull geesegeesegeese/sglang-v100:latest
 ```
 
+The published image and its tags are also available on Docker Hub at
+<https://hub.docker.com/r/geesegeesegeese/sglang-v100>, so it can be browsed or
+pulled without a local build.
+
 Model checkpoints are not embedded in the image. The command below bind-mounts
 the host Hugging Face cache, so it reuses checkpoints already downloaded by a
 host install and keeps any new downloads in `$HOME/.cache/huggingface`. This is
