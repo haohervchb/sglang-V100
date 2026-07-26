@@ -12,7 +12,11 @@ import torch.nn.functional as F
 from sglang.srt.environ import envs
 from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
 from sglang.srt.layers.sampler import apply_custom_logit_processor
+from sglang.srt.layers.utils.hash import murmur_hash32
 from sglang.srt.managers.schedule_batch import Req
+from sglang.srt.sampling.penaltylib.repetition_penalty import (
+    apply_scaling_penalties,
+)
 from sglang.srt.utils import is_cuda, is_musa
 
 DEFAULT_DFLASH_MASK_TOKEN = "<|MASK|>"
@@ -148,8 +152,9 @@ def apply_dflash_verify_logits_adjustments(
     """Apply sampling-time logit adjustments for DFlash verify in place.
 
     This keeps v1 and v2 verify semantics aligned while letting overlap scheduling
-    use the cheaper precomputed `acc_linear_penalties` path instead of allocating a
-    repeated `[bs * draft_token_num, vocab]` penalty tensor every step.
+    use the precomputed additive and scaling penalty tensors.  Like EAGLE verify,
+    penalties are relaxed: the history at the start of the verify block is applied
+    to every row in that block.
     """
     if sampling_info is None:
         return
@@ -161,7 +166,7 @@ def apply_dflash_verify_logits_adjustments(
     if draft_token_num <= 0:
         raise ValueError(f"draft_token_num must be positive, got {draft_token_num}.")
 
-    bs = len(sampling_info)
+    bs = int(sampling_info.temperatures.shape[0])
     if next_token_logits.shape[0] != bs * draft_token_num:
         raise ValueError(
             "next_token_logits row count mismatch for DFlash verify adjustments. "
@@ -175,7 +180,8 @@ def apply_dflash_verify_logits_adjustments(
             num_tokens_in_batch=draft_token_num,
         )
 
-    acc_linear_penalties = getattr(sampling_info, "acc_linear_penalties", None)
+    acc_additive_penalties = getattr(sampling_info, "acc_additive_penalties", None)
+    acc_scaling_penalties = getattr(sampling_info, "acc_scaling_penalties", None)
     penalizer = getattr(sampling_info, "penalizer_orchestrator", None)
     vocab_mask = getattr(sampling_info, "vocab_mask", None)
     logit_bias = getattr(sampling_info, "logit_bias", None)
@@ -188,33 +194,32 @@ def apply_dflash_verify_logits_adjustments(
             logits_3d = next_token_logits.reshape(bs, draft_token_num, -1)
         return logits_3d
 
-    # Dense fallback only when we need live penalizer application or a vocab mask.
-    # In overlap scheduling the common path is `acc_linear_penalties`, which can be
-    # broadcast over the verify block without materializing a repeated buffer.
-    if (
-        penalizer is not None and penalizer.is_required and acc_linear_penalties is None
-    ) or vocab_mask is not None:
-        linear_penalty = torch.zeros(
-            (bs, next_token_logits.shape[1]),
-            dtype=torch.float32,
-            device=next_token_logits.device,
-        )
-        sampling_info.apply_logits_bias(linear_penalty)
-        get_logits_3d().add_(
-            linear_penalty[:, None, :].to(dtype=next_token_logits.dtype)
-        )
-        return
-
-    if acc_linear_penalties is not None:
+    live_penalties_applied = penalizer is not None and penalizer.is_required
+    if live_penalties_applied:
+        penalizer.apply(next_token_logits, repeat=draft_token_num)
+    elif acc_additive_penalties is not None:
         if (
-            acc_linear_penalties.device != next_token_logits.device
-            or acc_linear_penalties.dtype != next_token_logits.dtype
+            acc_additive_penalties.device != next_token_logits.device
+            or acc_additive_penalties.dtype != next_token_logits.dtype
         ):
-            acc_linear_penalties = acc_linear_penalties.to(
+            acc_additive_penalties = acc_additive_penalties.to(
                 device=next_token_logits.device,
                 dtype=next_token_logits.dtype,
             )
-        get_logits_3d().add_(acc_linear_penalties[:, None, :])
+        get_logits_3d().add_(acc_additive_penalties[:, None, :])
+
+    if not live_penalties_applied and acc_scaling_penalties is not None:
+        if acc_scaling_penalties.device != next_token_logits.device:
+            acc_scaling_penalties = acc_scaling_penalties.to(
+                device=next_token_logits.device
+            )
+        apply_scaling_penalties(get_logits_3d(), acc_scaling_penalties[:, None, :])
+
+    if vocab_mask is not None:
+        for step in range(draft_token_num):
+            sampling_info.apply_mask_func(
+                logits=get_logits_3d()[:, step, :], vocab_mask=vocab_mask
+            )
 
     if logit_bias is not None:
         if (
@@ -226,6 +231,43 @@ def apply_dflash_verify_logits_adjustments(
                 dtype=next_token_logits.dtype,
             )
         get_logits_3d().add_(logit_bias[:, None, :])
+
+
+def _min_p_renorm_prob(
+    probs: torch.Tensor,
+    min_ps: torch.Tensor,
+) -> torch.Tensor:
+    """Apply min-p filtering and return a normalized distribution."""
+    thresholds = probs.amax(dim=-1) * min_ps.reshape(-1)
+    filtered = probs.masked_fill(probs < thresholds[:, None], 0.0)
+    return filtered / filtered.sum(dim=-1, keepdim=True).clamp_min_(
+        torch.finfo(filtered.dtype).tiny
+    )
+
+
+def _dflash_seeded_uniform_samples(
+    *,
+    sampling_seed: torch.Tensor,
+    sampling_positions: torch.Tensor,
+    num_samples: int,
+) -> torch.Tensor:
+    """Generate batch-invariant DFlash coins from request seeds and positions."""
+    if sampling_seed.ndim != 1 or sampling_positions.ndim != 1:
+        raise ValueError("sampling_seed and sampling_positions must be 1D.")
+    if sampling_seed.shape != sampling_positions.shape:
+        raise ValueError(
+            "sampling_seed and sampling_positions must have matching shapes."
+        )
+    columns = torch.arange(num_samples, dtype=torch.int64, device=sampling_seed.device)
+    hashed = murmur_hash32(
+        sampling_seed,
+        sampling_positions.to(device=sampling_seed.device),
+        columns,
+    )
+    # Center values in their uint32 bins so log-based sampling never sees 0 or 1.
+    return (
+        (hashed.to(torch.float64) + 0.5) / (float(torch.iinfo(torch.uint32).max) + 1.0)
+    ).to(torch.float32)
 
 
 def _get_or_create_chain_verify_buffers(
@@ -629,6 +671,7 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
     threshold_acc: Optional[float] = None,
     uniform_samples: Optional[torch.Tensor] = None,
     uniform_samples_for_final_sampling: Optional[torch.Tensor] = None,
+    sampling_positions: Optional[torch.Tensor] = None,
     use_sparse_topk: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Compute DFlash accept lengths and bonus tokens for non-greedy sampling.
@@ -679,9 +722,26 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
 
     device = next_token_logits.device
 
+    sampling_seed = getattr(sampling_info, "sampling_seed", None)
+    seeded_uniform_samples = None
+    if sampling_seed is not None and (
+        uniform_samples is None or uniform_samples_for_final_sampling is None
+    ):
+        if sampling_positions is None:
+            raise ValueError(
+                "sampling_positions is required when deterministic sampling is enabled."
+            )
+        seeded_uniform_samples = _dflash_seeded_uniform_samples(
+            sampling_seed=sampling_seed.to(device=device),
+            sampling_positions=sampling_positions.to(device=device),
+            num_samples=draft_token_num + 1,
+        )
+
     if uniform_samples is None:
-        uniform_samples = torch.rand(
-            (bs, draft_token_num), dtype=torch.float32, device=device
+        uniform_samples = (
+            seeded_uniform_samples[:, :draft_token_num]
+            if seeded_uniform_samples is not None
+            else torch.rand((bs, draft_token_num), dtype=torch.float32, device=device)
         )
     else:
         if uniform_samples.shape != (bs, draft_token_num):
@@ -692,8 +752,10 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
         uniform_samples = uniform_samples.to(device=device, dtype=torch.float32)
 
     if uniform_samples_for_final_sampling is None:
-        uniform_samples_for_final_sampling = torch.rand(
-            (bs,), dtype=torch.float32, device=device
+        uniform_samples_for_final_sampling = (
+            seeded_uniform_samples[:, draft_token_num]
+            if seeded_uniform_samples is not None
+            else torch.rand((bs,), dtype=torch.float32, device=device)
         )
     else:
         if uniform_samples_for_final_sampling.shape != (bs,):
@@ -708,6 +770,7 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
 
     need_top_k = bool(getattr(sampling_info, "need_top_k_sampling", True))
     need_top_p = bool(getattr(sampling_info, "need_top_p_sampling", False))
+    need_min_p = bool(getattr(sampling_info, "need_min_p_sampling", False))
     # Build target distribution once over all verify rows.
     expanded_temperature = torch.repeat_interleave(
         sampling_info.temperatures, draft_token_num, dim=0
@@ -746,6 +809,11 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
                     sampling_info.top_ps, draft_token_num, dim=0
                 )
                 topk_probs = top_p_renorm_prob(topk_probs, repeated_top_ps)
+            if need_min_p:
+                repeated_min_ps = torch.repeat_interleave(
+                    sampling_info.min_ps, draft_token_num, dim=0
+                )
+                topk_probs = _min_p_renorm_prob(topk_probs, repeated_min_ps)
 
             target_probs = torch.zeros_like(scaled_logits, dtype=topk_probs.dtype)
             target_probs.scatter_(1, topk_indices, topk_probs)
@@ -762,6 +830,11 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
             target_probs = top_p_renorm_prob(
                 target_probs,
                 torch.repeat_interleave(sampling_info.top_ps, draft_token_num, dim=0),
+            )
+        if need_min_p:
+            target_probs = _min_p_renorm_prob(
+                target_probs,
+                torch.repeat_interleave(sampling_info.min_ps, draft_token_num, dim=0),
             )
     target_probs = target_probs.view(bs, draft_token_num, -1).contiguous()
     draft_probs = torch.zeros_like(target_probs)
@@ -799,11 +872,15 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
         deterministic=True,
     )
 
-    # The target-only kernel is expected to return an accepted-draft count in
-    # [0, draft_token_num - 1].  Keep that invariant at the boundary: a stale
-    # or invalid negative value would otherwise become a zero commit length and
-    # can corrupt the overlap scheduler's per-request state.
-    correct_len = accept_token_num.clamp_(min=0, max=draft_token_num - 1)
+    # Do not silently turn stale or corrupt kernel output into a valid commit.
+    # The clamp keeps the subsequent gather memory-safe while the async assert
+    # makes any invariant violation fail the request.
+    valid_accept_len = (accept_token_num >= 0) & (accept_token_num < draft_token_num)
+    torch._assert_async(
+        valid_accept_len.all(),
+        "DFLASH sampling kernel returned an invalid accepted-token count.",
+    )
+    correct_len = accept_token_num.clamp(min=0, max=draft_token_num - 1)
     row_ids = torch.arange(bs, dtype=torch.long, device=device)
     accept_pos = accept_index[row_ids, correct_len.to(torch.long)].to(torch.long)
     bonus = predicts[accept_pos].to(torch.int64)

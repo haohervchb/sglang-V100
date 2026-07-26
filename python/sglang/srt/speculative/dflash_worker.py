@@ -56,9 +56,7 @@ def _resolve_dflash_draft_attention_backend(draft_backend: Optional[str]) -> str
         # The native SM70 path selects causality and the left window from each
         # RadixAttention layer. This is important for Qwen3.6 DFlash, whose
         # draft interleaves causal SWA and bidirectional full attention.
-        logger.info(
-            "DFLASH draft worker is using native per-layer SM70 attention."
-        )
+        logger.info("DFLASH draft worker is using native per-layer SM70 attention.")
         return "flash_attn_v100"
 
     if draft_backend == "trtllm_mha":
@@ -1343,12 +1341,15 @@ class DFlashWorker:
 
         if batch.mamba_track_indices is not None:
             mamba_track_interval = self.server_args.mamba_track_interval
+            seq_lens_post_verify = seq_lens_pre_verify + commit_lens.to(
+                seq_lens_pre_verify.dtype
+            )
             to_track_mask = (
                 seq_lens_pre_verify // mamba_track_interval
-                != batch.seq_lens // mamba_track_interval
+                != seq_lens_post_verify // mamba_track_interval
             )
             tracking_point = (
-                batch.seq_lens // mamba_track_interval * mamba_track_interval
+                seq_lens_post_verify // mamba_track_interval * mamba_track_interval
             )
             to_track_ith = torch.clamp(tracking_point - seq_lens_pre_verify - 1, min=0)
             can_track_mask = to_track_mask & (

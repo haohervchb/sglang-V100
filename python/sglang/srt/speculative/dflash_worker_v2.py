@@ -533,6 +533,7 @@ class DFlashWorkerV2(DFlashWorker):
                 sampling_info=sampling_info,
                 max_top_k=draft_input.max_top_k,
                 uniform_top_k_value=draft_input.uniform_top_k_value,
+                sampling_positions=positions_2d[:, 0],
             )
             accept_len, bonus = synchronize_dflash_sampling_results(
                 correct_len=accept_len,

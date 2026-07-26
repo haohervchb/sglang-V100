@@ -50,6 +50,7 @@ def fused_sigmoid_gating_delta_rule_update_kernel(
     # Optional flags for target_verify support (default False for decode)
     DISABLE_STATE_UPDATE: tl.constexpr = False,
     CACHE_INTERMEDIATE_STATES: tl.constexpr = False,
+    QUANTIZE_STATE_EACH_STEP: tl.constexpr = False,
     HAS_EAGLE_TREE_CUSTOM_ATTN_MASK: tl.constexpr = False,
 ):
     """
@@ -213,6 +214,15 @@ def fused_sigmoid_gating_delta_rule_update_kernel(
                 )
                 tl.store(cache_ptr, b_h.to(cache_ptr.dtype.element_ty), mask=mask_h)
 
+                # A normal decode invocation persists and reloads the recurrent
+                # state after every token.  Target verification processes several
+                # tokens in one invocation, so keeping b_h in fp32 between steps
+                # changes the recurrence whenever the persistent state is
+                # fp16/bf16.  Reload the state we just cached to preserve the
+                # exact store/load boundary (a cast pair can be optimized away).
+                if QUANTIZE_STATE_EACH_STEP:
+                    b_h = tl.load(cache_ptr, mask=mask_h, other=0).to(tl.float32)
+
         step_idx += 1
 
         # Update pointers for next timestep
@@ -358,6 +368,11 @@ def fused_sigmoid_gating_delta_rule_update(
         IS_KDA=is_kda,
         DISABLE_STATE_UPDATE=disable_state_update,
         CACHE_INTERMEDIATE_STATES=intermediate_states_buffer is not None,
+        QUANTIZE_STATE_EACH_STEP=(
+            intermediate_states_buffer is not None
+            and intermediate_states_buffer.dtype != torch.float32
+            and retrieve_parent_token is None
+        ),
         HAS_EAGLE_TREE_CUSTOM_ATTN_MASK=retrieve_parent_token is not None,
         num_warps=num_warps,
         num_stages=num_stages,

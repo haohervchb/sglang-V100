@@ -8,7 +8,94 @@ from partial_json_parser.core.exceptions import MalformedJSON
 from partial_json_parser.core.options import Allow
 
 try:
-    from xgrammar import StructuralTag, get_model_structural_tag
+    from xgrammar import StructuralTag
+
+    try:
+        from xgrammar import get_model_structural_tag
+    except ImportError:
+        # XGrammar 0.1.32 (the version pinned by this repository) renamed the
+        # model-tag helper and its Qwen Coder model key, and removed the
+        # tool_choice argument. Keep SGLang's stable detector API while
+        # preserving required/named tool-choice semantics.
+        from xgrammar import get_builtin_structural_tag
+
+        def get_model_structural_tag(
+            *,
+            model: str,
+            tools: List[Dict[str, Any]],
+            tool_choice: Union[Dict[str, Any], Literal["auto", "required"]],
+            reasoning: bool,
+        ) -> Optional[StructuralTag]:
+            deepseek_v4 = model == "deepseek_v4"
+            model = {
+                "qwen_3_coder": "qwen_coder",
+                # XGrammar 0.1.32 has the same DSML body grammar under the
+                # V3.2 template. V4 only renames the outer function_calls tag.
+                "deepseek_v4": "deepseek_v3_2",
+            }.get(model, model)
+            if model not in {
+                "llama",
+                "qwen",
+                "qwen_coder",
+                "kimi",
+                "deepseek_r1",
+                "harmony",
+                "deepseek_v3_2",
+                "minimax",
+            }:
+                # Match the old optional-helper behavior for detector formats
+                # that the pinned builtin API does not yet implement (for
+                # example DeepSeek V4), rather than raising during a request.
+                return None
+
+            require_tool = tool_choice == "required"
+            if isinstance(tool_choice, dict):
+                selected_name = (
+                    tool_choice.get("function", {}).get("name")
+                    if isinstance(tool_choice.get("function"), dict)
+                    else None
+                )
+                if selected_name:
+                    tools = [
+                        tool
+                        for tool in tools
+                        if tool.get("function", {}).get("name") == selected_name
+                    ]
+                    require_tool = True
+
+            structural_tag = get_builtin_structural_tag(
+                model=model,
+                tools=tools,
+                reasoning=reasoning,
+            )
+            if not require_tool and not deepseek_v4:
+                return structural_tag
+
+            payload = structural_tag.model_dump()
+
+            def update_payload(value: Any) -> Any:
+                if isinstance(value, dict):
+                    if value.get("type") == "triggered_tags":
+                        if require_tool:
+                            value["at_least_one"] = True
+                    for key, child in value.items():
+                        value[key] = update_payload(child)
+                elif isinstance(value, list):
+                    for index, child in enumerate(value):
+                        value[index] = update_payload(child)
+                elif deepseek_v4 and isinstance(value, str):
+                    return value.replace(
+                        "<｜DSML｜function_calls>",
+                        "<｜DSML｜tool_calls>",
+                    ).replace(
+                        "</｜DSML｜function_calls>",
+                        "</｜DSML｜tool_calls>",
+                    )
+                return value
+
+            update_payload(payload)
+            return StructuralTag.model_validate(payload)
+
 except ImportError:
     StructuralTag = Any
     get_model_structural_tag = None

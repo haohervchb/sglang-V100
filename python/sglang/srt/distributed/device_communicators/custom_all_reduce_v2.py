@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, TypeVar
@@ -142,6 +143,25 @@ class CustomAllReduceV2:
         if self.override_algo is not None:
             return self.override_algo
         input_bytes = input.numel() * input.element_size()
+
+        # Keep the documented legacy custom-AR override effective when the
+        # default CUDA communicator is the JIT v2 implementation. Previously
+        # SGLANG_CUSTOM_ALLREDUCE_ALGO was read only by the legacy sgl-kernel
+        # communicator, so the same V100 launch silently ignored it whenever
+        # CustomAllReduceV2 initialized successfully.
+        env_algo = os.getenv("SGLANG_CUSTOM_ALLREDUCE_ALGO")
+        if env_algo in ("1stage", "oneshot"):
+            if input_bytes <= self.config.one_shot_push_threshold:
+                return AllReduceAlgo.ONE_SHOT_PUSH
+            return AllReduceAlgo.ONE_SHOT_PULL
+        if env_algo in ("2stage", "twoshot"):
+            return AllReduceAlgo.TWO_SHOT_PULL
+        if env_algo:
+            raise ValueError(
+                "Invalid SGLANG_CUSTOM_ALLREDUCE_ALGO="
+                f"{env_algo!r}. Valid values: 1stage, oneshot, 2stage, twoshot."
+            )
+
         if input_bytes <= self.config.one_shot_push_threshold:
             return AllReduceAlgo.ONE_SHOT_PUSH
         if input_bytes <= self.config.one_shot_pull_threshold:

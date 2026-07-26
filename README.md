@@ -98,7 +98,9 @@ docker run --rm --gpus all --network host --ipc host \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
-  --speculative-dflash-block-size 16
+  --speculative-dflash-block-size 16 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
 ```
 
 The explicit CUDA-graph limit is important on 32 GB V100s. Without it,
@@ -421,6 +423,20 @@ batch size. The runtime therefore expands `--cuda-graph-bs 1 2 4` to target
 graphs 1, 2, 3, and 4; the added batch-three graph used about 20–30 MiB per GPU
 in these runs.
 
+The commands below keep recurrent SSM state in FP16 to fit the tested
+four-request configurations. DFlash verification now preserves the same
+per-token FP16 store/load boundary as ordinary decode, so enabling DFlash does
+not introduce a separate recurrent-state trajectory. For maximum model fidelity,
+especially on visual inputs, use `SGLANG_MAMBA_SSM_DTYPE=float32` (the Qwen
+checkpoint setting) and remeasure memory headroom; the FP16 override still
+reduces the target model's recurrent-state precision in both speculative and
+ordinary decode.
+
+DFlash currently supports parsed, unconstrained tool calls (`tool_choice="auto"`).
+Grammar-constrained requests (`tool_choice="required"` or a named tool choice)
+are rejected with HTTP 400; use `auto` or serve without DFlash when the API must
+enforce a tool choice.
+
 ### Qwen3.6-27B dense FP16 with DFlash
 
 ```bash
@@ -448,7 +464,9 @@ sglang serve \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
-  --speculative-dflash-block-size 16
+  --speculative-dflash-block-size 16 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
 ```
 
 ### Qwen3.6-35B-A3B FP16 with DFlash
@@ -478,7 +496,9 @@ sglang serve \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
-  --speculative-dflash-block-size 8
+  --speculative-dflash-block-size 8 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
 ```
 
 The FP16 target is compatible with the same draft, but its unquantized target
@@ -513,7 +533,9 @@ sglang serve \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
-  --speculative-dflash-block-size 8
+  --speculative-dflash-block-size 8 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
 ```
 
 The 35B-A3B draft checkpoint was trained with 40K sequences. The runtime can
@@ -549,7 +571,9 @@ sglang serve \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
-  --speculative-dflash-block-size 16
+  --speculative-dflash-block-size 16 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
 ```
 
 ### Audited 1K–25K context scaling

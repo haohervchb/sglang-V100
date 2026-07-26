@@ -408,6 +408,7 @@ class DFlashVerifyInput(SpecInput):
                     if top_ks and all(top_k == top_ks[0] for top_k in top_ks)
                     else None
                 ),
+                sampling_positions=self.positions.view(bs, self.draft_token_num)[:, 0],
             )
             correct_len, bonus = synchronize_dflash_sampling_results(
                 correct_len=correct_len,

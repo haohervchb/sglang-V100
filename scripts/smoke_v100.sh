@@ -33,6 +33,7 @@ import flash_attn_v100_cuda
 import sgl_kernel
 from flashinfer.sampling import top_k_top_p_sampling_from_probs
 from sglang.srt.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
+from sglang.srt.function_call.base_format_detector import get_model_structural_tag
 from sglang.srt.layers.quantization.marlin_utils import (
     _sm70_marlin_v100_repack_ops,
 )
@@ -57,6 +58,25 @@ assert gptq_repack is not None, (
     "produces zero weights"
 )
 assert awq_repack is not None, "marlin_v100 AWQ repack is missing"
+
+# The Docker dependency set pins XGrammar 0.1.32, whose builtin helper uses a
+# different Qwen Coder model key and API than earlier releases.
+assert get_model_structural_tag is not None
+structural_tag = get_model_structural_tag(
+    model="qwen_3_coder",
+    tools=[
+        {
+            "type": "function",
+            "function": {
+                "name": "execute",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ],
+    tool_choice="auto",
+    reasoning=False,
+)
+assert structural_tag is not None, "Qwen Coder structural tag is unavailable"
 
 loaded_common_ops = Path(sgl_kernel.common_ops.__file__).resolve()
 assert loaded_common_ops.name == "common_ops.abi3.so", loaded_common_ops

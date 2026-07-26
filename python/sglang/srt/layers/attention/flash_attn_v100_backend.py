@@ -89,9 +89,7 @@ def _load_paged_forward():
         if is_cuda() and get_device_sm() == 70:
             _paged_forward = _tl_paged
             _use_tilelang = True
-            logger.info(
-                "paged prefill: using vendored tilelang-fa-v100 kernel (SM70)."
-            )
+            logger.info("paged prefill: using vendored tilelang-fa-v100 kernel (SM70).")
             return _paged_forward
     except Exception:
         pass
@@ -103,7 +101,7 @@ def _load_paged_forward():
 
 def _load_ai_bond_paged():
     """Lazy-load the ai-bond paged forward kernel via GooseLLM's wrapper."""
-    global _paged_forward
+    global _paged_forward, _use_tilelang
     if _paged_forward is not None:
         return _paged_forward
 
@@ -129,6 +127,7 @@ def _load_ai_bond_paged():
         from flash_attn_v100 import flash_attn_paged_forward  # noqa: F401
 
         _paged_forward = flash_attn_paged_forward
+        _use_tilelang = False
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(
             "flash_attn_v100 backend requires the ai-bond flash_attn_v100_cuda "
@@ -208,6 +207,14 @@ class FlashAttnV100Backend(AttentionBackend):
     def _uses_native_linear_verify(self, forward_mode) -> bool:
         if not forward_mode.is_target_verify():
             return False
+        # The ai-bond fallback has no linear-verify or sliding-window API.
+        # DFlash drafts contain causal SWA layers, so routing their verify pass
+        # through that fallback would either fail on unsupported kwargs or,
+        # if the kwargs were dropped, silently use the wrong attention mask.
+        # Triton's TARGET_VERIFY path supports both per-layer causal/SWA and
+        # final bidirectional attention, so use it unless TileLang is active.
+        if not _use_tilelang:
+            return False
         spec_algorithm = self.model_runner.spec_algorithm
         return spec_algorithm.is_dflash() or (
             spec_algorithm.is_eagle()
@@ -245,14 +252,14 @@ class FlashAttnV100Backend(AttentionBackend):
             token_indices = self.req_to_token[
                 req_pool_indices[:, None], strided[None, :]
             ]  # [num_seqs, max_pages]
-            page_table[:, :max_pages] = (token_indices // self.page_size).to(torch.int32)
+            page_table[:, :max_pages] = (token_indices // self.page_size).to(
+                torch.int32
+            )
 
         query_start_loc = torch.zeros(
             num_seqs + 1, dtype=torch.int32, device=self.device
         )
-        query_start_loc[1:] = torch.cumsum(
-            extend_seq_lens.to(torch.int32), dim=0
-        )
+        query_start_loc[1:] = torch.cumsum(extend_seq_lens.to(torch.int32), dim=0)
 
         return FlashAttnV100ExtendMetadata(
             page_table=page_table,
@@ -306,9 +313,7 @@ class FlashAttnV100Backend(AttentionBackend):
         self._cg_page_table = torch.zeros(
             max_bs, self._max_pages, dtype=torch.int32, device=self.device
         )
-        self._cg_seq_lens = torch.zeros(
-            max_bs, dtype=torch.int32, device=self.device
-        )
+        self._cg_seq_lens = torch.zeros(max_bs, dtype=torch.int32, device=self.device)
         self._cg_query_start_loc = torch.zeros(
             max_bs + 1, dtype=torch.int32, device=self.device
         )
@@ -535,9 +540,7 @@ class FlashAttnV100Backend(AttentionBackend):
         # DFlash's fused QKV projection can return Q as a strided view of the
         # wider projection buffer. TileLang specializes tensor strides, so
         # pack the small extend/verify block before entering the kernel.
-        q3 = q.reshape(
-            num_tokens, layer.tp_q_head_num, layer.head_dim
-        ).contiguous()
+        q3 = q.reshape(num_tokens, layer.tp_q_head_num, layer.head_dim).contiguous()
 
         k_cache, v_cache = self.token_to_kv_pool.get_kv_buffer(layer.layer_id)
         # paged_fwd requires 4D [num_blocks, block_size, num_kv_heads, head_dim].
@@ -554,14 +557,41 @@ class FlashAttnV100Backend(AttentionBackend):
             )
 
         out = torch.empty(
-            num_tokens, layer.tp_q_head_num, layer.head_dim,
-            dtype=q.dtype, device=q.device,
+            num_tokens,
+            layer.tp_q_head_num,
+            layer.head_dim,
+            dtype=q.dtype,
+            device=q.device,
         )
 
         paged_forward = _load_paged_forward()
         causal, sliding_window_size = _get_native_paged_attention_params(
             layer, md.causal
         )
+        paged_kwargs = dict(
+            out=out,
+            block_size=self.page_size,
+            softmax_scale=layer.scaling,
+            causal=causal,
+            num_kv_heads=layer.tp_k_head_num,
+        )
+        if _use_tilelang:
+            paged_kwargs.update(
+                sliding_window_size=sliding_window_size,
+                linear_verify=self._uses_native_linear_verify(
+                    forward_batch.forward_mode
+                ),
+            )
+        elif sliding_window_size >= 0:
+            # init_forward_metadata normally routes DFlash/SWA verification to
+            # Triton before reaching here. Keep this guard so another SWA path
+            # cannot silently run full-context attention on the ai-bond kernel.
+            raise RuntimeError(
+                "flash_attn_v100's ai-bond fallback does not support sliding-window "
+                "attention. Install a working TileLang build or use the Triton "
+                "attention backend for this request."
+            )
+
         paged_forward(
             q3,
             k_cache,
@@ -570,16 +600,7 @@ class FlashAttnV100Backend(AttentionBackend):
             md.seq_lens,
             md.query_start_loc,
             md.prefix_kv_lens,
-            out=out,
-            block_size=self.page_size,
-            softmax_scale=layer.scaling,
-            causal=causal,
-            sliding_window_size=sliding_window_size,
-            num_kv_heads=layer.tp_k_head_num,
-            linear_verify=(
-                self._uses_native_linear_verify(forward_batch.forward_mode)
-                and bool(_use_tilelang)
-            ),
+            **paged_kwargs,
         )
         return out.reshape(num_tokens, layer.tp_q_head_num * layer.head_dim)
 

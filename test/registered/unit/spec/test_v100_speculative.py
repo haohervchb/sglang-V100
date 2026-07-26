@@ -4,7 +4,13 @@ from unittest.mock import Mock
 import pytest
 import torch
 
+from sglang.jit_kernel.all_reduce import AllReduceAlgo
 from sglang.srt.arg_groups.speculative_hook import _handle_dflash, _handle_eagle_family
+from sglang.srt.distributed.device_communicators.custom_all_reduce_v2 import (
+    CustomAllReduceV2,
+    ModeConfig,
+)
+from sglang.srt.layers.attention import flash_attn_v100_backend
 from sglang.srt.layers.attention.flash_attn_v100_backend import (
     FlashAttnV100Backend,
     _get_native_paged_attention_params,
@@ -20,15 +26,16 @@ from sglang.srt.models.dflash import (
     _resolve_dflash_rope_config,
 )
 from sglang.srt.models.qwen3_5_mtp import _is_mtp_dynamically_unquantized
-from sglang.srt.speculative.dflash_worker import (
-    DFlashWorker,
-    _resolve_dflash_draft_attention_backend,
-)
 from sglang.srt.speculative.dflash_utils import (
+    apply_dflash_verify_logits_adjustments,
     get_dflash_attention_sliding_window_size,
     parse_dflash_draft_config,
     resolve_dflash_verify_mask_policy,
     synchronize_dflash_sampling_results,
+)
+from sglang.srt.speculative.dflash_worker import (
+    DFlashWorker,
+    _resolve_dflash_draft_attention_backend,
 )
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
@@ -95,7 +102,7 @@ def test_dflash_sampling_sync_is_noop_for_single_tp_rank():
     tp_group.broadcast.assert_not_called()
 
 
-def test_dflash_sampling_clamps_invalid_kernel_acceptance(monkeypatch):
+def test_dflash_sampling_rejects_invalid_kernel_acceptance(monkeypatch):
     from sglang.srt.speculative import dflash_utils
 
     def fake_target_only_kernel(**kwargs):
@@ -124,7 +131,10 @@ def test_dflash_sampling_clamps_invalid_kernel_acceptance(monkeypatch):
         need_top_p_sampling=False,
     )
 
-    correct_len, bonus = (
+    with pytest.raises(
+        RuntimeError,
+        match="invalid accepted-token count",
+    ):
         dflash_utils.compute_dflash_sampling_correct_drafts_and_bonus(
             candidates=candidates,
             next_token_logits=logits,
@@ -135,10 +145,159 @@ def test_dflash_sampling_clamps_invalid_kernel_acceptance(monkeypatch):
             uniform_samples_for_final_sampling=torch.zeros((2,), dtype=torch.float32),
             use_sparse_topk=False,
         )
+
+
+def test_dflash_verify_applies_overlap_additive_and_scaling_penalties():
+    logits = torch.tensor(
+        [[4.0, -4.0, 1.0], [2.0, -2.0, -1.0]],
+        dtype=torch.float32,
+    )
+    sampling_info = SimpleNamespace(
+        temperatures=torch.ones((1, 1), dtype=torch.float32),
+        has_custom_logit_processor=False,
+        penalizer_orchestrator=None,
+        acc_additive_penalties=torch.tensor([[1.0, 2.0, 3.0]]),
+        acc_scaling_penalties=torch.tensor([[2.0, 2.0, 1.0]]),
+        vocab_mask=None,
+        logit_bias=torch.tensor([[0.5, 0.0, -0.5]]),
     )
 
-    assert correct_len.tolist() == [0, 0]
-    assert bonus.tolist() == [10, 13]
+    apply_dflash_verify_logits_adjustments(
+        next_token_logits=logits,
+        sampling_info=sampling_info,
+        draft_token_num=2,
+    )
+
+    assert torch.equal(
+        logits,
+        torch.tensor(
+            [[3.0, -4.0, 3.5], [2.0, 0.0, 1.5]],
+            dtype=torch.float32,
+        ),
+    )
+
+
+def test_dflash_verify_applies_live_penalizer_to_every_block_row():
+    penalizer = SimpleNamespace(is_required=True, apply=Mock())
+    logits = torch.zeros((6, 4), dtype=torch.float32)
+    sampling_info = SimpleNamespace(
+        temperatures=torch.ones((2, 1), dtype=torch.float32),
+        has_custom_logit_processor=False,
+        penalizer_orchestrator=penalizer,
+        acc_additive_penalties=None,
+        acc_scaling_penalties=None,
+        vocab_mask=None,
+        logit_bias=None,
+    )
+
+    apply_dflash_verify_logits_adjustments(
+        next_token_logits=logits,
+        sampling_info=sampling_info,
+        draft_token_num=3,
+    )
+
+    penalizer.apply.assert_called_once_with(logits, repeat=3)
+
+
+def test_dflash_min_p_filters_and_renormalizes_target_distribution(monkeypatch):
+    from sglang.srt.speculative import dflash_utils
+
+    captured = {}
+
+    def fake_target_only_kernel(**kwargs):
+        captured["target_probs"] = kwargs["target_probs"].clone()
+        kwargs["accept_token_num"].zero_()
+        kwargs["accept_index"].copy_(kwargs["retrive_index"].to(torch.int32))
+        kwargs["predicts"].zero_()
+
+    monkeypatch.setattr(dflash_utils, "_DFLASH_SAMPLING_VERIFY_AVAILABLE", True)
+    monkeypatch.setattr(
+        dflash_utils,
+        "tree_speculative_sampling_target_only",
+        fake_target_only_kernel,
+    )
+    logits = torch.log(
+        torch.tensor(
+            [[0.60, 0.30, 0.10], [0.50, 0.40, 0.10]],
+            dtype=torch.float32,
+        )
+    )
+    sampling_info = SimpleNamespace(
+        temperatures=torch.ones((1, 1), dtype=torch.float32),
+        need_top_k_sampling=False,
+        need_top_p_sampling=False,
+        need_min_p_sampling=True,
+        min_ps=torch.tensor([0.75], dtype=torch.float32),
+        sampling_seed=None,
+    )
+
+    dflash_utils.compute_dflash_sampling_correct_drafts_and_bonus(
+        candidates=torch.tensor([[1, 2]], dtype=torch.int64),
+        next_token_logits=logits,
+        sampling_info=sampling_info,
+        threshold_single=1.0,
+        threshold_acc=1.0,
+        uniform_samples=torch.zeros((1, 2), dtype=torch.float32),
+        uniform_samples_for_final_sampling=torch.zeros((1,), dtype=torch.float32),
+        use_sparse_topk=False,
+    )
+
+    assert torch.allclose(
+        captured["target_probs"],
+        torch.tensor([[[1.0, 0.0, 0.0], [5.0 / 9.0, 4.0 / 9.0, 0.0]]]),
+    )
+
+
+def test_dflash_sampling_uses_request_seed_and_position(monkeypatch):
+    from sglang.srt.speculative import dflash_utils
+
+    captured = {}
+    seeded_coins = torch.tensor([[0.1, 0.2, 0.3, 0.4]])
+
+    def fake_seeded_uniform_samples(**kwargs):
+        assert kwargs["sampling_seed"].tolist() == [123]
+        assert kwargs["sampling_positions"].tolist() == [17]
+        assert kwargs["num_samples"] == 4
+        return seeded_coins
+
+    def fake_target_only_kernel(**kwargs):
+        captured["coins"] = kwargs["uniform_samples"].clone()
+        captured["final_coins"] = kwargs["uniform_samples_for_final_sampling"].clone()
+        kwargs["accept_token_num"].zero_()
+        kwargs["accept_index"].copy_(kwargs["retrive_index"].to(torch.int32))
+        kwargs["predicts"].zero_()
+
+    monkeypatch.setattr(dflash_utils, "_DFLASH_SAMPLING_VERIFY_AVAILABLE", True)
+    monkeypatch.setattr(
+        dflash_utils,
+        "_dflash_seeded_uniform_samples",
+        fake_seeded_uniform_samples,
+    )
+    monkeypatch.setattr(
+        dflash_utils,
+        "tree_speculative_sampling_target_only",
+        fake_target_only_kernel,
+    )
+    sampling_info = SimpleNamespace(
+        temperatures=torch.ones((1, 1), dtype=torch.float32),
+        need_top_k_sampling=False,
+        need_top_p_sampling=False,
+        need_min_p_sampling=False,
+        sampling_seed=torch.tensor([123], dtype=torch.int64),
+    )
+
+    dflash_utils.compute_dflash_sampling_correct_drafts_and_bonus(
+        candidates=torch.tensor([[1, 2, 3]], dtype=torch.int64),
+        next_token_logits=torch.zeros((3, 4), dtype=torch.float32),
+        sampling_info=sampling_info,
+        sampling_positions=torch.tensor([17], dtype=torch.int64),
+        threshold_single=1.0,
+        threshold_acc=1.0,
+        use_sparse_topk=False,
+    )
+
+    assert torch.equal(captured["coins"], seeded_coins[:, :3])
+    assert torch.equal(captured["final_coins"], seeded_coins[:, 3])
 
 
 @pytest.mark.parametrize(
@@ -247,8 +406,7 @@ def test_mtp_maps_flash_attn_v100_to_triton(kind):
 
 def test_dflash_uses_native_draft_attention_on_v100():
     assert (
-        _resolve_dflash_draft_attention_backend("flash_attn_v100")
-        == "flash_attn_v100"
+        _resolve_dflash_draft_attention_backend("flash_attn_v100") == "flash_attn_v100"
     )
 
 
@@ -284,14 +442,41 @@ def test_dflash_v2_reports_target_and_draft_attention_capabilities():
     )
 
     assert worker.spec_v2_attn_backends == (target_backend, draft_backend)
-    assert not decide_needs_cpu_seq_lens(
-        server_args, worker.spec_v2_attn_backends
-    )
+    assert not decide_needs_cpu_seq_lens(server_args, worker.spec_v2_attn_backends)
 
-    worker.draft_model_runner.attn_backend = SimpleNamespace(
-        needs_cpu_seq_lens=True
-    )
+    worker.draft_model_runner.attn_backend = SimpleNamespace(needs_cpu_seq_lens=True)
     assert decide_needs_cpu_seq_lens(server_args, worker.spec_v2_attn_backends)
+
+
+def test_v100_one_stage_override_reaches_default_custom_allreduce_v2(monkeypatch):
+    communicator = CustomAllReduceV2.__new__(CustomAllReduceV2)
+    communicator.disabled = True
+    communicator.override_algo = None
+    # CUDA TP4 defaults: small buffers use push, medium buffers use pull.
+    communicator.config = ModeConfig(
+        one_shot_push_threshold=384 * 1024,
+        one_shot_pull_threshold=256 * 1024,
+    )
+    qwen27_verify = torch.empty(64 * 5120, dtype=torch.float16)
+    qwen35_verify = torch.empty(64 * 2048, dtype=torch.float16)
+
+    monkeypatch.delenv("SGLANG_CUSTOM_ALLREDUCE_ALGO", raising=False)
+    assert communicator._determine_algo(qwen27_verify) == AllReduceAlgo.TWO_SHOT_PULL
+
+    monkeypatch.setenv("SGLANG_CUSTOM_ALLREDUCE_ALGO", "1stage")
+    assert communicator._determine_algo(qwen27_verify) == AllReduceAlgo.ONE_SHOT_PULL
+    assert communicator._determine_algo(qwen35_verify) == AllReduceAlgo.ONE_SHOT_PUSH
+
+
+def test_custom_allreduce_v2_rejects_invalid_algorithm_override(monkeypatch):
+    communicator = CustomAllReduceV2.__new__(CustomAllReduceV2)
+    communicator.disabled = True
+    communicator.override_algo = None
+    communicator.config = ModeConfig(1024, 1024)
+    monkeypatch.setenv("SGLANG_CUSTOM_ALLREDUCE_ALGO", "one-ish")
+
+    with pytest.raises(ValueError, match="Valid values"):
+        communicator._determine_algo(torch.empty(8, dtype=torch.float16))
 
 
 def test_dflash_draft_skips_irrelevant_sm70_prefill_warmup(monkeypatch):
@@ -328,6 +513,36 @@ def test_dflash_compact_length_preserves_cpu_host_mirror():
     assert compact.tolist() == [100, 4101]
 
 
+def test_dflash_mamba_tracking_uses_post_commit_sequence_lengths():
+    update_mamba_state = Mock()
+    worker = DFlashWorker.__new__(DFlashWorker)
+    worker.server_args = SimpleNamespace(mamba_track_interval=256)
+    worker.target_worker = SimpleNamespace(
+        model_runner=SimpleNamespace(
+            attn_backend=SimpleNamespace(
+                update_mamba_state_after_mtp_verify=update_mamba_state
+            ),
+            model=object(),
+        )
+    )
+    batch = SimpleNamespace(
+        # Spec-v2 deliberately has not published the new sequence lengths yet.
+        seq_lens=torch.tensor([250, 300], dtype=torch.int32),
+        mamba_track_indices=torch.tensor([3, 7], dtype=torch.int32),
+    )
+
+    worker._update_target_mamba_state_after_verify(
+        batch=batch,
+        seq_lens_pre_verify=batch.seq_lens.clone(),
+        commit_lens=torch.tensor([10, 4], dtype=torch.int32),
+    )
+
+    call = update_mamba_state.call_args.kwargs
+    assert call["last_correct_step_indices"].tolist() == [9, 3]
+    assert call["mamba_steps_to_track"].tolist() == [5, -1]
+    assert call["mamba_track_indices"] is batch.mamba_track_indices
+
+
 @pytest.mark.parametrize(
     ("attn_type", "window", "expected"),
     [
@@ -336,9 +551,7 @@ def test_dflash_compact_length_preserves_cpu_host_mirror():
         (AttentionType.ENCODER_ONLY, -1, (False, -1)),
     ],
 )
-def test_v100_native_attention_uses_per_layer_dflash_mask(
-    attn_type, window, expected
-):
+def test_v100_native_attention_uses_per_layer_dflash_mask(attn_type, window, expected):
     layer = SimpleNamespace(
         is_cross_attention=False,
         attn_type=attn_type,
@@ -441,18 +654,20 @@ def test_dflash_checkpoint_config_layouts(
     parsed = parse_dflash_draft_config(draft_hf_config=config)
 
     assert parsed.resolve_block_size() == expected_block_size
-    assert parsed.resolve_target_layer_ids(
-        target_num_layers=config.num_target_layers
-    ) == expected_target_layers
+    assert (
+        parsed.resolve_target_layer_ids(target_num_layers=config.num_target_layers)
+        == expected_target_layers
+    )
     assert parsed.mask_token_id == expected_mask_token_id
     assert get_dflash_attention_sliding_window_size(config) == expected_window
     assert _get_dflash_layer_attention_params(config, 0) == (
         expected_window,
         AttentionType.DECODER,
     )
-    assert _get_dflash_layer_attention_params(
-        config, config.num_hidden_layers - 1
-    ) == (-1, AttentionType.ENCODER_ONLY)
+    assert _get_dflash_layer_attention_params(config, config.num_hidden_layers - 1) == (
+        -1,
+        AttentionType.ENCODER_ONLY,
+    )
 
 
 def test_dflash_interleaved_sliding_window_layers():
@@ -530,7 +745,8 @@ def test_v100_speculative_extend_delegates_to_triton(mode):
     )
 
 
-def test_v100_mtp_linear_verify_builds_native_causal_metadata():
+def test_v100_mtp_linear_verify_builds_native_causal_metadata(monkeypatch):
+    monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend.model_runner = SimpleNamespace(
         spec_algorithm=SimpleNamespace(
@@ -561,7 +777,8 @@ def test_v100_mtp_linear_verify_builds_native_causal_metadata():
     backend._triton.init_forward_metadata.assert_not_called()
 
 
-def test_v100_dflash_verify_builds_native_causal_metadata():
+def test_v100_dflash_verify_builds_native_causal_metadata(monkeypatch):
+    monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend.model_runner = SimpleNamespace(
         spec_algorithm=SimpleNamespace(
@@ -590,6 +807,114 @@ def test_v100_dflash_verify_builds_native_causal_metadata():
     assert backend._build_extend_metadata.call_args.kwargs == {"causal": True}
     assert backend.forward_metadata == "native-metadata"
     backend._triton.init_forward_metadata.assert_not_called()
+
+
+def test_v100_dflash_verify_uses_triton_when_tilelang_is_unavailable(monkeypatch):
+    monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", False)
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(
+            is_dflash=lambda: True,
+            is_eagle=lambda: False,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
+    backend._triton = Mock()
+    forward_batch = SimpleNamespace(forward_mode=_ForwardMode(target_verify=True))
+
+    backend.init_forward_metadata(forward_batch)
+
+    backend._triton.init_forward_metadata.assert_called_once_with(forward_batch)
+    assert backend.forward_metadata is None
+
+
+def test_v100_ai_bond_fallback_uses_supported_full_attention_signature(monkeypatch):
+    monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", False)
+    captured = {}
+
+    def fake_ai_bond_paged(
+        q,
+        k_cache,
+        v_cache,
+        block_table,
+        seq_lens,
+        query_start_loc,
+        prefix_kv_lens,
+        *,
+        out,
+        block_size,
+        softmax_scale,
+        causal,
+        num_kv_heads,
+    ):
+        captured["shapes"] = (q.shape, k_cache.shape, v_cache.shape)
+        captured["options"] = (
+            block_size,
+            softmax_scale,
+            causal,
+            num_kv_heads,
+        )
+        out.zero_()
+
+    monkeypatch.setattr(
+        flash_attn_v100_backend,
+        "_load_paged_forward",
+        lambda: fake_ai_bond_paged,
+    )
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.page_size = 16
+    backend.model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(
+            is_dflash=lambda: False,
+            is_eagle=lambda: False,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
+    k_cache = torch.randn(32, 1, 2)
+    v_cache = torch.randn_like(k_cache)
+    backend.token_to_kv_pool = SimpleNamespace(
+        get_kv_buffer=lambda layer_id: (k_cache, v_cache)
+    )
+    backend.forward_metadata = SimpleNamespace(
+        page_table=torch.tensor([[0, 1]], dtype=torch.int32),
+        seq_lens=torch.tensor([2], dtype=torch.int32),
+        query_start_loc=torch.tensor([0, 2], dtype=torch.int32),
+        prefix_kv_lens=torch.tensor([0], dtype=torch.int32),
+        causal=True,
+    )
+    layer = SimpleNamespace(
+        is_cross_attention=False,
+        attn_type=AttentionType.DECODER,
+        sliding_window_size=-1,
+        tp_q_head_num=2,
+        tp_k_head_num=1,
+        head_dim=2,
+        scaling=0.5,
+        layer_id=0,
+    )
+    forward_batch = SimpleNamespace(
+        forward_mode=_ForwardMode(),
+        out_cache_loc=None,
+    )
+
+    output = backend.forward_extend(
+        q=torch.randn(2, 4),
+        k=None,
+        v=None,
+        layer=layer,
+        forward_batch=forward_batch,
+        save_kv_cache=False,
+    )
+
+    assert output.shape == (2, 4)
+    assert captured == {
+        "shapes": (
+            torch.Size([2, 2, 2]),
+            torch.Size([2, 16, 1, 2]),
+            torch.Size([2, 16, 1, 2]),
+        ),
+        "options": (16, 0.5, True, 1),
+    }
 
 
 def test_v100_spec_v2_metadata_delegates_to_triton():
