@@ -2,7 +2,7 @@
 
 This fork adapts SGLang for four SM70 V100 GPUs. It includes a TileLang
 FlashAttention backend, V100-aware paged KV-cache and decode tuning, custom
-all-reduce support, and Marlin GPTQ/AWQ MoE kernels.
+all-reduce support, and Marlin GPTQ/AWQ/compressed-tensors MoE kernels.
 
 The commands below target x86-64 Ubuntu, four 32 GB V100s connected by NVLink,
 and a sufficiently recent NVIDIA driver. They intentionally create a dedicated
@@ -436,6 +436,51 @@ DFlash currently supports parsed, unconstrained tool calls (`tool_choice="auto"`
 Grammar-constrained requests (`tool_choice="required"` or a named tool choice)
 are rejected with HTTP 400; use `auto` or serve without DFlash when the API must
 enforce a tool choice.
+
+### Poolside Laguna-S-2.1 INT4 with DFlash
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --model poolside/Laguna-S-2.1-INT4 \
+  --dtype float16 \
+  --kv-cache-dtype auto \
+  --attention-backend flash_attn_v100 \
+  --moe-runner-backend marlin \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.76 \
+  --context-length 262144 \
+  --max-running-requests 2 \
+  --chunked-prefill-size 4096 \
+  --cuda-graph-max-bs 2 \
+  --cuda-graph-bs 1 2 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path poolside/Laguna-S-2.1-DFlash-INT4 \
+  --speculative-dflash-block-size 16 \
+  --reasoning-parser poolside_v1 \
+  --tool-call-parser poolside_v1
+```
+
+The target checkpoint's compressed-tensors metadata is detected automatically;
+do not add a GPTQ or AWQ `--quantization` override. The explicit Marlin runner
+selects this fork's SM70 INT4 MoE repack and execution path. Global and
+sliding-window target attention use the TileLang V100 kernels, while the DFlash
+worker retains the draft model's per-layer normalization and gated attention.
+`--kv-cache-dtype auto` resolves to FP16 on V100; the checkpoint's FP8 KV-cache
+calibration data is not used by this backend.
+
+The target and draft downloads require about 75 GB of storage. The command is a
+conservative two-request starting point for four 32 GB cards. After warming the
+JIT caches and checking free memory, 0.78 can provide more KV capacity. Laguna
+reasoning is opt-in per request with
+`chat_template_kwargs={"enable_thinking": true}`.
 
 ### Qwen3.6-27B dense FP16 with DFlash
 

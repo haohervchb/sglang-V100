@@ -25,6 +25,8 @@ from sglang.srt.layers.quantization.utils import replace_parameter
 from sglang.srt.utils import get_bool_env_var, is_cuda, is_hip, set_weight_attrs
 
 if TYPE_CHECKING:
+    from compressed_tensors.quantization import QuantizationArgs
+
     from sglang.srt.layers.moe.token_dispatcher import (
         CombineInput,
         StandardDispatchOutput,
@@ -59,9 +61,17 @@ class GPTQMarlinState(Enum):
 
 class CompressedTensorsWNA16MoE(CompressedTensorsMoEScheme):
 
-    def __init__(self, quant_config: CompressedTensorsConfig, num_gpu_experts=-1):
+    def __init__(
+        self,
+        quant_config: CompressedTensorsConfig,
+        weight_quant: QuantizationArgs,
+        num_gpu_experts: int = -1,
+    ):
         self.quant_config = quant_config
-        config = self.quant_config.target_scheme_map["Linear"].get("weights")
+        # The checkpoint can target only expert projection FQNs/regexes and
+        # therefore have no literal "Linear" scheme. get_moe_scheme already
+        # resolved the correct per-layer scheme, so use it directly.
+        config = weight_quant
         self.num_bits = config.num_bits
         self.packed_factor = 32 // config.num_bits
         self.strategy = config.strategy
