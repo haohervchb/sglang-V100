@@ -34,6 +34,7 @@ from sglang.srt.layers.dp_attention import (
     is_dp_attention_enabled,
 )
 from sglang.srt.layers.layernorm import RMSNorm
+from sglang.srt.layers.laguna_rmsnorm import laguna_rmsnorm_sm70
 from sglang.srt.layers.linear import (
     ColumnParallelLinear,
     MergedColumnParallelLinear,
@@ -110,6 +111,15 @@ class LagunaRMSNorm(RMSNorm):
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         if self.residual_scale == 1.0:
             return super().forward_native(x, residual, post_residual_addition)
+        if x.is_cuda and x.dtype == torch.float16:
+            return laguna_rmsnorm_sm70(
+                x,
+                self.weight,
+                self.variance_epsilon,
+                self.residual_scale,
+                residual,
+                post_residual_addition,
+            )
 
         orig_dtype = x.dtype
         value = x.float()

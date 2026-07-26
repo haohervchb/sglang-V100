@@ -1810,6 +1810,25 @@ class ServerArgs:
         hf_config = self.get_model_config().hf_config
         model_arch = hf_config.architectures[0]
 
+        if (
+            model_arch == "LagunaForCausalLM"
+            and self.swa_full_tokens_ratio == ServerArgs.swa_full_tokens_ratio
+            and self.max_running_requests is not None
+            and self.max_running_requests <= 2
+        ):
+            # Laguna S2.1 has 36 SWA layers with a 512-token window and only
+            # 12 full-attention layers. Reserving the generic 80% SWA/full
+            # token ratio wastes most of the KV budget for low-concurrency
+            # long-context serving: SWA tokens outside the live window are
+            # evicted and cannot be consumed. A 10% pool still holds tens of
+            # thousands of SWA tokens at Laguna's context size, comfortably
+            # covering two live windows plus chunked-prefill working space.
+            self.swa_full_tokens_ratio = 0.1
+            logger.info(
+                "Laguna low-concurrency serving: setting "
+                "swa_full_tokens_ratio=0.1 to prioritize full-context KV capacity."
+            )
+
         _hybrid_spec = get_linear_attn_spec_by_arch(model_arch)
         if _hybrid_spec is not None:
             self._handle_mamba_radix_cache(
