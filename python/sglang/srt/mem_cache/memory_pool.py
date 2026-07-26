@@ -101,6 +101,15 @@ def _set_kv_buffer_impl(
     alt_stream: Optional[torch.cuda.Stream] = None,
     same_kv_dim: bool = True,
 ) -> None:
+    maybe_detect_oob(
+        indices,
+        0,
+        k_cache.shape[0],
+        (
+            "set_kv_buffer "
+            f"(k_cache_rows={k_cache.shape[0]}, v_cache_rows={v_cache.shape[0]})"
+        ),
+    )
     row_bytes = row_dim * store_dtype.itemsize
     if (_is_cuda or _is_hip) and same_kv_dim and can_use_store_cache(row_bytes):
         return store_cache(

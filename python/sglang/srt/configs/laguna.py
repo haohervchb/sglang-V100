@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Literal, Optional
 
 from transformers.configuration_utils import PretrainedConfig
@@ -66,8 +67,20 @@ def _to_sglang_rope_scaling(rope_params: Dict[str, Any]) -> Optional[Dict[str, A
         if key in rope_params:
             out[key] = rope_params[key]
     if "attention_factor" in rope_params:
-        # HF spells it attention_factor; SGLang's factory reads attn_factor.
-        out["attn_factor"] = rope_params["attention_factor"]
+        # HF's `attention_factor` is the final multiplier applied to cos/sin.
+        # SGLang's YaRN implementation already applies the default
+        # `1 + 0.1 * log(factor)` multiplier and treats `attn_factor` as an
+        # additional coefficient.  Passing the HF value through unchanged
+        # therefore squares the default scale (1.3466 -> 1.8133 for Laguna's
+        # factor=32), changing every full-attention layer's logits.
+        attention_factor = float(rope_params["attention_factor"])
+        if rope_type == "yarn":
+            factor = float(rope_params.get("factor", 1.0))
+            default_attention_factor = (
+                1.0 if factor <= 1.0 else 1.0 + 0.1 * math.log(factor)
+            )
+            attention_factor /= default_attention_factor
+        out["attn_factor"] = attention_factor
     return out
 
 

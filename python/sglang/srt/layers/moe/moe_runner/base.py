@@ -65,6 +65,10 @@ class MoeRunnerConfig:
     gemm1_alpha: Optional[float] = None
     gemm1_clamp_limit: Optional[float] = None
     swiglu_limit: Optional[float] = None
+    # Some BF16-trained models exceed FP16's range on pre-Ampere GPUs. A model
+    # may scale final projection weights by this value and restore the branch
+    # when it is accumulated into its wide residual stream.
+    wide_output_scale: float = 1.0
 
 
 @dataclass

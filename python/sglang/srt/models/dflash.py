@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
 from typing import Iterable, Optional, Tuple
 
@@ -28,6 +27,10 @@ from sglang.srt.layers.radix_attention import AttentionType, RadixAttention
 from sglang.srt.layers.rotary_embedding import get_rope
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.model_loader.weight_utils import default_weight_loader
+from sglang.srt.models.laguna import (
+    LagunaRMSNorm,
+    get_laguna_wide_output_scale,
+)
 from sglang.srt.models.utils import apply_qk_norm
 from sglang.srt.speculative.dflash_utils import (
     can_dflash_slice_qkv_weight,
@@ -40,7 +43,10 @@ from sglang.srt.utils import is_npu
 _is_npu = is_npu()
 if _is_npu:
     from sgl_kernel_npu.norm.split_qkv_rmsnorm_rope import split_qkv_rmsnorm_rope
-logger = logging.getLogger(__name__)
+
+
+def _is_laguna_dflash(config) -> bool:
+    return "DFlashLagunaForCausalLM" in getattr(config, "architectures", [])
 
 
 def _resolve_dflash_rope_config(config) -> tuple[float, Optional[dict]]:
@@ -98,6 +104,10 @@ class DFlashAttention(nn.Module):
         head_dim = int(getattr(config, "head_dim", hidden_size // total_num_heads))
 
         self.hidden_size = hidden_size
+        self.layer_id = layer_id
+        self.wide_output_scale = (
+            get_laguna_wide_output_scale() if _is_laguna_dflash(config) else 1.0
+        )
         self.total_num_heads = total_num_heads
         self.total_num_kv_heads = total_num_kv_heads
         assert self.total_num_heads % tp_size == 0, (
@@ -140,9 +150,19 @@ class DFlashAttention(nn.Module):
             prefix="o_proj",
         )
 
-        # Per-head Q/K RMSNorm, matching HF Qwen3.
-        self.q_norm = RMSNorm(head_dim, eps=rms_norm_eps)
-        self.k_norm = RMSNorm(head_dim, eps=rms_norm_eps)
+        # Laguna follows HF RMSNorm semantics: narrow the normalized value
+        # before multiplying by the learned weight.
+        laguna_norm = _is_laguna_dflash(config)
+        self.q_norm = RMSNorm(
+            head_dim,
+            eps=rms_norm_eps,
+            cast_x_before_out_mul=laguna_norm,
+        )
+        self.k_norm = RMSNorm(
+            head_dim,
+            eps=rms_norm_eps,
+            cast_x_before_out_mul=laguna_norm,
+        )
 
         rope_theta, rope_scaling = _resolve_dflash_rope_config(config)
         rope_is_neox_style = bool(
@@ -211,6 +231,8 @@ class DFlashAttention(nn.Module):
             q, k = self.rotary_emb(positions, q, k)
         attn_output = self.attn(q, k, v, forward_batch)
         attn_output = self.apply_attention_output(attn_output, hidden_states)
+        if self.wide_output_scale != 1.0:
+            attn_output = attn_output / self.wide_output_scale
         output, _ = self.o_proj(attn_output)
         return output
 
@@ -284,12 +306,17 @@ class DFlashMLP(nn.Module):
         if hidden_act != "silu":
             raise ValueError(
                 f"Unsupported DFlash activation: {hidden_act}. Only silu is supported for now."
-            )
+        )
         self.act_fn = SiluAndMul()
+        self.wide_output_scale = (
+            get_laguna_wide_output_scale() if _is_laguna_dflash(config) else 1.0
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         gate_up, _ = self.gate_up_proj(x)
         x = self.act_fn(gate_up)
+        if self.wide_output_scale != 1.0:
+            x = x / self.wide_output_scale
         x, _ = self.down_proj(x)
         return x
 
@@ -300,13 +327,15 @@ class DFlashDecoderLayer(nn.Module):
     def __init__(self, config, layer_id: int, quant_config=None) -> None:
         super().__init__()
         hidden_size = int(config.hidden_size)
+        self.layer_id = layer_id
         rms_norm_eps = float(getattr(config, "rms_norm_eps", 1e-6))
 
-        self.input_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps)
+        norm_cls = LagunaRMSNorm if _is_laguna_dflash(config) else RMSNorm
+        self.input_layernorm = norm_cls(hidden_size, eps=rms_norm_eps)
         self.self_attn = self.attention_cls(
             config=config, layer_id=layer_id, quant_config=quant_config
         )
-        self.post_attention_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps)
+        self.post_attention_layernorm = norm_cls(hidden_size, eps=rms_norm_eps)
         self.mlp = DFlashMLP(config=config, quant_config=quant_config)
 
     def forward(
@@ -328,7 +357,6 @@ class DFlashDecoderLayer(nn.Module):
             hidden_states = self.input_layernorm(hidden_states)
         else:
             hidden_states, residual = self.input_layernorm(hidden_states, residual)
-
         attn_out = self.self_attn(
             positions=positions,
             hidden_states=hidden_states,
@@ -369,7 +397,8 @@ class DFlashDraftModel(nn.Module):
                 for i in range(num_layers)
             ]
         )
-        self.norm = RMSNorm(hidden_size, eps=rms_norm_eps)
+        norm_cls = LagunaRMSNorm if _is_laguna_dflash(config) else RMSNorm
+        self.norm = norm_cls(hidden_size, eps=rms_norm_eps)
 
         # Project per-token target context features:
         # concat(K * hidden_size) -> hidden_size, where K is the number of target-layer
@@ -389,7 +418,15 @@ class DFlashDraftModel(nn.Module):
         self.fc = nn.Linear(
             self.num_context_features * hidden_size, hidden_size, bias=False
         )
-        self.hidden_norm = RMSNorm(hidden_size, eps=rms_norm_eps)
+        self.hidden_norm = (
+            LagunaRMSNorm(
+                hidden_size,
+                eps=rms_norm_eps,
+                scaled_residual_stream=False,
+            )
+            if _is_laguna_dflash(config)
+            else RMSNorm(hidden_size, eps=rms_norm_eps)
+        )
 
         self.block_size = draft_config.resolve_block_size(default=16)
 
@@ -583,7 +620,11 @@ class DFlashLagunaForCausalLM(DFlashDraftModel):
         rms_norm_eps = float(getattr(config, "rms_norm_eps", 1e-6))
         self.aux_hidden_norms = nn.ModuleList(
             [
-                RMSNorm(hidden_size, eps=rms_norm_eps)
+                RMSNorm(
+                    hidden_size,
+                    eps=rms_norm_eps,
+                    cast_x_before_out_mul=True,
+                )
                 for _ in range(self.num_context_features)
             ]
         )
@@ -609,12 +650,30 @@ class DFlashLagunaForCausalLM(DFlashDraftModel):
             self.num_context_features,
             int(self.config.hidden_size),
         )
-        slices = self._to_runtime_dtype(slices)
-        normed = torch.empty_like(slices)
+        runtime_dtype = self.fc.weight.dtype
+        normed = torch.empty(
+            slices.shape,
+            dtype=runtime_dtype,
+            device=slices.device,
+        )
         for index, norm in enumerate(self.aux_hidden_norms):
-            normed[:, index, :] = norm(slices[:, index, :])
+            feature = slices[:, index, :]
+            # Normalize before narrowing to the draft's FP16 GEMM dtype so
+            # target features outside FP16's range remain well-defined.
+            if feature.dtype == torch.float32 and runtime_dtype == torch.float16:
+                value = feature.float()
+                variance = value.square().mean(dim=-1, keepdim=True)
+                value = value * torch.rsqrt(variance + norm.variance_epsilon)
+                normalized = norm.weight * value.to(runtime_dtype)
+            else:
+                normalized = norm(
+                    feature if feature.dtype == runtime_dtype else feature.to(runtime_dtype)
+                )
+            normed[:, index, :] = normalized.to(runtime_dtype)
         fused = normed.reshape(target_hidden.shape[0], -1)
-        return self.hidden_norm(self.fc(fused))
+        projected = self.fc(fused)
+        output = self.hidden_norm(projected)
+        return output
 
 
 EntryClass = [DFlashDraftModel, DFlashLagunaForCausalLM]

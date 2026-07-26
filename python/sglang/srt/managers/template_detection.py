@@ -114,7 +114,11 @@ REASONING_MODE_RULES = (
         or ctx.has_pattern(
             r"enable_thinking\s+is\s+not\s+defined\s+or\s+enable_thinking"
         )
-        or ctx.has_pattern(r"namespace\([^)]*enable_thinking\s*=\s*true"),
+        or ctx.has_pattern(r"namespace\([^)]*enable_thinking\s*=\s*true")
+        or ctx.has_pattern(
+            r"set\s+enable_thinking\s*=\s*enable_thinking\s*\|\s*"
+            r"default\(\s*(?:true|True)\s*\)"
+        ),
     ),
     DetectionRule(
         name="explicit_thinking_default_false",
@@ -225,6 +229,22 @@ def _is_minicpm5(ctx):
     return ctx.has_pattern(r"<function\s+name=") and ctx.has_pattern(r"<param\s+name=")
 
 
+def _is_poolside_v1(ctx):
+    # Poolside's Laguna templates use a distinctive XML tool-call schema.
+    # Checking the full schema keeps ordinary Qwen/DeepSeek <think> templates
+    # from being classified as Poolside merely because they share think tags.
+    return all(
+        ctx.has_text(marker)
+        for marker in (
+            "<available_tools>",
+            "<tool_call>",
+            "<arg_key>",
+            "<arg_value>",
+            "<tool_response>",
+        )
+    )
+
+
 def _is_qwen3(ctx):
     return ctx.reasoning_config == ReasoningToggleConfig(
         toggle_param="enable_thinking", default_enabled=True
@@ -260,6 +280,9 @@ REASONING_PARSER_RULES = (
     DetectionRule(name="glm45", value="glm45", predicate=_is_glm45),
     DetectionRule(name="mimo", value="mimo", predicate=_is_mimo),
     DetectionRule(name="minimax", value="minimax", predicate=_is_minimax),
+    DetectionRule(
+        name="poolside_v1", value="poolside_v1", predicate=_is_poolside_v1
+    ),
     DetectionRule(name="qwen3", value="qwen3", predicate=_is_qwen3),
     DetectionRule(name="deepseek_v3", value="deepseek-v3", predicate=_is_deepseek_v3),
     DetectionRule(
@@ -285,6 +308,9 @@ TOOL_CALL_PARSER_RULES = (
     DetectionRule(name="mistral", value="mistral", predicate=_is_mistral),
     DetectionRule(name="glm45", value="glm45", predicate=_is_glm45),
     DetectionRule(name="minicpm5", value="minicpm5", predicate=_is_minicpm5),
+    DetectionRule(
+        name="poolside_v1", value="poolside_v1", predicate=_is_poolside_v1
+    ),
     DetectionRule(
         name="xml_kv_tool_call", value="glm45", predicate=_is_xml_kv_tool_call
     ),

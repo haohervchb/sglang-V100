@@ -92,8 +92,6 @@ class SWAKVPool(BaseSWAKVPool):
         for swa_layer_id, global_layer_id in enumerate(swa_attention_layer_ids):
             self.layers_mapping[global_layer_id] = (swa_layer_id, True)
         self.full_to_swa_index_mapping: Optional[torch.Tensor] = None
-        self._cached_swa_loc: Optional[torch.Tensor] = None
-        self._cached_loc_key: Optional[tuple] = None
 
         k_size, v_size = self.get_kv_size_bytes()
         self.mem_usage = (k_size + v_size) / GB
@@ -103,11 +101,11 @@ class SWAKVPool(BaseSWAKVPool):
 
     def register_mapping(self, full_to_swa_index_mapping: torch.Tensor):
         self.full_to_swa_index_mapping = full_to_swa_index_mapping
-        self.invalidate_loc_cache()
 
     def invalidate_loc_cache(self) -> None:
-        self._cached_swa_loc = None
-        self._cached_loc_key = None
+        # Kept for compatibility with callers that previously had to invalidate
+        # the unsafe asynchronous translation cache.
+        pass
 
     def register_layer_transfer_counter(self, layer_transfer_counter):
         # Wait happens at this wrapper. Inner pools must not wait again.
@@ -167,21 +165,8 @@ class SWAKVPool(BaseSWAKVPool):
 
     def translate_loc_from_full_to_swa(self, kv_indices: torch.Tensor) -> torch.Tensor:
         assert self.full_to_swa_index_mapping is not None
-        # data_ptr() (not untyped_storage().data_ptr()) encodes the offset, so
-        # views at different positions within the same storage get distinct keys.
         # -1 in kv_indices maps to -1 via the sentinel appended to the mapping.
-        key = (kv_indices.data_ptr(), kv_indices.numel())
-        if key != self._cached_loc_key:
-            if self._cached_loc_key is not None:
-                logger.debug(
-                    "translate_loc_from_full_to_swa: loc tensor changed mid-forward "
-                    "without invalidate_loc_cache() — possible missing call site"
-                )
-            self._cached_swa_loc = self.full_to_swa_index_mapping[kv_indices].to(
-                torch.int32
-            )
-            self._cached_loc_key = key
-        return self._cached_swa_loc
+        return self.full_to_swa_index_mapping[kv_indices].to(torch.int32)
 
     def set_kv_buffer(
         self,

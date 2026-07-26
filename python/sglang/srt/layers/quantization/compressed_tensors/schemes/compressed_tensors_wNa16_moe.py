@@ -20,6 +20,7 @@ from sglang.srt.layers.quantization.gptq import gptq_marlin_moe_repack
 from sglang.srt.layers.quantization.marlin_utils import (
     marlin_make_workspace,
     marlin_moe_permute_scales,
+    sm70_marlin_moe_logical_scales,
 )
 from sglang.srt.layers.quantization.utils import replace_parameter
 from sglang.srt.utils import get_bool_env_var, is_cuda, is_hip, set_weight_attrs
@@ -52,6 +53,13 @@ if _use_aiter:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_marlin_moe_scale_transform(device: torch.device):
+    """Select the scale layout expected by the active Marlin kernel."""
+    if device.type == "cuda" and torch.cuda.get_device_capability(device)[0] == 7:
+        return sm70_marlin_moe_logical_scales
+    return marlin_moe_permute_scales
 
 
 class GPTQMarlinState(Enum):
@@ -329,8 +337,15 @@ class CompressedTensorsWNA16MoE(CompressedTensorsMoEScheme):
             self.num_bits,
         )
         replace_tensor("w2_weight_packed", marlin_w2_qweight)
-        # Repack scales
-        marlin_w13_scales = marlin_moe_permute_scales(
+        # Repack scales. The SM70 Marlin fork consumes logical
+        # [expert, group, output] scales; the stock Marlin kernel consumes its
+        # interleaved column permutation. Passing the latter to SM70 silently
+        # pairs each INT4 group with the wrong scale and produces large
+        # generation errors.
+        scale_transform = _get_marlin_moe_scale_transform(
+            layer.w13_weight_packed.device
+        )
+        marlin_w13_scales = scale_transform(
             layer.w13_weight_scale,
             layer.w13_weight_packed.shape[2],
             layer.w13_weight_scale.shape[2],
@@ -338,13 +353,15 @@ class CompressedTensorsWNA16MoE(CompressedTensorsMoEScheme):
         )
         replace_tensor("w13_weight_scale", marlin_w13_scales)
 
-        marlin_w2_scales = marlin_moe_permute_scales(
+        marlin_w2_scales = scale_transform(
             layer.w2_weight_scale,
             layer.w2_weight_scale.shape[1]
             * (self.group_size if self.group_size != -1 else self.packed_factor),
             layer.w2_weight_scale.shape[2],
             self.group_size,
         )
+        if self.moe_runner_config.wide_output_scale != 1.0:
+            marlin_w2_scales.div_(self.moe_runner_config.wide_output_scale)
         replace_tensor("w2_weight_scale", marlin_w2_scales)
 
         layer.workspace = marlin_make_workspace(layer.w13_weight_packed.device, 4)
@@ -470,6 +487,8 @@ class CompressedTensorsWNA16TritonMoE(CompressedTensorsWNA16MoE):
         # Convert w2 scales: [E, K//group_size, N] -> [E, N, K//group_size]
         w2_scale = layer.w2_weight_scale.data
         w2_scale = w2_scale.transpose(1, 2).contiguous()
+        if self.moe_runner_config.wide_output_scale != 1.0:
+            w2_scale.div_(self.moe_runner_config.wide_output_scale)
         layer.w2_weight_scale = torch.nn.Parameter(w2_scale, requires_grad=False)
 
         layer.is_triton_converted = True

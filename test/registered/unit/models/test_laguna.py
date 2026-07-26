@@ -5,6 +5,7 @@ from sglang.test.ci.ci_register import register_cpu_ci
 register_cpu_ci(est_time=5, suite="base-a-test-cpu")
 
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,15 +16,22 @@ import torch
 from torch import nn
 
 from sglang.srt.configs.laguna import LagunaConfig, normalize_gating
+from sglang.srt.layers.attention.triton_backend import get_max_attention_heads
 from sglang.srt.models.dflash import (
     DFlashAttention,
     DFlashLagunaAttention,
     DFlashLagunaForCausalLM,
 )
-from sglang.srt.models.laguna import LagunaForCausalLM, LagunaModel
+from sglang.srt.models.laguna import (
+    LagunaForCausalLM,
+    LagunaModel,
+    LagunaRMSNorm,
+    bound_aux_hidden_for_fp16,
+)
 from sglang.srt.models.registry import ModelRegistry
 from sglang.srt.speculative.dflash_worker import DFlashWorker
 from sglang.srt.utils.hf_transformers import get_config
+from sglang.srt.utils.hf_transformers.tokenizer import get_tokenizer
 
 
 class _FakePPGroup:
@@ -32,7 +40,18 @@ class _FakePPGroup:
 
 
 class _AddOneLayer(nn.Module):
-    def forward(self, positions, hidden_states, forward_batch, residual):
+    def forward(
+        self,
+        positions,
+        hidden_states,
+        forward_batch,
+        residual,
+        captured_last_layer_outputs=None,
+    ):
+        if captured_last_layer_outputs is not None:
+            captured_last_layer_outputs.append(
+                hidden_states + residual if residual is not None else hidden_states
+            )
         return hidden_states + 1, residual
 
 
@@ -55,6 +74,38 @@ class _Projection(nn.Module):
 
 
 class TestLagunaConfig(unittest.TestCase):
+    def test_hf_yarn_attention_factor_is_not_applied_twice(self):
+        factor = 32.0
+        expected_attention_factor = 1.0 + 0.1 * math.log(factor)
+        config = LagunaConfig(
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            num_attention_heads_per_layer=[2],
+            num_key_value_heads=1,
+            head_dim=8,
+            layer_types=["full_attention"],
+            mlp_layer_types=["dense"],
+            rope_parameters={
+                "full_attention": {
+                    "rope_type": "yarn",
+                    "factor": factor,
+                    "attention_factor": expected_attention_factor,
+                }
+            },
+        )
+
+        self.assertAlmostEqual(config.full_rope_scaling["attn_factor"], 1.0)
+
+    def test_decode_scratch_uses_largest_per_layer_head_count(self):
+        model_config = SimpleNamespace(
+            num_attention_heads=48,
+            hf_text_config=SimpleNamespace(
+                num_attention_heads_per_layer=[48, 72, 72, 72]
+            ),
+        )
+
+        self.assertEqual(get_max_attention_heads(model_config), 72)
+
     def test_sglang_config_preempts_strict_transformers_native_loader(self):
         raw_config = {
             "architectures": ["LagunaForCausalLM"],
@@ -89,6 +140,36 @@ class TestLagunaConfig(unittest.TestCase):
         self.assertEqual(config.full_rope_scaling["rope_type"], "yarn")
         self.assertEqual(config.swa_rope_theta, 10_000.0)
 
+    def test_tokenizer_reuses_sglang_config_and_fixes_mistral_regex(self):
+        raw_config = {"model_type": "laguna"}
+        compatibility_config = object()
+        tokenizer = object()
+        with tempfile.TemporaryDirectory() as model_dir:
+            Path(model_dir, "config.json").write_text(json.dumps(raw_config))
+            with (
+                patch(
+                    "sglang.srt.utils.hf_transformers.tokenizer.get_config",
+                    return_value=compatibility_config,
+                ),
+                patch(
+                    "sglang.srt.utils.hf_transformers.tokenizer."
+                    "_auto_tokenizer_from_pretrained",
+                    return_value=tokenizer,
+                ) as from_pretrained,
+                patch(
+                    "sglang.srt.utils.hf_transformers.tokenizer."
+                    "_apply_post_load_fixes",
+                    side_effect=lambda value, *_: value,
+                ),
+            ):
+                loaded = get_tokenizer(model_dir, trust_remote_code=False)
+
+        self.assertIs(loaded, tokenizer)
+        self.assertIs(
+            from_pretrained.call_args.kwargs["config"], compatibility_config
+        )
+        self.assertTrue(from_pretrained.call_args.kwargs["fix_mistral_regex"])
+
     def test_dflash_pure_swa_config_uses_layer_zero_geometry(self):
         config = LagunaConfig(
             hidden_size=3072,
@@ -118,6 +199,116 @@ class TestLagunaConfig(unittest.TestCase):
 
 
 class TestLagunaDFlash(unittest.TestCase):
+    @staticmethod
+    def _make_weight_loader_shell():
+        model = object.__new__(LagunaForCausalLM)
+        nn.Module.__init__(model)
+        model.config = SimpleNamespace(
+            mlp_layer_types=[],
+            num_experts=0,
+            tie_word_embeddings=False,
+        )
+        model.model = nn.Module()
+        model.model.start_layer = 0
+        model.model.end_layer = 1
+        return model
+
+    def test_target_ignores_unused_checkpoint_kv_cache_scales(self):
+        model = self._make_weight_loader_shell()
+
+        with patch("sglang.srt.models.laguna.logger.warning") as warning:
+            model.load_weights(
+                [
+                    (
+                        "model.layers.0.self_attn.k_scale",
+                        torch.tensor([0.03125]),
+                    ),
+                    (
+                        "model.layers.0.self_attn.v_scale",
+                        torch.tensor([0.00125]),
+                    ),
+                ]
+            )
+
+        warning.assert_not_called()
+
+    def test_target_loads_checkpoint_kv_scales_when_attention_registers_them(self):
+        model = self._make_weight_loader_shell()
+        model.model.layers = nn.ModuleList([nn.Module()])
+        model.model.layers[0].self_attn = nn.Module()
+        model.model.layers[0].self_attn.attn = nn.Module()
+        model.model.layers[0].self_attn.attn.k_scale = nn.Parameter(
+            torch.tensor(-1.0), requires_grad=False
+        )
+        model.model.layers[0].self_attn.attn.v_scale = nn.Parameter(
+            torch.tensor(-1.0), requires_grad=False
+        )
+
+        model.load_weights(
+            [
+                (
+                    "model.layers.0.self_attn.k_scale",
+                    torch.tensor([0.03125]),
+                ),
+                (
+                    "model.layers.0.self_attn.v_scale",
+                    torch.tensor([0.00125]),
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            model.model.layers[0].self_attn.attn.k_scale.item(), 0.03125
+        )
+        self.assertAlmostEqual(
+            model.model.layers[0].self_attn.attn.v_scale.item(), 0.00125
+        )
+
+    def test_target_feature_transport_preserves_direction(self):
+        hidden = torch.tensor(
+            [[80_000.0, -80_000.0, 40_000.0]], dtype=torch.float32
+        )
+
+        captured = bound_aux_hidden_for_fp16(hidden)
+
+        self.assertEqual(captured.dtype, torch.float16)
+        self.assertTrue(torch.isfinite(captured).all())
+        expected_direction = hidden / hidden.square().mean(dim=-1, keepdim=True).sqrt()
+        actual_direction = captured.float()
+        actual_direction /= actual_direction.square().mean(dim=-1, keepdim=True).sqrt()
+        torch.testing.assert_close(
+            actual_direction, expected_direction, rtol=1e-3, atol=1e-3
+        )
+
+    def test_v100_residual_emulates_bf16_without_overflow(self):
+        with patch(
+            "sglang.srt.models.laguna.get_laguna_wide_output_scale",
+            return_value=4.0,
+        ):
+            norm = LagunaRMSNorm(3)
+        norm.weight.data = norm.weight.data.half().fill_(1)
+
+        branch = torch.tensor([[10_000.0, -10_000.0, 5_000.0]], dtype=torch.float16)
+        residual = torch.tensor(
+            [[40_000.0, -40_000.0, 20_000.0]], dtype=torch.float32
+        )
+        normalized, wide_residual = norm.forward_native(branch, residual)
+
+        expected_residual = (
+            branch.float().mul(4).add(residual).to(torch.bfloat16).float()
+        )
+        variance = expected_residual.square().mean(dim=-1, keepdim=True)
+        expected = expected_residual * torch.rsqrt(variance + 1e-6)
+        expected = expected.to(torch.bfloat16).float()
+        torch.testing.assert_close(
+            wide_residual, expected_residual, rtol=0, atol=0
+        )
+        self.assertEqual(wide_residual.dtype, torch.float32)
+        self.assertTrue(torch.isfinite(wide_residual).all())
+        torch.testing.assert_close(
+            normalized.float(), expected, rtol=2e-3, atol=2e-3
+        )
+
     def test_draft_attention_forwards_partial_rotary_factor(self):
         config = SimpleNamespace(
             hidden_size=16,

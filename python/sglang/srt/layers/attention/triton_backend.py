@@ -73,6 +73,18 @@ def logit_capping_mod(logit_capping_method, logit_cap):
         raise ValueError()
 
 
+def get_max_attention_heads(model_config) -> int:
+    """Return the largest query-head count used by any model layer."""
+    per_layer_num_heads = getattr(
+        model_config.hf_text_config,
+        "num_attention_heads_per_layer",
+        None,
+    )
+    if per_layer_num_heads:
+        return max(per_layer_num_heads)
+    return model_config.num_attention_heads
+
+
 @dataclass
 class ForwardMetadata:
     attn_logits: torch.Tensor
@@ -136,9 +148,12 @@ class TritonAttnBackend(AttentionBackend):
         self.num_draft_tokens = model_runner.server_args.speculative_num_draft_tokens
         self.speculative_num_steps = model_runner.server_args.speculative_num_steps
         self.use_mla = model_runner.model_config.attention_arch == AttentionArch.MLA
-        self.num_head = (
-            model_runner.model_config.num_attention_heads // get_attention_tp_size()
-        )
+        # Decode scratch buffers are shared by every layer.  Models such as
+        # Laguna use more query heads in SWA layers than in full-attention
+        # layers, so sizing from the model-wide/full-layer value causes the
+        # Triton stage-1 kernel to write past attn_logits and attn_lse.
+        total_num_heads = get_max_attention_heads(model_runner.model_config)
+        self.num_head = total_num_heads // get_attention_tp_size()
         self.num_kv_head = model_runner.model_config.get_num_kv_heads(
             get_attention_tp_size()
         )
@@ -350,6 +365,11 @@ class TritonAttnBackend(AttentionBackend):
         req_pool_indices: torch.Tensor,
         kv_indices: torch.Tensor,
     ) -> torch.Tensor:
+        # Hybrid-SWA warmup metadata may retain padded entries beyond the
+        # logical batch size. Never let those entries resize the cumsum write
+        # or leak into the request-table gather.
+        seq_lens = seq_lens.reshape(-1)[:bs]
+        req_pool_indices = req_pool_indices.reshape(-1)[:bs]
         kv_indptr = self.kv_indptr[: bs + 1]
         kv_indptr[1:] = torch.cumsum(seq_lens, dim=0)
         create_flashinfer_kv_indices_triton[(bs,)](
@@ -701,7 +721,10 @@ class TritonAttnBackend(AttentionBackend):
                 )
 
             qo_indptr = self.qo_indptr
-            qo_indptr[1 : bs + 1] = torch.cumsum(forward_batch.extend_seq_lens, dim=0)
+            qo_indptr[1 : bs + 1] = torch.cumsum(
+                forward_batch.extend_seq_lens.reshape(-1)[:bs],
+                dim=0,
+            )
             qo_indptr = qo_indptr[: bs + 1]
             custom_mask = None
             mask_indptr = None

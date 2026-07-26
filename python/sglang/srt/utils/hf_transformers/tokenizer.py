@@ -36,6 +36,7 @@ from .common import (
     check_gguf_file,
     resolve_runai_obj_uri,
 )
+from .config import get_config
 from .mistral_utils import (
     _MISTRAL_TOKENIZER_REDIRECTS,
     patch_mistral_common_tokenizer,
@@ -197,6 +198,38 @@ def _auto_tokenizer_from_pretrained(tokenizer_name, *args, **common_kwargs):
             )
             raise RuntimeError(err_msg) from e
         raise
+
+
+def _get_tokenizer_config_override(
+    tokenizer_name: str,
+    trust_remote_code: bool,
+    tokenizer_revision: Optional[str],
+):
+    """Return an SGLang compatibility config when AutoTokenizer needs one.
+
+    Transformers' native Laguna config currently validates the checkpoint's
+    per-attention-type RoPE dictionary as if it were a single flat YaRN
+    dictionary. Loading the tokenizer therefore fails before tokenizer files
+    are read. Reuse SGLang's Laguna config loader to bypass that unrelated
+    model-config validation.
+    """
+    try:
+        config_file = _resolve_local_or_cached_file(
+            tokenizer_name, "config.json", tokenizer_revision
+        )
+        with open(config_file) as f:
+            raw_config = json.load(f)
+    except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError):
+        return None
+
+    if raw_config.get("model_type") != "laguna":
+        return None
+
+    return get_config(
+        tokenizer_name,
+        trust_remote_code=trust_remote_code,
+        revision=tokenizer_revision,
+    )
 
 
 def _resolve_tokenizers_backend(tokenizer_name, *args, **common_kwargs):
@@ -494,6 +527,14 @@ def get_tokenizer(
         clean_up_tokenization_spaces=False,
         **kwargs,
     )
+    config_override = _get_tokenizer_config_override(
+        tokenizer_name, trust_remote_code, tokenizer_revision
+    )
+    if config_override is not None:
+        common_kwargs["config"] = config_override
+        # Laguna uses the affected Mistral-family tokenizer regex. Without
+        # this Transformers warns that tokenization can silently be wrong.
+        common_kwargs.setdefault("fix_mistral_regex", True)
 
     try:
         tokenizer = _auto_tokenizer_from_pretrained(

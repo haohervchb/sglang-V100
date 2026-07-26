@@ -61,6 +61,88 @@ from sglang.srt.utils import LazyValue, add_prefix, make_layers
 
 logger = logging.getLogger(__name__)
 
+LAGUNA_SM70_WIDE_OUTPUT_SCALE = 4.0
+
+
+def get_laguna_wide_output_scale() -> float:
+    """Return the projection scale needed for BF16-trained Laguna on SM70."""
+    if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] < 8:
+        return LAGUNA_SM70_WIDE_OUTPUT_SCALE
+    return 1.0
+
+
+def bound_aux_hidden_for_fp16(hidden_states: torch.Tensor) -> torch.Tensor:
+    """Keep a captured feature finite when transporting it through FP16 buffers."""
+    value = hidden_states.float()
+    safe_max = torch.finfo(torch.float16).max / 2
+    row_scale = (value.abs().amax(dim=-1, keepdim=True) / safe_max).clamp_min(1.0)
+    return (value / row_scale).to(torch.float16)
+
+
+class LagunaRMSNorm(RMSNorm):
+    """Poolside RMSNorm with BF16 residual emulation on pre-Ampere GPUs."""
+
+    def __init__(
+        self,
+        hidden_size: int,
+        eps: float = 1e-6,
+        scaled_residual_stream: bool = True,
+    ) -> None:
+        self.residual_scale = (
+            get_laguna_wide_output_scale() if scaled_residual_stream else 1.0
+        )
+        super().__init__(
+            hidden_size,
+            eps=eps,
+            cast_x_before_out_mul=True,
+        )
+        if self.residual_scale != 1.0:
+            # V100 cannot execute BF16 GEMMs, but BF16 conversion/storage is
+            # available. Use the native implementation below to preserve the
+            # checkpoint's BF16 residual range and rounding.
+            self._forward_method = self.forward_native
+
+    def forward_native(
+        self,
+        x: torch.Tensor,
+        residual: Optional[torch.Tensor] = None,
+        post_residual_addition: Optional[torch.Tensor] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        if self.residual_scale == 1.0:
+            return super().forward_native(x, residual, post_residual_addition)
+
+        orig_dtype = x.dtype
+        value = x.float()
+        if residual is not None:
+            # Final projections are divided by residual_scale before their
+            # FP16 GEMM/all-reduce. Restore the branch only after it is safely
+            # represented in FP32, then round each residual update exactly as
+            # the BF16 reference model does.
+            value = value * self.residual_scale + residual.float()
+            if post_residual_addition is not None:
+                value = value + post_residual_addition.float()
+            residual = value.to(torch.bfloat16).float()
+            value = residual
+
+        if value.shape[-1] != self.hidden_size:
+            raise ValueError(
+                f"Expected hidden_size to be {self.hidden_size}, "
+                f"but found: {value.shape[-1]}"
+            )
+
+        variance = value.square().mean(dim=-1, keepdim=True)
+        value = value * torch.rsqrt(variance + self.variance_epsilon)
+
+        # Poolside narrows the normalized activation before multiplying by its
+        # BF16 norm weight. Emulate both BF16 roundings, then return FP16 for
+        # the V100 projection kernels.
+        value = value.to(torch.bfloat16).float()
+        weight = self.weight.float().to(torch.bfloat16).float()
+        output = (weight * value).to(torch.bfloat16).to(orig_dtype)
+        if residual is None:
+            return output
+        return output, residual
+
 
 class LagunaMLP(nn.Module):
     def __init__(
@@ -99,6 +181,7 @@ class LagunaMLP(nn.Module):
             tp_size=tp_size,
         )
         self.act_fn = SiluAndMul()
+        self.wide_output_scale = get_laguna_wide_output_scale()
 
     def forward(
         self,
@@ -109,6 +192,8 @@ class LagunaMLP(nn.Module):
     ) -> torch.Tensor:
         gate_up, _ = self.gate_up_proj(x)
         x = self.act_fn(gate_up)
+        if self.wide_output_scale != 1.0:
+            x = x / self.wide_output_scale
         # Skip the in-block reduce when LayerCommunicator will fuse it or when
         # the next layer expects reduce-scatter — otherwise we'd double-reduce.
         x, _ = self.down_proj(
@@ -174,6 +259,11 @@ class LagunaMoE(nn.Module):
             apply_router_weight_on_input=bool(config.moe_apply_router_weight_on_input),
             prefix=add_prefix("experts", prefix),
         )
+        self.wide_output_scale = get_laguna_wide_output_scale()
+        if self.wide_output_scale != 1.0:
+            self.experts.moe_runner_config.wide_output_scale = (
+                self.wide_output_scale
+            )
 
         self.topk = TopK(
             top_k=config.num_experts_per_tok,
@@ -321,9 +411,16 @@ class LagunaAttention(nn.Module):
             )
         else:
             self.g_proj = None
+        self.wide_output_scale = get_laguna_wide_output_scale()
 
-        self.q_norm = RMSNorm(self.head_dim, eps=rms_norm_eps)
-        self.k_norm = RMSNorm(self.head_dim, eps=rms_norm_eps)
+        # Poolside's reference LagunaRMSNorm narrows the normalized value
+        # before multiplying by the learned weight.
+        self.q_norm = RMSNorm(
+            self.head_dim, eps=rms_norm_eps, cast_x_before_out_mul=True
+        )
+        self.k_norm = RMSNorm(
+            self.head_dim, eps=rms_norm_eps, cast_x_before_out_mul=True
+        )
 
         self.rotary_emb = get_rope(
             self.head_dim,
@@ -380,6 +477,8 @@ class LagunaAttention(nn.Module):
             else:
                 attn_output = attn_output * gate
 
+        if self.wide_output_scale != 1.0:
+            attn_output = attn_output / self.wide_output_scale
         output, _ = self.o_proj(attn_output)
         return output
 
@@ -457,8 +556,10 @@ class LagunaDecoderLayer(nn.Module):
                 prefix=add_prefix("mlp", prefix),
             )
 
-        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = RMSNorm(
+        self.input_layernorm = LagunaRMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps
+        )
+        self.post_attention_layernorm = LagunaRMSNorm(
             config.hidden_size, eps=config.rms_norm_eps
         )
 
@@ -483,9 +584,15 @@ class LagunaDecoderLayer(nn.Module):
         hidden_states: torch.Tensor,
         forward_batch: ForwardBatch,
         residual: Optional[torch.Tensor],
+        captured_last_layer_outputs: Optional[List[torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        hidden_states, residual = self.layer_communicator.prepare_attn(
-            hidden_states, residual, forward_batch
+        hidden_states, residual = (
+            self.layer_communicator.prepare_attn_and_capture_last_layer_outputs(
+                hidden_states,
+                residual,
+                forward_batch,
+                captured_last_layer_outputs=captured_last_layer_outputs,
+            )
         )
         if hidden_states.shape[0] != 0:
             hidden_states = self.self_attn(
@@ -560,10 +667,14 @@ class LagunaModel(nn.Module):
             prefix=add_prefix("layers", prefix),
         )
         if self.pp_group.is_last_rank:
-            self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+            self.norm = LagunaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         else:
             self.norm = PPMissingLayer(return_tuple=True)
         self.layers_to_capture: List[int] = []
+        self.bound_aux_hidden_for_fp16 = (
+            torch.cuda.is_available()
+            and torch.cuda.get_device_capability()[0] < 8
+        )
 
     def get_input_embeddings(self) -> nn.Embedding:
         return self.embed_tokens
@@ -589,14 +700,23 @@ class LagunaModel(nn.Module):
 
         aux_hidden_states = []
         for i in range(self.start_layer, self.end_layer):
-            if i in self.layers_to_capture:
-                aux_hidden_states.append(
-                    hidden_states + residual if residual is not None else hidden_states
-                )
             layer = self.layers[i]
+            capture_this_layer = i in self.layers_to_capture
             hidden_states, residual = layer(
-                positions, hidden_states, forward_batch, residual
+                positions,
+                hidden_states,
+                forward_batch,
+                residual,
+                captured_last_layer_outputs=(
+                    aux_hidden_states if capture_this_layer else None
+                ),
             )
+            if capture_this_layer and getattr(
+                self, "bound_aux_hidden_for_fp16", False
+            ):
+                aux_hidden_states[-1] = bound_aux_hidden_for_fp16(
+                    aux_hidden_states[-1]
+                )
 
         if not self.pp_group.is_last_rank:
             return PPProxyTensors(
@@ -604,14 +724,21 @@ class LagunaModel(nn.Module):
             )
 
         if hidden_states.shape[0] != 0:
-            if self.end_layer in self.layers_to_capture:
-                aux_hidden_states.append(
-                    hidden_states + residual if residual is not None else hidden_states
-                )
             if residual is None:
+                if self.end_layer in self.layers_to_capture:
+                    aux_hidden_states.append(hidden_states)
                 hidden_states = self.norm(hidden_states)
             else:
-                hidden_states, _ = self.norm(hidden_states, residual)
+                hidden_states, residual = self.norm(hidden_states, residual)
+                if self.end_layer in self.layers_to_capture:
+                    aux_hidden_states.append(residual)
+            if (
+                self.end_layer in self.layers_to_capture
+                and getattr(self, "bound_aux_hidden_for_fp16", False)
+            ):
+                aux_hidden_states[-1] = bound_aux_hidden_for_fp16(
+                    aux_hidden_states[-1]
+                )
         if not aux_hidden_states:
             return hidden_states
         return hidden_states, aux_hidden_states
@@ -741,6 +868,22 @@ class LagunaForCausalLM(nn.Module):
 
             if self.config.tie_word_embeddings and "lm_head.weight" in name:
                 continue
+
+            # Compressed-tensors checkpoints can carry calibration factors for
+            # an FP8 KV cache even when the active backend uses an unquantized
+            # cache (for example flash_attn_v100 with kv-cache-dtype=auto).
+            # Load them when RadixAttention registered the corresponding
+            # quantization parameters; otherwise they are optional metadata.
+            if name.endswith((".self_attn.k_scale", ".self_attn.v_scale")):
+                scale_name = name.rsplit(".", 1)[-1]
+                remapped_name = name.replace(
+                    f".self_attn.{scale_name}",
+                    f".self_attn.attn.{scale_name}",
+                )
+                if name not in params_dict:
+                    if remapped_name not in params_dict:
+                        continue
+                    name = remapped_name
 
             # HF stores the router correction bias under the experts namespace;
             # our parameter lives on the gate. Remap before dispatch.
