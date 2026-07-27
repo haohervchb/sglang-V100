@@ -22,7 +22,8 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-from transformers import AutoTokenizer
+
+from sglang.srt.utils.hf_transformers.tokenizer import get_tokenizer
 
 
 DEFAULT_LENGTHS = list(range(1_000, 25_001, 2_000))
@@ -518,8 +519,10 @@ async def main_async(args) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_path = output_dir / "trials.jsonl"
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.tokenizer, local_files_only=True, trust_remote_code=True
+    tokenizer = get_tokenizer(
+        args.tokenizer,
+        local_files_only=True,
+        trust_remote_code=True,
     )
     corpus_ids = load_source_corpus(Path(args.repo), tokenizer)
     print(json.dumps({"event": "corpus_ready", "tokens": len(corpus_ids)}), flush=True)
@@ -590,6 +593,7 @@ async def main_async(args) -> None:
                     raw_file.flush()
                     rows.append(row)
                     aggregate = row["aggregate"]
+                    accept_length = aggregate["weighted_accept_length"]
                     print(
                         json.dumps(
                             {
@@ -610,8 +614,10 @@ async def main_async(args) -> None:
                                 "aggregate_output_tps": round(
                                     aggregate["aggregate_output_tps"], 1
                                 ),
-                                "accept": round(
-                                    aggregate["weighted_accept_length"], 3
+                                "accept": (
+                                    round(accept_length, 3)
+                                    if accept_length is not None
+                                    else None
                                 ),
                                 "elapsed_s": round(time.perf_counter() - started, 2),
                             }

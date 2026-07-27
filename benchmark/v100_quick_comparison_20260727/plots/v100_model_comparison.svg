@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img">
+<title>Three-model inference comparison on four V100 GPUs</title>
+<desc>Audited cold-cache results for Qwen 27B and 122B with DFlash and target-only Laguna S 2.1.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#111827}.title{font-size:31px;font-weight:700}.subtitle{font-size:16px;fill:#4b5563}.panel-title{font-size:19px;font-weight:650}.axis{font-size:12px;fill:#4b5563}.value{font-size:10px;font-weight:600}.unit{font-size:12px;fill:#6b7280}.footer{font-size:13px;fill:#6b7280}</style>
+<text class="title" x="800.0" y="48" text-anchor="middle">V100 inference comparison — short and long context</text>
+<text class="subtitle" x="800.0" y="78" text-anchor="middle">4× V100-SXM2-32GB · TP4 · cold unique code prompts · greedy · up to 256 output tokens/request</text>
+<rect x="215.0" y="108" width="18" height="18" rx="2" fill="#2563eb"/>
+<text x="243.0" y="122" font-size="14">Qwen3.6 27B FP16 + DFlash</text>
+<rect x="585.0" y="108" width="18" height="18" rx="2" fill="#dc2626"/>
+<text x="613.0" y="122" font-size="14">Qwen3.5 122B-A10B INT4 + DFlash</text>
+<rect x="1025.0" y="108" width="18" height="18" rx="2" fill="#059669"/>
+<text x="1053.0" y="122" font-size="14">Laguna S 2.1 118B-A8B INT4</text>
+<rect x="80" y="190" width="690" height="330" rx="9" fill="#f9fafb" stroke="#d1d5db"/>
+<text class="panel-title" x="98" y="219">Median per-request decode rate</text>
+<text class="unit" x="155" y="230">tok/s</text>
+<line x1="155" y1="452.00" x2="750" y2="452.00" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="456.00" text-anchor="end">0</text>
+<line x1="155" y1="380.67" x2="750" y2="380.67" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="384.67" text-anchor="end">50</text>
+<line x1="155" y1="309.33" x2="750" y2="309.33" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="313.33" text-anchor="end">100</text>
+<line x1="155" y1="238.00" x2="750" y2="238.00" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="242.00" text-anchor="end">150</text>
+<rect x="171.08" y="307.40" width="21.00" height="144.60" rx="2" fill="#2563eb"/>
+<text class="value" x="181.58" y="303.40" text-anchor="middle">101</text>
+<rect x="194.08" y="296.46" width="21.00" height="155.54" rx="2" fill="#dc2626"/>
+<text class="value" x="204.58" y="292.46" text-anchor="middle">109</text>
+<rect x="217.08" y="383.72" width="21.00" height="68.28" rx="2" fill="#059669"/>
+<text class="value" x="227.58" y="379.72" text-anchor="middle">48</text>
+<text class="axis" x="204.58" y="474" text-anchor="middle">C1 · 1K</text>
+<rect x="270.25" y="329.41" width="21.00" height="122.59" rx="2" fill="#2563eb"/>
+<text class="value" x="280.75" y="325.41" text-anchor="middle">86</text>
+<rect x="293.25" y="335.00" width="21.00" height="117.00" rx="2" fill="#dc2626"/>
+<text class="value" x="303.75" y="331.00" text-anchor="middle">82</text>
+<rect x="316.25" y="389.01" width="21.00" height="62.99" rx="2" fill="#059669"/>
+<text class="value" x="326.75" y="385.01" text-anchor="middle">44</text>
+<text class="axis" x="303.75" y="474" text-anchor="middle">C1 · 25K</text>
+<rect x="369.42" y="349.80" width="21.00" height="102.20" rx="2" fill="#2563eb"/>
+<text class="value" x="379.92" y="345.80" text-anchor="middle">72</text>
+<rect x="392.42" y="311.85" width="21.00" height="140.15" rx="2" fill="#dc2626"/>
+<text class="value" x="402.92" y="307.85" text-anchor="middle">98</text>
+<rect x="415.42" y="398.57" width="21.00" height="53.43" rx="2" fill="#059669"/>
+<text class="value" x="425.92" y="394.57" text-anchor="middle">37</text>
+<text class="axis" x="402.92" y="474" text-anchor="middle">C2 · 1K</text>
+<rect x="468.58" y="411.98" width="21.00" height="40.02" rx="2" fill="#2563eb"/>
+<text class="value" x="479.08" y="407.98" text-anchor="middle">28</text>
+<rect x="491.58" y="406.22" width="21.00" height="45.78" rx="2" fill="#dc2626"/>
+<text class="value" x="502.08" y="402.22" text-anchor="middle">32</text>
+<rect x="514.58" y="413.62" width="21.00" height="38.38" rx="2" fill="#059669"/>
+<text class="value" x="525.08" y="409.62" text-anchor="middle">27</text>
+<text class="axis" x="502.08" y="474" text-anchor="middle">C2 · 25K</text>
+<rect x="567.75" y="367.28" width="21.00" height="84.72" rx="2" fill="#2563eb"/>
+<text class="value" x="578.25" y="363.28" text-anchor="middle">59</text>
+<rect x="590.75" y="338.95" width="21.00" height="113.05" rx="2" fill="#dc2626"/>
+<text class="value" x="601.25" y="334.95" text-anchor="middle">79</text>
+<rect x="613.75" y="399.89" width="21.00" height="52.11" rx="2" fill="#059669"/>
+<text class="value" x="624.25" y="395.89" text-anchor="middle">37</text>
+<text class="axis" x="601.25" y="474" text-anchor="middle">C4 · 1K</text>
+<rect x="666.92" y="435.38" width="21.00" height="16.62" rx="2" fill="#2563eb"/>
+<text class="value" x="677.42" y="431.38" text-anchor="middle">12</text>
+<rect x="689.92" y="430.29" width="21.00" height="21.71" rx="2" fill="#dc2626"/>
+<text class="value" x="700.42" y="426.29" text-anchor="middle">15</text>
+<rect x="712.92" y="429.99" width="21.00" height="22.01" rx="2" fill="#059669"/>
+<text class="value" x="723.42" y="425.99" text-anchor="middle">15</text>
+<text class="axis" x="700.42" y="474" text-anchor="middle">C4 · 25K</text>
+<text class="axis" x="452.5" y="500" text-anchor="middle">concurrency · prompt tokens</text>
+<rect x="830" y="190" width="690" height="330" rx="9" fill="#f9fafb" stroke="#d1d5db"/>
+<text class="panel-title" x="848" y="219">Aggregate output throughput</text>
+<text class="unit" x="905" y="230">tok/s</text>
+<line x1="905" y1="452.00" x2="1500" y2="452.00" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="456.00" text-anchor="end">0</text>
+<line x1="905" y1="409.20" x2="1500" y2="409.20" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="413.20" text-anchor="end">50</text>
+<line x1="905" y1="366.40" x2="1500" y2="366.40" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="370.40" text-anchor="end">100</text>
+<line x1="905" y1="323.60" x2="1500" y2="323.60" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="327.60" text-anchor="end">150</text>
+<line x1="905" y1="280.80" x2="1500" y2="280.80" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="284.80" text-anchor="end">200</text>
+<line x1="905" y1="238.00" x2="1500" y2="238.00" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="242.00" text-anchor="end">250</text>
+<rect x="921.08" y="374.35" width="21.00" height="77.65" rx="2" fill="#2563eb"/>
+<text class="value" x="931.58" y="370.35" text-anchor="middle">91</text>
+<rect x="944.08" y="368.72" width="21.00" height="83.28" rx="2" fill="#dc2626"/>
+<text class="value" x="954.58" y="364.72" text-anchor="middle">97</text>
+<rect x="967.08" y="412.91" width="21.00" height="39.09" rx="2" fill="#059669"/>
+<text class="value" x="977.58" y="408.91" text-anchor="middle">46</text>
+<text class="axis" x="954.58" y="474" text-anchor="middle">C1 · 1K</text>
+<rect x="1020.25" y="429.77" width="21.00" height="22.23" rx="2" fill="#2563eb"/>
+<text class="value" x="1030.75" y="425.77" text-anchor="middle">26</text>
+<rect x="1043.25" y="425.94" width="21.00" height="26.06" rx="2" fill="#dc2626"/>
+<text class="value" x="1053.75" y="421.94" text-anchor="middle">30</text>
+<rect x="1066.25" y="432.99" width="21.00" height="19.01" rx="2" fill="#059669"/>
+<text class="value" x="1076.75" y="428.99" text-anchor="middle">22</text>
+<text class="axis" x="1053.75" y="474" text-anchor="middle">C1 · 25K</text>
+<rect x="1119.42" y="353.44" width="21.00" height="98.56" rx="2" fill="#2563eb"/>
+<text class="value" x="1129.92" y="349.44" text-anchor="middle">115</text>
+<rect x="1142.42" y="316.97" width="21.00" height="135.03" rx="2" fill="#dc2626"/>
+<text class="value" x="1152.92" y="312.97" text-anchor="middle">158</text>
+<rect x="1165.42" y="391.49" width="21.00" height="60.51" rx="2" fill="#059669"/>
+<text class="value" x="1175.92" y="387.49" text-anchor="middle">71</text>
+<text class="axis" x="1152.92" y="474" text-anchor="middle">C2 · 1K</text>
+<rect x="1218.58" y="431.28" width="21.00" height="20.72" rx="2" fill="#2563eb"/>
+<text class="value" x="1229.08" y="427.28" text-anchor="middle">24</text>
+<rect x="1241.58" y="427.34" width="21.00" height="24.66" rx="2" fill="#dc2626"/>
+<text class="value" x="1252.08" y="423.34" text-anchor="middle">29</text>
+<rect x="1264.58" y="429.07" width="21.00" height="22.93" rx="2" fill="#059669"/>
+<text class="value" x="1275.08" y="425.07" text-anchor="middle">27</text>
+<text class="axis" x="1252.08" y="474" text-anchor="middle">C2 · 25K</text>
+<rect x="1317.75" y="321.27" width="21.00" height="130.73" rx="2" fill="#2563eb"/>
+<text class="value" x="1328.25" y="317.27" text-anchor="middle">153</text>
+<rect x="1340.75" y="273.51" width="21.00" height="178.49" rx="2" fill="#dc2626"/>
+<text class="value" x="1351.25" y="269.51" text-anchor="middle">209</text>
+<rect x="1363.75" y="339.76" width="21.00" height="112.24" rx="2" fill="#059669"/>
+<text class="value" x="1374.25" y="335.76" text-anchor="middle">131</text>
+<text class="axis" x="1351.25" y="474" text-anchor="middle">C4 · 1K</text>
+<rect x="1416.92" y="433.57" width="21.00" height="18.43" rx="2" fill="#2563eb"/>
+<text class="value" x="1427.42" y="429.57" text-anchor="middle">22</text>
+<rect x="1439.92" y="427.83" width="21.00" height="24.17" rx="2" fill="#dc2626"/>
+<text class="value" x="1450.42" y="423.83" text-anchor="middle">28</text>
+<rect x="1462.92" y="424.46" width="21.00" height="27.54" rx="2" fill="#059669"/>
+<text class="value" x="1473.42" y="420.46" text-anchor="middle">32</text>
+<text class="axis" x="1450.42" y="474" text-anchor="middle">C4 · 25K</text>
+<text class="axis" x="1202.5" y="500" text-anchor="middle">concurrency · prompt tokens</text>
+<rect x="80" y="570" width="690" height="330" rx="9" fill="#f9fafb" stroke="#d1d5db"/>
+<text class="panel-title" x="98" y="599">Effective cold input rate</text>
+<text class="unit" x="155" y="610">input tok/s</text>
+<line x1="155" y1="832.00" x2="750" y2="832.00" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="836.00" text-anchor="end">0</text>
+<line x1="155" y1="760.67" x2="750" y2="760.67" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="764.67" text-anchor="end">2.0k</text>
+<line x1="155" y1="689.33" x2="750" y2="689.33" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="693.33" text-anchor="end">4.0k</text>
+<line x1="155" y1="618.00" x2="750" y2="618.00" stroke="#e5e7eb"/>
+<text class="axis" x="145" y="622.00" text-anchor="end">6.0k</text>
+<rect x="171.08" y="715.56" width="21.00" height="116.44" rx="2" fill="#2563eb"/>
+<text class="value" x="181.58" y="711.56" text-anchor="middle">3.3k</text>
+<rect x="194.08" y="710.06" width="21.00" height="121.94" rx="2" fill="#dc2626"/>
+<text class="value" x="204.58" y="706.06" text-anchor="middle">3.4k</text>
+<rect x="217.08" y="703.73" width="21.00" height="128.27" rx="2" fill="#059669"/>
+<text class="value" x="227.58" y="699.73" text-anchor="middle">3.6k</text>
+<text class="axis" x="204.58" y="854" text-anchor="middle">C1 · 1K</text>
+<rect x="270.25" y="702.57" width="21.00" height="129.43" rx="2" fill="#2563eb"/>
+<text class="value" x="280.75" y="698.57" text-anchor="middle">3.6k</text>
+<rect x="293.25" y="663.75" width="21.00" height="168.25" rx="2" fill="#dc2626"/>
+<text class="value" x="303.75" y="659.75" text-anchor="middle">4.7k</text>
+<rect x="316.25" y="677.00" width="21.00" height="155.00" rx="2" fill="#059669"/>
+<text class="value" x="326.75" y="673.00" text-anchor="middle">4.3k</text>
+<text class="axis" x="303.75" y="854" text-anchor="middle">C1 · 25K</text>
+<rect x="369.42" y="707.95" width="21.00" height="124.05" rx="2" fill="#2563eb"/>
+<text class="value" x="379.92" y="703.95" text-anchor="middle">3.5k</text>
+<rect x="392.42" y="702.61" width="21.00" height="129.39" rx="2" fill="#dc2626"/>
+<text class="value" x="402.92" y="698.61" text-anchor="middle">3.6k</text>
+<rect x="415.42" y="699.40" width="21.00" height="132.60" rx="2" fill="#059669"/>
+<text class="value" x="425.92" y="695.40" text-anchor="middle">3.7k</text>
+<text class="axis" x="402.92" y="854" text-anchor="middle">C2 · 1K</text>
+<rect x="468.58" y="702.37" width="21.00" height="129.63" rx="2" fill="#2563eb"/>
+<text class="value" x="479.08" y="698.37" text-anchor="middle">3.6k</text>
+<rect x="491.58" y="660.64" width="21.00" height="171.36" rx="2" fill="#dc2626"/>
+<text class="value" x="502.08" y="656.64" text-anchor="middle">4.8k</text>
+<rect x="514.58" y="675.57" width="21.00" height="156.43" rx="2" fill="#059669"/>
+<text class="value" x="525.08" y="671.57" text-anchor="middle">4.4k</text>
+<text class="axis" x="502.08" y="854" text-anchor="middle">C2 · 25K</text>
+<rect x="567.75" y="726.78" width="21.00" height="105.22" rx="2" fill="#2563eb"/>
+<text class="value" x="578.25" y="722.78" text-anchor="middle">3.0k</text>
+<rect x="590.75" y="703.51" width="21.00" height="128.49" rx="2" fill="#dc2626"/>
+<text class="value" x="601.25" y="699.51" text-anchor="middle">3.6k</text>
+<rect x="613.75" y="659.12" width="21.00" height="172.88" rx="2" fill="#059669"/>
+<text class="value" x="624.25" y="655.12" text-anchor="middle">4.8k</text>
+<text class="axis" x="601.25" y="854" text-anchor="middle">C4 · 1K</text>
+<rect x="666.92" y="732.92" width="21.00" height="99.08" rx="2" fill="#2563eb"/>
+<text class="value" x="677.42" y="728.92" text-anchor="middle">2.8k</text>
+<rect x="689.92" y="707.68" width="21.00" height="124.32" rx="2" fill="#dc2626"/>
+<text class="value" x="700.42" y="703.68" text-anchor="middle">3.5k</text>
+<rect x="712.92" y="674.83" width="21.00" height="157.17" rx="2" fill="#059669"/>
+<text class="value" x="723.42" y="670.83" text-anchor="middle">4.4k</text>
+<text class="axis" x="700.42" y="854" text-anchor="middle">C4 · 25K</text>
+<text class="axis" x="452.5" y="880" text-anchor="middle">concurrency · prompt tokens</text>
+<rect x="830" y="570" width="690" height="330" rx="9" fill="#f9fafb" stroke="#d1d5db"/>
+<text class="panel-title" x="848" y="599">Median client TTFT</text>
+<text class="unit" x="905" y="610">seconds</text>
+<line x1="905" y1="832.00" x2="1500" y2="832.00" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="836.00" text-anchor="end">0.0</text>
+<line x1="905" y1="789.20" x2="1500" y2="789.20" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="793.20" text-anchor="end">5.0</text>
+<line x1="905" y1="746.40" x2="1500" y2="746.40" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="750.40" text-anchor="end">10.0</text>
+<line x1="905" y1="703.60" x2="1500" y2="703.60" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="707.60" text-anchor="end">15.0</text>
+<line x1="905" y1="660.80" x2="1500" y2="660.80" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="664.80" text-anchor="end">20.0</text>
+<line x1="905" y1="618.00" x2="1500" y2="618.00" stroke="#e5e7eb"/>
+<text class="axis" x="895" y="622.00" text-anchor="end">25.0</text>
+<rect x="921.08" y="829.38" width="21.00" height="2.62" rx="2" fill="#2563eb"/>
+<text class="value" x="931.58" y="825.38" text-anchor="middle">0.3</text>
+<rect x="944.08" y="829.50" width="21.00" height="2.50" rx="2" fill="#dc2626"/>
+<text class="value" x="954.58" y="825.50" text-anchor="middle">0.3</text>
+<rect x="967.08" y="829.62" width="21.00" height="2.38" rx="2" fill="#059669"/>
+<text class="value" x="977.58" y="825.62" text-anchor="middle">0.3</text>
+<text class="axis" x="954.58" y="854" text-anchor="middle">C1 · 1K</text>
+<rect x="1020.25" y="773.03" width="21.00" height="58.97" rx="2" fill="#2563eb"/>
+<text class="value" x="1030.75" y="769.03" text-anchor="middle">6.9</text>
+<rect x="1043.25" y="786.64" width="21.00" height="45.36" rx="2" fill="#dc2626"/>
+<text class="value" x="1053.75" y="782.64" text-anchor="middle">5.3</text>
+<rect x="1066.25" y="782.76" width="21.00" height="49.24" rx="2" fill="#059669"/>
+<text class="value" x="1076.75" y="778.76" text-anchor="middle">5.8</text>
+<text class="axis" x="1053.75" y="854" text-anchor="middle">C1 · 25K</text>
+<rect x="1119.42" y="827.13" width="21.00" height="4.87" rx="2" fill="#2563eb"/>
+<text class="value" x="1129.92" y="823.13" text-anchor="middle">0.6</text>
+<rect x="1142.42" y="827.33" width="21.00" height="4.67" rx="2" fill="#dc2626"/>
+<text class="value" x="1152.92" y="823.33" text-anchor="middle">0.5</text>
+<rect x="1165.42" y="828.32" width="21.00" height="3.68" rx="2" fill="#059669"/>
+<text class="value" x="1175.92" y="824.32" text-anchor="middle">0.4</text>
+<text class="axis" x="1152.92" y="854" text-anchor="middle">C2 · 1K</text>
+<rect x="1218.58" y="735.96" width="21.00" height="96.04" rx="2" fill="#2563eb"/>
+<text class="value" x="1229.08" y="731.96" text-anchor="middle">11.2</text>
+<rect x="1241.58" y="759.58" width="21.00" height="72.42" rx="2" fill="#dc2626"/>
+<text class="value" x="1252.08" y="755.58" text-anchor="middle">8.5</text>
+<rect x="1264.58" y="754.03" width="21.00" height="77.97" rx="2" fill="#059669"/>
+<text class="value" x="1275.08" y="750.03" text-anchor="middle">9.1</text>
+<text class="axis" x="1252.08" y="854" text-anchor="middle">C2 · 25K</text>
+<rect x="1317.75" y="820.41" width="21.00" height="11.59" rx="2" fill="#2563eb"/>
+<text class="value" x="1328.25" y="816.41" text-anchor="middle">1.4</text>
+<rect x="1340.75" y="822.51" width="21.00" height="9.49" rx="2" fill="#dc2626"/>
+<text class="value" x="1351.25" y="818.51" text-anchor="middle">1.1</text>
+<rect x="1363.75" y="824.96" width="21.00" height="7.04" rx="2" fill="#059669"/>
+<text class="value" x="1374.25" y="820.96" text-anchor="middle">0.8</text>
+<text class="axis" x="1351.25" y="854" text-anchor="middle">C4 · 1K</text>
+<rect x="1416.92" y="678.81" width="21.00" height="153.19" rx="2" fill="#2563eb"/>
+<text class="value" x="1427.42" y="674.81" text-anchor="middle">17.9</text>
+<rect x="1439.92" y="715.90" width="21.00" height="116.10" rx="2" fill="#dc2626"/>
+<text class="value" x="1450.42" y="711.90" text-anchor="middle">13.6</text>
+<rect x="1462.92" y="704.50" width="21.00" height="127.50" rx="2" fill="#059669"/>
+<text class="value" x="1473.42" y="700.50" text-anchor="middle">14.9</text>
+<text class="axis" x="1450.42" y="854" text-anchor="middle">C4 · 25K</text>
+<text class="axis" x="1202.5" y="880" text-anchor="middle">concurrency · prompt tokens</text>
+<text class="footer" x="800.0" y="970" text-anchor="middle">Decode is median per-request client-visible rate; aggregate output includes prefill and all requests.</text>
+<text class="footer" x="800.0" y="995" text-anchor="middle">Qwen models use DFlash block size 16; Laguna is target-only. One audited cold-cache trial per cell.</text>
+<text class="footer" x="800.0" y="1020" text-anchor="middle">SGLang V100 fork · 2026-07-27</text>
+</svg>

@@ -748,7 +748,43 @@ sglang serve \
   --tool-call-parser qwen3_coder
 ```
 
-### Audited 1K–25K context scaling
+### Current V100 comparison: DFlash Qwen vs target-only Laguna
+
+This quick 2026-07-27 comparison uses four V100-SXM2-32GB GPUs, TP4, greedy
+decoding, cold unique repository-source prompts, and up to 256 output tokens
+per request. It covers exact 1K and 25K prompt lengths at 1, 2, and 4 concurrent
+clients. Qwen uses DFlash block size 16; Laguna is target-only.
+
+![V100 model comparison](benchmark/v100_quick_comparison_20260727/plots/v100_model_comparison.svg)
+
+| Concurrency | Target | Decode at 1K | Decode at 25K | Aggregate at 1K | Aggregate at 25K | TTFT at 1K | TTFT at 25K |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | Qwen3.6-27B FP16 + DFlash | 101.4 tok/s | 85.9 tok/s | 90.7 tok/s | 26.0 tok/s | 0.306 s | 6.889 s |
+| 1 | Qwen3.5-122B-A10B GPTQ-Int4 + DFlash | 109.0 tok/s | 82.0 tok/s | 97.3 tok/s | 30.4 tok/s | 0.292 s | 5.300 s |
+| 1 | Laguna S 2.1 118B-A8B INT4, target-only | 47.9 tok/s | 44.1 tok/s | 45.7 tok/s | 22.2 tok/s | 0.278 s | 5.753 s |
+| 2 | Qwen3.6-27B FP16 + DFlash | 71.6 tok/s | 28.1 tok/s | 115.1 tok/s | 24.2 tok/s | 0.569 s | 11.219 s |
+| 2 | Qwen3.5-122B-A10B GPTQ-Int4 + DFlash | 98.2 tok/s | 32.1 tok/s | 157.7 tok/s | 28.8 tok/s | 0.546 s | 8.460 s |
+| 2 | Laguna S 2.1 118B-A8B INT4, target-only | 37.4 tok/s | 26.9 tok/s | 70.7 tok/s | 26.8 tok/s | 0.430 s | 9.109 s |
+| 4 | Qwen3.6-27B FP16 + DFlash | 59.4 tok/s | 11.7 tok/s | 152.7 tok/s | 21.5 tok/s | 1.354 s | 17.896 s |
+| 4 | Qwen3.5-122B-A10B GPTQ-Int4 + DFlash | 79.2 tok/s | 15.2 tok/s | 208.5 tok/s | 28.2 tok/s | 1.108 s | 13.563 s |
+| 4 | Laguna S 2.1 118B-A8B INT4, target-only | 36.5 tok/s | 15.4 tok/s | 131.1 tok/s | 32.2 tok/s | 0.823 s | 14.895 s |
+
+All 42 retained completions produced 256 tokens, reported zero cached prompt
+tokens, and passed text-diversity and repeated-run audits; the earlier
+stray-`9` corruption did not recur. The two Qwen workloads have identical
+request-level prompt hashes. Laguna uses its own corrected Mistral-family
+tokenizer and chat template, so its prompts have the same deterministic
+construction and exact lengths but not identical token IDs.
+
+The 25K/concurrency-2 and concurrency-4 Qwen cells show DFlash acceptance
+falling to about 1.6–2.2 tokens per verification; that prompt-dependent
+acceptance loss explains much of the decode collapse. This is one audited
+cold-cache trial per cell, not a confidence interval. Definitions, acceptance
+values, retained outputs, raw request timings, exact server settings, and
+Docker validation are in
+[the quick-comparison directory](benchmark/v100_quick_comparison_20260727/README.md).
+
+### Historical audited DFlash 1K–25K sweep (2026-07-16)
 
 These measurements use four V100-SXM2-32GB GPUs, TP4, greedy decoding, cold
 unique repository-source prompts, and up to 256 output tokens per request. The
