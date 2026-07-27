@@ -2381,7 +2381,13 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 # TileLang's paged-prefill cache key contains the request batch
                 # size.  Warm both the overwhelmingly common first-chat batch
                 # of one and the existing two-request shape before readiness.
-                for warmup_bs in (1, 2):
+                max_warmup_bs = self.server_args.max_running_requests
+                warmup_batch_sizes = (
+                    bs
+                    for bs in (1, 2)
+                    if max_warmup_bs is None or bs <= max_warmup_bs
+                )
+                for warmup_bs in warmup_batch_sizes:
                     self._warmup_prefill_kernels_extends(warmup_bs)
 
     def _warmup_sm70_flashinfer_sampling(self):

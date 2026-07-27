@@ -99,6 +99,36 @@ class TestTemplateManagerReasoningDetection(unittest.TestCase):
         self.assertIsNone(config)
         self.assertEqual(parser, "minimax")
 
+    def test_poolside_s21_detects_toggle_and_both_parsers(self):
+        template = """
+        {% set enable_thinking = enable_thinking | default(true) %}
+        <available_tools>
+        <think></think>
+        <tool_call><arg_key></arg_key><arg_value></arg_value></tool_call>
+        <tool_response></tool_response>
+        """
+        force, config, parser = self._detect(
+            template,
+            [
+                "<think>",
+                "</think>",
+                "<tool_call>",
+                "<arg_key>",
+                "<arg_value>",
+            ],
+        )
+        tool_parser = detect_tool_call_parser(
+            template, _DummyTokenizer([]), config, force
+        )
+
+        self.assertFalse(force)
+        self.assertEqual(
+            config,
+            ReasoningToggleConfig(toggle_param="enable_thinking", default_enabled=True),
+        )
+        self.assertEqual(parser, "poolside_v1")
+        self.assertEqual(tool_parser, "poolside_v1")
+
 
 class TestTemplateDetectionRuleMatrix(unittest.TestCase):
     """Table-driven tests for REASONING_PARSER_RULES and REASONING_MODE_RULES."""

@@ -45,6 +45,12 @@ class OpenAIServingTokenize(OpenAIServingBase):
         try:
             tokenizer = self.tokenizer_manager.tokenizer
             max_model_len = getattr(tokenizer, "model_max_length", -1)
+            # Transformers uses a very large integer as the "unbounded"
+            # model-length sentinel. ORJSON only accepts signed 64-bit
+            # integers, and the effective limit for a running server is its
+            # configured context length anyway.
+            if not isinstance(max_model_len, int) or max_model_len > (1 << 63) - 1:
+                max_model_len = self.tokenizer_manager.server_args.context_length
 
             if request.messages is not None:
                 token_ids = self._tokenize_chat_request(request)

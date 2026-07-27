@@ -561,6 +561,48 @@ def test_v100_native_attention_uses_per_layer_dflash_mask(attn_type, window, exp
     assert _get_native_paged_attention_params(layer, True) == expected
 
 
+def test_v100_native_extend_builds_distinct_swa_page_table():
+    class _SwaPool:
+        def __init__(self):
+            self.full_to_swa_index_mapping = torch.arange(256, dtype=torch.int64)
+            self.full_to_swa_index_mapping[32] = 80
+            self.full_to_swa_index_mapping[48] = 96
+
+        def translate_loc_from_full_to_swa(self, indices):
+            return self.full_to_swa_index_mapping[indices].to(torch.int32)
+
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.device = "cpu"
+    backend.page_size = 16
+    backend._max_pages = 8
+    backend.req_to_token = torch.arange(256, dtype=torch.int64).reshape(1, 256)
+    backend.token_to_kv_pool = _SwaPool()
+
+    metadata = backend._build_extend_metadata(
+        req_pool_indices=torch.tensor([0], dtype=torch.int64),
+        seq_lens=torch.tensor([32], dtype=torch.int32),
+        extend_seq_lens=torch.tensor([32], dtype=torch.int32),
+        extend_prefix_lens=torch.tensor([0], dtype=torch.int32),
+        causal=True,
+    )
+
+    assert metadata.page_table[0, :2].tolist() == [0, 1]
+    assert metadata.swa_page_table is not None
+    assert metadata.swa_page_table[0, :2].tolist() == [0, 1]
+
+    backend.req_to_token[0, 0] = 32
+    backend.req_to_token[0, 16] = 48
+    metadata = backend._build_extend_metadata(
+        req_pool_indices=torch.tensor([0], dtype=torch.int64),
+        seq_lens=torch.tensor([32], dtype=torch.int32),
+        extend_seq_lens=torch.tensor([32], dtype=torch.int32),
+        extend_prefix_lens=torch.tensor([0], dtype=torch.int32),
+        causal=True,
+    )
+    assert metadata.page_table[0, :2].tolist() == [2, 3]
+    assert metadata.swa_page_table[0, :2].tolist() == [5, 6]
+
+
 def test_dflash_v100_triton_verify_skips_redundant_custom_mask():
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
 
@@ -915,6 +957,72 @@ def test_v100_ai_bond_fallback_uses_supported_full_attention_signature(monkeypat
         ),
         "options": (16, 0.5, True, 1),
     }
+
+
+def test_v100_native_extend_selects_swa_page_table(monkeypatch):
+    monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
+    captured = {}
+
+    def fake_tilelang_paged(q, k_cache, v_cache, block_table, seq_lens,
+                            query_start_loc, prefix_kv_lens, *, out, **kwargs):
+        captured["block_table"] = block_table.clone()
+        captured["sliding_window_size"] = kwargs["sliding_window_size"]
+        out.zero_()
+
+    monkeypatch.setattr(
+        flash_attn_v100_backend,
+        "_load_paged_forward",
+        lambda: fake_tilelang_paged,
+    )
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.page_size = 16
+    backend.model_runner = SimpleNamespace(
+        spec_algorithm=SimpleNamespace(
+            is_dflash=lambda: False,
+            is_eagle=lambda: False,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
+    k_cache = torch.randn(32, 1, 2)
+    v_cache = torch.randn_like(k_cache)
+    backend.token_to_kv_pool = SimpleNamespace(
+        get_kv_buffer=lambda layer_id: (k_cache, v_cache),
+    )
+    backend.forward_metadata = SimpleNamespace(
+        page_table=torch.tensor([[2, 3]], dtype=torch.int32),
+        swa_page_table=torch.tensor([[5, 6]], dtype=torch.int32),
+        seq_lens=torch.tensor([32], dtype=torch.int32),
+        query_start_loc=torch.tensor([0, 2], dtype=torch.int32),
+        prefix_kv_lens=torch.tensor([0], dtype=torch.int32),
+        causal=True,
+    )
+    layer = SimpleNamespace(
+        is_cross_attention=False,
+        attn_type=AttentionType.DECODER,
+        sliding_window_size=511,
+        tp_q_head_num=2,
+        tp_k_head_num=1,
+        head_dim=2,
+        scaling=0.5,
+        layer_id=0,
+    )
+    forward_batch = SimpleNamespace(
+        forward_mode=_ForwardMode(),
+        out_cache_loc=None,
+    )
+
+    output = backend.forward_extend(
+        q=torch.randn(2, 4),
+        k=None,
+        v=None,
+        layer=layer,
+        forward_batch=forward_batch,
+        save_kv_cache=False,
+    )
+
+    assert output.shape == (2, 4)
+    assert captured["block_table"].tolist() == [[5, 6]]
+    assert captured["sliding_window_size"] == 511
 
 
 def test_v100_spec_v2_metadata_delegates_to_triton():

@@ -146,6 +146,9 @@ class FlashAttnV100ExtendMetadata:
     query_start_loc: torch.Tensor  # [num_seqs+1] int32 — cumsum of query lens
     prefix_kv_lens: torch.Tensor  # [num_seqs] int32 — cached prefix length
     causal: bool
+    # SWA layers use a separate KV pool with a different physical page
+    # numbering. Keep a second table for that pool.
+    swa_page_table: Optional[torch.Tensor] = None
 
 
 class FlashAttnV100Backend(AttentionBackend):
@@ -196,6 +199,7 @@ class FlashAttnV100Backend(AttentionBackend):
         self.forward_metadata: Optional[FlashAttnV100ExtendMetadata] = None
         # Buffers for piecewise cuda-graph capture of extend.
         self._cg_page_table: Optional[torch.Tensor] = None
+        self._cg_swa_page_table: Optional[torch.Tensor] = None
         self._cg_seq_lens: Optional[torch.Tensor] = None
         self._cg_query_start_loc: Optional[torch.Tensor] = None
         self._cg_prefix_kv_lens: Optional[torch.Tensor] = None
@@ -229,32 +233,64 @@ class FlashAttnV100Backend(AttentionBackend):
         extend_prefix_lens: torch.Tensor,
         causal: bool,
         page_table_buf: Optional[torch.Tensor] = None,
+        swa_page_table_buf: Optional[torch.Tensor] = None,
     ) -> FlashAttnV100ExtendMetadata:
         """Gather page indices for each sequence and pack into a page table.
 
         Token slot indices live in ``req_to_token[req, pos]``; the first token
         of each 16-token page determines the page index (``slot // page_size``).
+        SWA cache slots are translated through the pool's full-to-SWA mapping.
         """
         num_seqs = seq_lens.shape[0]
         max_seq_len = int(seq_lens.max().item()) if num_seqs > 0 else 0
         max_pages = (max_seq_len + self.page_size - 1) // self.page_size
 
-        # Fixed-width page table so the tilelang kernel's max_blocks key never
-        # changes: allocate [num_seqs, self._max_pages] and fill only the first
-        # max_pages columns.  Unused columns stay 0 (never read by the kernel).
-        page_table = torch.zeros(
-            num_seqs, self._max_pages, dtype=torch.int32, device=self.device
+        def build_page_table(
+            page_table_buffer: Optional[torch.Tensor],
+            translate_to_swa: bool,
+        ) -> torch.Tensor:
+            # Keep a fixed-width table so the TileLang kernel's max_blocks key
+            # remains stable across requests.
+            if page_table_buffer is None:
+                table = torch.zeros(
+                    num_seqs,
+                    self._max_pages,
+                    dtype=torch.int32,
+                    device=self.device,
+                )
+            else:
+                table = page_table_buffer[:num_seqs, : self._max_pages]
+                table.zero_()
+
+            if max_pages > 0:
+                strided = torch.arange(
+                    0, max_seq_len, self.page_size, device=self.device
+                )  # [max_pages] token positions (page starts)
+                token_indices = self.req_to_token[
+                    req_pool_indices[:, None], strided[None, :]
+                ]  # [num_seqs, max_pages]
+                if translate_to_swa:
+                    token_indices = (
+                        self.token_to_kv_pool.translate_loc_from_full_to_swa(
+                            token_indices
+                        )
+                    )
+                table[:, :max_pages] = (token_indices // self.page_size).to(
+                    torch.int32
+                )
+            return table
+
+        page_table = build_page_table(page_table_buf, translate_to_swa=False)
+        has_swa_mapping = (
+            hasattr(self.token_to_kv_pool, "translate_loc_from_full_to_swa")
+            and getattr(self.token_to_kv_pool, "full_to_swa_index_mapping", None)
+            is not None
         )
-        if max_pages > 0:
-            strided = torch.arange(
-                0, max_seq_len, self.page_size, device=self.device
-            )  # [max_pages] token positions (page starts)
-            token_indices = self.req_to_token[
-                req_pool_indices[:, None], strided[None, :]
-            ]  # [num_seqs, max_pages]
-            page_table[:, :max_pages] = (token_indices // self.page_size).to(
-                torch.int32
-            )
+        swa_page_table = (
+            build_page_table(swa_page_table_buf, translate_to_swa=True)
+            if has_swa_mapping
+            else None
+        )
 
         query_start_loc = torch.zeros(
             num_seqs + 1, dtype=torch.int32, device=self.device
@@ -267,6 +303,7 @@ class FlashAttnV100Backend(AttentionBackend):
             query_start_loc=query_start_loc,
             prefix_kv_lens=extend_prefix_lens.to(torch.int32),
             causal=causal,
+            swa_page_table=swa_page_table,
         )
 
     def init_forward_metadata(self, forward_batch: "ForwardBatch"):
@@ -313,6 +350,14 @@ class FlashAttnV100Backend(AttentionBackend):
         self._cg_page_table = torch.zeros(
             max_bs, self._max_pages, dtype=torch.int32, device=self.device
         )
+        if (
+            hasattr(self.token_to_kv_pool, "translate_loc_from_full_to_swa")
+            and getattr(self.token_to_kv_pool, "full_to_swa_index_mapping", None)
+            is not None
+        ):
+            self._cg_swa_page_table = torch.zeros(
+                max_bs, self._max_pages, dtype=torch.int32, device=self.device
+            )
         self._cg_seq_lens = torch.zeros(max_bs, dtype=torch.int32, device=self.device)
         self._cg_query_start_loc = torch.zeros(
             max_bs + 1, dtype=torch.int32, device=self.device
@@ -366,6 +411,11 @@ class FlashAttnV100Backend(AttentionBackend):
             query_start_loc=self._cg_query_start_loc[: bs + 1],
             prefix_kv_lens=self._cg_prefix_kv_lens[:bs],
             causal=True,
+            swa_page_table=(
+                self._cg_swa_page_table[:bs]
+                if self._cg_swa_page_table is not None
+                else None
+            ),
         )
 
     def init_forward_metadata_replay_cuda_graph(
@@ -418,6 +468,17 @@ class FlashAttnV100Backend(AttentionBackend):
             self._cg_page_table[:bs, :max_pages].copy_(
                 (token_indices // self.page_size).to(torch.int32)
             )
+            if self._cg_swa_page_table is not None:
+                swa_token_indices = (
+                    self.token_to_kv_pool.translate_loc_from_full_to_swa(
+                        token_indices
+                    )
+                )
+                self._cg_swa_page_table[:bs, :max_pages].copy_(
+                    (swa_token_indices // self.page_size).to(torch.int32)
+                )
+        if self._cg_swa_page_table is not None:
+            self._cg_swa_page_table[:bs, max_pages:].zero_()
         self._cg_seq_lens[:bs].copy_(seq_lens_b)
         # query_start_loc / prefix_kv_lens for extend replay are approximated
         # from seq_lens (pure extend, no prefix) — sufficient for the captured
@@ -446,6 +507,17 @@ class FlashAttnV100Backend(AttentionBackend):
             self._cg_page_table[:bs, :max_pages].copy_(
                 (token_indices // self.page_size).to(torch.int32)
             )
+            if self._cg_swa_page_table is not None:
+                swa_token_indices = (
+                    self.token_to_kv_pool.translate_loc_from_full_to_swa(
+                        token_indices
+                    )
+                )
+                self._cg_swa_page_table[:bs, :max_pages].copy_(
+                    (swa_token_indices // self.page_size).to(torch.int32)
+                )
+        if self._cg_swa_page_table is not None:
+            self._cg_swa_page_table[:bs, max_pages:].zero_()
         self._cg_seq_lens[:bs].copy_(seq_lens_b)
         self._cg_query_start_loc[: bs + 1].copy_(
             torch.arange(
@@ -463,6 +535,11 @@ class FlashAttnV100Backend(AttentionBackend):
             query_start_loc=self._cg_query_start_loc[: bs + 1],
             prefix_kv_lens=self._cg_prefix_kv_lens[:bs],
             causal=True,
+            swa_page_table=(
+                self._cg_swa_page_table[:bs]
+                if self._cg_swa_page_table is not None
+                else None
+            ),
         )
 
     def get_cuda_graph_seq_len_fill_value(self):
@@ -592,11 +669,15 @@ class FlashAttnV100Backend(AttentionBackend):
                 "attention backend for this request."
             )
 
+        page_table = md.page_table
+        if sliding_window_size >= 0 and md.swa_page_table is not None:
+            page_table = md.swa_page_table
+
         paged_forward(
             q3,
             k_cache,
             v_cache,
-            md.page_table,
+            page_table,
             md.seq_lens,
             md.query_start_loc,
             md.prefix_kv_lens,

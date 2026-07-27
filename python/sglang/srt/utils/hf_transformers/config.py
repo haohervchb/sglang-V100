@@ -16,6 +16,7 @@
 from pathlib import Path
 from typing import Optional
 
+from transformers import PretrainedConfig
 from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 
 from sglang.srt.configs.model_config_parser_registry import (
@@ -51,6 +52,25 @@ def _apply_deepseek_ocr_overrides(config, model):
     config._name_or_path = model
 
 
+def _try_load_laguna_config(model, revision: Optional[str], **kwargs):
+    """Load Laguna with SGLang's compatibility config before HF AutoConfig.
+
+    Recent Transformers releases register their own strict LagunaConfig. Some
+    released Poolside checkpoints use a per-attention-type rope dictionary
+    that those releases reject before SGLang gets a chance to replace the
+    config from ``_CONFIG_REGISTRY``.
+    """
+    config_dict, _ = PretrainedConfig.get_config_dict(
+        model, revision=revision, **kwargs
+    )
+    if config_dict.get("model_type") != "laguna":
+        return None
+
+    return _CONFIG_REGISTRY["laguna"].from_pretrained(
+        model, revision=revision, **kwargs
+    )
+
+
 @register_model_config_parser("hf")
 class HfModelConfigParser(ModelConfigParserBase):
     def parse(
@@ -60,12 +80,14 @@ class HfModelConfigParser(ModelConfigParserBase):
         revision: Optional[str] = None,
         **kwargs,
     ):
-        config = AutoConfig.from_pretrained(
-            model,
-            trust_remote_code=trust_remote_code,
-            revision=revision,
-            **kwargs,
-        )
+        config = _try_load_laguna_config(model, revision, **kwargs)
+        if config is None:
+            config = AutoConfig.from_pretrained(
+                model,
+                trust_remote_code=trust_remote_code,
+                revision=revision,
+                **kwargs,
+            )
 
         if (
             config.architectures is not None
