@@ -634,6 +634,7 @@ sglang serve \
   --cuda-graph-max-bs 4 \
   --cuda-graph-bs 1 2 4 \
   --enable-nccl-nvls \
+  --enable-multimodal \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
   --speculative-dflash-block-size 16 \
@@ -741,6 +742,7 @@ sglang serve \
   --cuda-graph-max-bs 4 \
   --cuda-graph-bs 1 2 4 \
   --enable-nccl-nvls \
+  --enable-multimodal \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.5-122B-A10B-DFlash \
   --speculative-dflash-block-size 16 \
@@ -783,15 +785,19 @@ cold-cache trial per cell, not a confidence interval. Definitions, acceptance
 values, retained outputs, raw request timings, exact server settings, and
 Docker validation are in
 [the quick-comparison directory](benchmark/v100_quick_comparison_20260727/README.md).
+The full Qwen-only sweep below was collected later from a refreshed repository
+corpus and supersedes the quick sample for Qwen context-scaling analysis; the
+quick chart remains the directly matched Qwen-versus-Laguna comparison.
 
-### Historical audited DFlash 1K–25K sweep (2026-07-16)
+### Audited Docker DFlash 1K–25K sweep (2026-07-27)
 
-These measurements use four V100-SXM2-32GB GPUs, TP4, greedy decoding, cold
-unique repository-source prompts, and up to 256 output tokens per request. The
-matrix covers 13 prompt lengths (1K through 25K in 2K increments) at 1, 2, and
-4 concurrent clients for both models: 78 cells total. Every cell had zero
-cached prompt tokens and passed a generated-text repetition/diversity audit;
-the 91 request-level prompt hashes are identical across models.
+This full sweep refresh used the newly built `sglang-v100:18878a5f0` image on
+four V100-SXM2-32GB GPUs, TP4, greedy decoding, cold unique repository-source
+prompts, and 256 output tokens per request. The matrix covers 13 prompt lengths
+(1K through 25K in 2K increments) at 1, 2, and 4 concurrent clients for both
+models: 78 cells and 182 request responses. Every request reported zero cached
+prompt tokens and passed the generated-text repetition/diversity audit; the 91
+request-level prompt hashes are identical across models.
 
 "Decode" below and in the plots means the median per-request client-visible
 decode rate, not summed batch throughput. TTFT is client request start to the
@@ -803,12 +809,12 @@ prompt-dependent, so its unsmoothed line is expected to be jagged.
 
 | Concurrency | Target | Decode at 1K | Decode at 25K | TTFT at 1K | TTFT at 25K | Accept at 1K | Accept at 25K |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 27B FP16 | 102.0 tok/s | 87.1 tok/s | 0.36 s | 6.90 s | 4.49 | 4.13 |
-| 1 | 122B GPTQ-Int4 | 108.1 tok/s | 87.5 tok/s | 0.31 s | 5.27 s | 4.13 | 3.61 |
-| 2 | 27B FP16 | 91.2 tok/s | 49.9 tok/s | 0.58 s | 11.21 s | 4.88 | 3.85 |
-| 2 | 122B GPTQ-Int4 | 107.0 tok/s | 51.0 tok/s | 0.54 s | 8.44 s | 4.79 | 3.53 |
-| 4 | 27B FP16 | 66.3 tok/s | 18.0 tok/s | 1.19 s | 17.88 s | 4.53 | 4.72 |
-| 4 | 122B GPTQ-Int4 | 78.0 tok/s | 44.4 tok/s | 0.84 s | 13.58 s | 4.08 | 3.82 |
+| 1 | 27B FP16 | 101.2 tok/s | 86.6 tok/s | 0.307 s | 6.884 s | 4.49 | 4.13 |
+| 1 | 122B GPTQ-Int4 | 109.2 tok/s | 81.9 tok/s | 0.292 s | 5.299 s | 4.20 | 3.41 |
+| 2 | 27B FP16 | 91.0 tok/s | 49.6 tok/s | 0.562 s | 11.161 s | 4.88 | 3.85 |
+| 2 | 122B GPTQ-Int4 | 97.2 tok/s | 51.9 tok/s | 0.542 s | 8.517 s | 4.53 | 3.66 |
+| 4 | 27B FP16 | 63.4 tok/s | 18.1 tok/s | 1.005 s | 17.955 s | 4.11 | 4.72 |
+| 4 | 122B GPTQ-Int4 | 82.0 tok/s | 50.2 tok/s | 0.813 s | 13.695 s | 4.49 | 3.85 |
 
 ![DFlash context scaling at concurrency 1](benchmark/dflash_v100_20260716/plots/dflash_concurrency_1.svg)
 
@@ -820,22 +826,34 @@ The effective input-rate panel is total prompt tokens divided by the latest
 first-token time; it includes scheduling and chunked-prefill behavior and is
 not an isolated kernel microbenchmark. The full generated text, raw timings,
 server arguments, CSV summaries, audit rules, and reproduction commands are in
-[the benchmark directory](benchmark/dflash_v100_20260716/README.md). The first
-122B 1K/concurrency-4 attempt incurred a one-off 10.9-second first-token stall;
-the identical prompt hashes were rerun after that prefill/JIT path was resident,
-and the disclosed 0.84-second steady result is plotted. No other cell was
-replaced.
+[the benchmark directory](benchmark/dflash_v100_20260716/README.md). Four
+timing cells were repeated unchanged after one-time prefill/JIT-path stalls;
+only the immediate steady reruns are plotted, and every replacement is
+disclosed with its prompt hashes retained in the benchmark notes.
+
+The same Docker servers also passed seven live agent/multimodal checks per
+model: separated reasoning on/off, native tool-call round trip, streamed tool
+arguments, image description, image reasoning, and image-conditioned
+structured tool calling. Raw API responses are retained. Manual review found
+one inert `.cw` suffix at the end of one 122B hidden reasoning trace; the
+separated final answer was correct, and the suffix did not recur in the other
+agent or multimodal cases. See the
+[correctness audit](benchmark/dflash_v100_20260716/README.md#agent-and-multimodal-correctness-audit)
+for the exact scope and artifacts.
 
 For Docker, keep the device, network, IPC, single cache-volume, and environment
 prefix from the earlier `docker run` example, then replace its arguments
 beginning with `--model` with those from the selected command above. The image
-entrypoint adds `sglang serve` automatically.
+entrypoint adds `sglang serve` automatically. Keep `--enable-multimodal` for
+the audited 27B and 122B configurations.
 
 `--context-length` is an upper bound, not a promise that the KV pool can hold
 that many live tokens. At `--mem-fraction-static 0.78`, the measured 122B
 configuration allocated 225,040 target/draft KV slots, admitted four requests,
 and left about 1.6 GiB on the tightest rank after draft graph capture. At 0.70,
-it allocated 116,064 slots and resolved the requested four requests to three.
+the audited 27B configuration allocated 306,144 target/draft KV slots, admitted
+four requests, and left about 3.4 GiB on the tightest rank after draft graph
+capture.
 The 35B-A3B AWQ block-size-8 configuration allocated 943,472 target/draft KV
 slots and left about 2.3 GiB on the tightest rank after graph capture. The
 unquantized FP16 configuration allocated 370,048 target/draft KV slots and also

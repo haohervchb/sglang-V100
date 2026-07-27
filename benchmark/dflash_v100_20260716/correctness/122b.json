@@ -1,0 +1,1785 @@
+{
+  "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+  "base_url": "http://127.0.0.1:8082",
+  "image": {
+    "path": "examples/assets/example_image.png",
+    "bytes": 57365,
+    "sha256": "e06917184a00b14abd70cd8ea0ff5dca9abfbbad29f7b25c02f97133d4cd060e"
+  },
+  "server_info": {
+    "model_path": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+    "tokenizer_path": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+    "tokenizer_mode": "auto",
+    "tokenizer_backend": "huggingface",
+    "tokenizer_worker_num": 1,
+    "detokenizer_worker_num": 1,
+    "skip_tokenizer_init": false,
+    "load_format": "auto",
+    "model_loader_extra_config": "{}",
+    "trust_remote_code": false,
+    "context_length": 262144,
+    "is_embedding": false,
+    "prefill_only_disable_kv_cache": false,
+    "enable_multimodal": true,
+    "revision": null,
+    "model_impl": "auto",
+    "model_config_parser": "auto",
+    "host": "0.0.0.0",
+    "port": 8082,
+    "fastapi_root_path": "",
+    "grpc_mode": false,
+    "skip_server_warmup": false,
+    "warmups": null,
+    "nccl_port": null,
+    "checkpoint_engine_wait_weights_before_ready": false,
+    "ssl_keyfile": null,
+    "ssl_certfile": null,
+    "ssl_ca_certs": null,
+    "ssl_keyfile_password": null,
+    "enable_ssl_refresh": false,
+    "enable_http2": false,
+    "dtype": "float16",
+    "quantization": "gptq_marlin",
+    "quantization_param_path": null,
+    "kv_cache_dtype": "auto",
+    "enable_fp32_lm_head": false,
+    "modelopt_quant": null,
+    "modelopt_checkpoint_restore_path": null,
+    "modelopt_checkpoint_save_path": null,
+    "modelopt_export_path": null,
+    "quantize_and_serve": false,
+    "rl_quant_profile": null,
+    "mem_fraction_static": 0.78,
+    "max_running_requests": 4,
+    "max_queued_requests": null,
+    "max_total_tokens": null,
+    "chunked_prefill_size": 4096,
+    "enable_dynamic_chunking": false,
+    "max_prefill_tokens": 16384,
+    "prefill_max_requests": null,
+    "schedule_policy": "fcfs",
+    "enable_priority_scheduling": false,
+    "disable_priority_preemption": false,
+    "default_priority_value": null,
+    "abort_on_priority_when_disabled": false,
+    "schedule_low_priority_values_first": false,
+    "priority_scheduling_preemption_threshold": 10,
+    "schedule_conservativeness": 1.0,
+    "page_size": 16,
+    "swa_full_tokens_ratio": 0.8,
+    "disable_hybrid_swa_memory": false,
+    "radix_eviction_policy": "lru",
+    "enable_prefill_delayer": false,
+    "prefill_delayer_max_delay_passes": 30,
+    "prefill_delayer_token_usage_low_watermark": null,
+    "prefill_delayer_forward_passes_buckets": null,
+    "prefill_delayer_wait_seconds_buckets": null,
+    "prefill_delayer_queue_min_ratio": null,
+    "prefill_delayer_max_delay_ms": null,
+    "device": "cuda",
+    "tp_size": 4,
+    "pp_size": 1,
+    "pp_max_micro_batch_size": null,
+    "pp_async_batch_depth": 0,
+    "stream_interval": 1,
+    "batch_notify_size": 16,
+    "stream_response_default_include_usage": false,
+    "incremental_streaming_output": false,
+    "enable_streaming_session": false,
+    "random_seed": 700615278,
+    "constrained_json_whitespace_pattern": null,
+    "constrained_json_disable_any_whitespace": false,
+    "watchdog_timeout": 300,
+    "soft_watchdog_timeout": null,
+    "dist_timeout": null,
+    "download_dir": null,
+    "model_checksum": null,
+    "base_gpu_id": 0,
+    "gpu_id_step": 1,
+    "sleep_on_idle": false,
+    "load_snapshot_publish_interval": 15,
+    "use_ray": false,
+    "custom_sigquit_handler": null,
+    "log_level": "info",
+    "log_level_http": null,
+    "log_requests": false,
+    "log_requests_level": 2,
+    "log_requests_format": "text",
+    "log_requests_target": null,
+    "uvicorn_access_log_exclude_prefixes": [],
+    "crash_dump_folder": null,
+    "show_time_cost": false,
+    "enable_metrics": false,
+    "grpc_http_sidecar_port": null,
+    "enable_mfu_metrics": false,
+    "enable_metrics_for_all_schedulers": false,
+    "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+    "tokenizer_metrics_allowed_custom_labels": null,
+    "extra_metric_labels": null,
+    "bucket_time_to_first_token": null,
+    "bucket_inter_token_latency": null,
+    "bucket_e2e_request_latency": null,
+    "prompt_tokens_buckets": null,
+    "generation_tokens_buckets": null,
+    "gc_warning_threshold_secs": 0.0,
+    "decode_log_interval": 40,
+    "enable_request_time_stats_logging": false,
+    "kv_events_config": null,
+    "enable_forward_pass_metrics": false,
+    "forward_pass_metrics_worker_id": "",
+    "forward_pass_metrics_ipc_name": null,
+    "enable_trace": false,
+    "otlp_traces_endpoint": "localhost:4317",
+    "export_metrics_to_file": false,
+    "export_metrics_to_file_dir": null,
+    "stat_loggers": null,
+    "api_key": null,
+    "admin_api_key": null,
+    "served_model_name": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+    "weight_version": "default",
+    "chat_template": null,
+    "hf_chat_template_name": null,
+    "completion_template": null,
+    "file_storage_path": "sglang_storage",
+    "enable_cache_report": false,
+    "reasoning_parser": "qwen3",
+    "strip_thinking_cache": false,
+    "enable_strict_thinking": false,
+    "tool_call_parser": "qwen3_coder",
+    "tool_server": null,
+    "sampling_defaults": "model",
+    "asr_max_buffer_seconds": 60,
+    "asr_max_concurrent_sessions": 32,
+    "dp_size": 1,
+    "load_balance_method": "round_robin",
+    "attn_cp_size": 1,
+    "moe_dp_size": 1,
+    "dist_init_addr": null,
+    "nnodes": 1,
+    "node_rank": 0,
+    "json_model_override_args": "{}",
+    "preferred_sampling_params": null,
+    "enable_lora": null,
+    "enable_lora_overlap_loading": null,
+    "max_lora_rank": null,
+    "lora_target_modules": null,
+    "lora_paths": null,
+    "max_loaded_loras": null,
+    "max_loras_per_batch": 8,
+    "lora_eviction_policy": "lru",
+    "lora_backend": "csgmv",
+    "max_lora_chunk_size": 16,
+    "experts_shared_outer_loras": null,
+    "lora_use_virtual_experts": false,
+    "lora_strict_loading": false,
+    "lora_drain_wait_threshold": 0.0,
+    "attention_backend": "flash_attn_v100",
+    "decode_attention_backend": null,
+    "prefill_attention_backend": null,
+    "sampling_backend": "flashinfer",
+    "grammar_backend": "xgrammar",
+    "radix_cache_backend": null,
+    "mm_attention_backend": null,
+    "fp8_gemm_runner_backend": "auto",
+    "fp4_gemm_runner_backend": "auto",
+    "dsa_prefill_backend": null,
+    "dsa_decode_backend": null,
+    "dsa_topk_backend": "sgl-kernel",
+    "disable_flashinfer_autotune": false,
+    "mamba_backend": "triton",
+    "speculative_algorithm": "DFLASH",
+    "speculative_draft_model_path": "z-lab/Qwen3.5-122B-A10B-DFlash",
+    "speculative_draft_model_revision": "main",
+    "speculative_draft_load_format": null,
+    "speculative_num_steps": 1,
+    "speculative_eagle_topk": 1,
+    "speculative_num_draft_tokens": 16,
+    "speculative_dflash_block_size": 16,
+    "speculative_accept_threshold_single": 1.0,
+    "speculative_accept_threshold_acc": 1.0,
+    "speculative_token_map": null,
+    "speculative_attention_mode": "prefill",
+    "speculative_draft_attention_backend": null,
+    "speculative_draft_window_size": null,
+    "speculative_moe_runner_backend": "auto",
+    "speculative_moe_a2a_backend": null,
+    "speculative_draft_model_quantization": null,
+    "speculative_skip_dp_mlp_sync": false,
+    "speculative_ngram_min_bfs_breadth": 1,
+    "speculative_ngram_max_bfs_breadth": 10,
+    "speculative_ngram_match_type": "BFS",
+    "speculative_ngram_max_trie_depth": 18,
+    "speculative_ngram_capacity": 10000000,
+    "speculative_ngram_external_corpus_path": null,
+    "speculative_ngram_external_sam_budget": 0,
+    "speculative_ngram_external_corpus_max_tokens": 10000000,
+    "enable_multi_layer_eagle": false,
+    "speculative_adaptive": false,
+    "speculative_adaptive_config": null,
+    "ep_size": 1,
+    "moe_a2a_backend": "none",
+    "moe_runner_backend": "auto",
+    "flashinfer_mxfp4_moe_precision": "default",
+    "enable_flashinfer_allreduce_fusion": false,
+    "enforce_disable_flashinfer_allreduce_fusion": false,
+    "enable_aiter_allreduce_fusion": false,
+    "deepep_mode": "auto",
+    "deepep_dispatcher_output_dtype": "auto",
+    "ep_num_redundant_experts": 0,
+    "ep_dispatch_algorithm": null,
+    "init_expert_location": "trivial",
+    "enable_eplb": false,
+    "eplb_algorithm": "auto",
+    "eplb_rebalance_num_iterations": 1000,
+    "eplb_rebalance_layers_per_chunk": null,
+    "eplb_min_rebalancing_utilization_threshold": 1.0,
+    "expert_distribution_recorder_mode": null,
+    "expert_distribution_recorder_buffer_size": 1000,
+    "enable_expert_distribution_metrics": false,
+    "deepep_config": null,
+    "moe_dense_tp_size": null,
+    "elastic_ep_backend": null,
+    "enable_elastic_expert_backup": false,
+    "mooncake_ib_device": null,
+    "enable_deepep_waterfill": false,
+    "elastic_ep_rejoin": false,
+    "max_mamba_cache_size": null,
+    "mamba_ssm_dtype": null,
+    "mamba_full_memory_ratio": 0.9,
+    "mamba_scheduler_strategy": "extra_buffer",
+    "mamba_track_interval": 256,
+    "linear_attn_backend": "triton",
+    "linear_attn_decode_backend": null,
+    "linear_attn_prefill_backend": null,
+    "enable_hierarchical_cache": false,
+    "hicache_ratio": 2.0,
+    "hicache_size": 0,
+    "hicache_write_policy": "write_through",
+    "hicache_io_backend": "kernel",
+    "hicache_mem_layout": "layer_first",
+    "hicache_storage_backend": null,
+    "hicache_storage_prefetch_policy": "timeout",
+    "hicache_storage_backend_extra_config": null,
+    "enable_hisparse": false,
+    "hisparse_config": null,
+    "enable_lmcache": false,
+    "lmcache_config_file": null,
+    "kt_weight_path": null,
+    "kt_method": "AMXINT4",
+    "kt_cpuinfer": null,
+    "kt_threadpool_count": 2,
+    "kt_num_gpu_experts": null,
+    "kt_max_deferred_experts_per_token": null,
+    "dllm_algorithm": null,
+    "dllm_algorithm_config": null,
+    "cpu_offload_gb": 0,
+    "offload_group_size": -1,
+    "offload_num_in_group": 1,
+    "offload_prefetch_step": 1,
+    "offload_mode": "cpu",
+    "enable_mis": false,
+    "disable_radix_cache": false,
+    "cuda_graph_max_bs": 4,
+    "cuda_graph_bs": [
+      1,
+      2,
+      4
+    ],
+    "disable_cuda_graph": false,
+    "disable_cuda_graph_padding": false,
+    "enable_breakable_cuda_graph": false,
+    "enable_profile_cuda_graph": false,
+    "enable_cudagraph_gc": false,
+    "debug_cuda_graph": false,
+    "enable_layerwise_nvtx_marker": false,
+    "enable_nccl_nvls": true,
+    "enable_symm_mem": false,
+    "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+    "enable_tokenizer_batch_encode": false,
+    "disable_tokenizer_batch_decode": false,
+    "disable_outlines_disk_cache": false,
+    "disable_custom_all_reduce": false,
+    "enable_mscclpp": false,
+    "enable_torch_symm_mem": false,
+    "pre_warm_nccl": false,
+    "disable_overlap_schedule": false,
+    "enable_mixed_chunk": false,
+    "enable_dp_attention": false,
+    "enable_dp_attention_local_control_broadcast": false,
+    "enable_dp_lm_head": false,
+    "enable_two_batch_overlap": false,
+    "enable_single_batch_overlap": false,
+    "tbo_token_distribution_threshold": 0.48,
+    "enable_torch_compile": false,
+    "disable_piecewise_cuda_graph": true,
+    "enforce_piecewise_cuda_graph": false,
+    "enable_torch_compile_debug_mode": false,
+    "torch_compile_max_bs": 32,
+    "piecewise_cuda_graph_max_tokens": 4096,
+    "piecewise_cuda_graph_tokens": [
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      28,
+      32,
+      48,
+      64,
+      80,
+      96,
+      112,
+      128,
+      144,
+      160,
+      176,
+      192,
+      208,
+      224,
+      240,
+      256,
+      288,
+      320,
+      352,
+      384,
+      416,
+      448,
+      480,
+      512,
+      576,
+      640,
+      704,
+      768,
+      832,
+      896,
+      960,
+      1024,
+      1280,
+      1536,
+      1792,
+      2048,
+      2304,
+      2560,
+      2816,
+      3072,
+      3328,
+      3584,
+      3840,
+      4096
+    ],
+    "piecewise_cuda_graph_compiler": "eager",
+    "torchao_config": "",
+    "enable_p2p_check": false,
+    "triton_attention_reduce_in_fp32": false,
+    "triton_attention_num_kv_splits": 8,
+    "triton_attention_split_tile_size": null,
+    "num_continuous_decode_steps": 1,
+    "delete_ckpt_after_loading": false,
+    "enable_memory_saver": false,
+    "enable_weights_cpu_backup": false,
+    "enable_draft_weights_cpu_backup": false,
+    "allow_auto_truncate": false,
+    "enable_custom_logit_processor": false,
+    "flashinfer_mla_disable_ragged": false,
+    "disable_shared_experts_fusion": false,
+    "enforce_shared_experts_fusion": false,
+    "disable_chunked_prefix_cache": false,
+    "disable_fast_image_processor": false,
+    "keep_mm_feature_on_device": false,
+    "enable_return_hidden_states": false,
+    "enable_return_routed_experts": false,
+    "enable_return_indexer_topk": false,
+    "scheduler_recv_interval": 1,
+    "numa_node": null,
+    "enable_deterministic_inference": false,
+    "rl_on_policy_target": null,
+    "enable_attn_tp_input_scattered": false,
+    "disable_attn_tp_gather": false,
+    "gc_threshold": null,
+    "kv_canary": "none",
+    "kv_canary_real_data": "none",
+    "kv_canary_sweep_interval": 0,
+    "enable_dsa_prefill_context_parallel": false,
+    "dsa_prefill_cp_mode": "round-robin-split",
+    "enable_fused_qk_norm_rope": false,
+    "enable_precise_embedding_interpolation": false,
+    "enable_fused_moe_sum_all_reduce": false,
+    "enable_prefill_context_parallel": false,
+    "prefill_cp_mode": "in-seq-split",
+    "enable_dynamic_batch_tokenizer": false,
+    "dynamic_batch_tokenizer_batch_size": 32,
+    "dynamic_batch_tokenizer_batch_timeout": 0.002,
+    "debug_tensor_dump_output_folder": null,
+    "debug_tensor_dump_layers": null,
+    "debug_tensor_dump_input_file": null,
+    "debug_tensor_dump_inject": false,
+    "disaggregation_mode": "null",
+    "disaggregation_transfer_backend": "mooncake",
+    "disaggregation_bootstrap_port": 8998,
+    "disaggregation_ib_device": null,
+    "disaggregation_decode_enable_radix_cache": false,
+    "disaggregation_decode_enable_offload_kvcache": false,
+    "num_reserved_decode_tokens": 512,
+    "disaggregation_decode_polling_interval": 1,
+    "encoder_only": false,
+    "language_only": false,
+    "encoder_transfer_backend": "zmq_to_scheduler",
+    "encoder_urls": [],
+    "enable_adaptive_dispatch_to_encoder": false,
+    "custom_weight_loader": [],
+    "weight_loader_disable_mmap": false,
+    "weight_loader_prefetch_checkpoints": false,
+    "weight_loader_prefetch_num_threads": 4,
+    "weight_loader_drop_cache_after_load": false,
+    "remote_instance_weight_loader_seed_instance_ip": null,
+    "remote_instance_weight_loader_seed_instance_service_port": null,
+    "remote_instance_weight_loader_send_weights_group_ports": null,
+    "remote_instance_weight_loader_backend": "nccl",
+    "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+    "engine_info_bootstrap_port": 6789,
+    "modelexpress_config": null,
+    "enable_pdmux": false,
+    "pdmux_config_path": null,
+    "sm_group_num": 8,
+    "enable_broadcast_mm_inputs_process": false,
+    "enable_prefix_mm_cache": false,
+    "mm_enable_dp_encoder": false,
+    "mm_process_config": {},
+    "limit_mm_data_per_request": null,
+    "enable_mm_global_cache": false,
+    "decrypted_config_file": null,
+    "decrypted_draft_config_file": null,
+    "forward_hooks": null,
+    "enable_quant_communications": false,
+    "msprobe_dump_config": null,
+    "status": "ready",
+    "max_total_num_tokens": 225040,
+    "max_req_input_len": 225034,
+    "internal_states": [
+      {
+        "model_path": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "tokenizer_path": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "tokenizer_mode": "auto",
+        "tokenizer_backend": "huggingface",
+        "tokenizer_worker_num": 1,
+        "detokenizer_worker_num": 1,
+        "skip_tokenizer_init": false,
+        "load_format": "auto",
+        "model_loader_extra_config": "{}",
+        "trust_remote_code": false,
+        "context_length": 262144,
+        "is_embedding": false,
+        "prefill_only_disable_kv_cache": false,
+        "enable_multimodal": true,
+        "revision": null,
+        "model_impl": "auto",
+        "model_config_parser": "auto",
+        "host": "0.0.0.0",
+        "port": 8082,
+        "fastapi_root_path": "",
+        "grpc_mode": false,
+        "skip_server_warmup": false,
+        "warmups": null,
+        "nccl_port": null,
+        "checkpoint_engine_wait_weights_before_ready": false,
+        "ssl_keyfile": null,
+        "ssl_certfile": null,
+        "ssl_ca_certs": null,
+        "ssl_keyfile_password": null,
+        "enable_ssl_refresh": false,
+        "enable_http2": false,
+        "dtype": "float16",
+        "quantization": "gptq_marlin",
+        "quantization_param_path": null,
+        "kv_cache_dtype": "auto",
+        "enable_fp32_lm_head": false,
+        "modelopt_quant": null,
+        "modelopt_checkpoint_restore_path": null,
+        "modelopt_checkpoint_save_path": null,
+        "modelopt_export_path": null,
+        "quantize_and_serve": false,
+        "rl_quant_profile": null,
+        "mem_fraction_static": 0.78,
+        "max_running_requests": 4,
+        "max_queued_requests": null,
+        "max_total_tokens": null,
+        "chunked_prefill_size": 4096,
+        "enable_dynamic_chunking": false,
+        "max_prefill_tokens": 16384,
+        "prefill_max_requests": null,
+        "schedule_policy": "fcfs",
+        "enable_priority_scheduling": false,
+        "disable_priority_preemption": false,
+        "default_priority_value": null,
+        "abort_on_priority_when_disabled": false,
+        "schedule_low_priority_values_first": false,
+        "priority_scheduling_preemption_threshold": 10,
+        "schedule_conservativeness": 1.0,
+        "page_size": 16,
+        "swa_full_tokens_ratio": 0.8,
+        "disable_hybrid_swa_memory": false,
+        "radix_eviction_policy": "lru",
+        "enable_prefill_delayer": false,
+        "prefill_delayer_max_delay_passes": 30,
+        "prefill_delayer_token_usage_low_watermark": null,
+        "prefill_delayer_forward_passes_buckets": null,
+        "prefill_delayer_wait_seconds_buckets": null,
+        "prefill_delayer_queue_min_ratio": null,
+        "prefill_delayer_max_delay_ms": null,
+        "device": "cuda",
+        "tp_size": 4,
+        "pp_size": 1,
+        "pp_max_micro_batch_size": 4,
+        "pp_async_batch_depth": 0,
+        "stream_interval": 1,
+        "batch_notify_size": 16,
+        "stream_response_default_include_usage": false,
+        "incremental_streaming_output": false,
+        "enable_streaming_session": false,
+        "random_seed": 700615278,
+        "constrained_json_whitespace_pattern": null,
+        "constrained_json_disable_any_whitespace": false,
+        "watchdog_timeout": 300,
+        "soft_watchdog_timeout": null,
+        "dist_timeout": null,
+        "download_dir": null,
+        "model_checksum": null,
+        "base_gpu_id": 0,
+        "gpu_id_step": 1,
+        "sleep_on_idle": false,
+        "load_snapshot_publish_interval": 15,
+        "use_ray": false,
+        "custom_sigquit_handler": null,
+        "log_level": "info",
+        "log_level_http": null,
+        "log_requests": false,
+        "log_requests_level": 2,
+        "log_requests_format": "text",
+        "log_requests_target": null,
+        "uvicorn_access_log_exclude_prefixes": [],
+        "crash_dump_folder": null,
+        "show_time_cost": false,
+        "enable_metrics": false,
+        "grpc_http_sidecar_port": null,
+        "enable_mfu_metrics": false,
+        "enable_metrics_for_all_schedulers": false,
+        "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+        "tokenizer_metrics_allowed_custom_labels": null,
+        "extra_metric_labels": null,
+        "bucket_time_to_first_token": null,
+        "bucket_inter_token_latency": null,
+        "bucket_e2e_request_latency": null,
+        "prompt_tokens_buckets": null,
+        "generation_tokens_buckets": null,
+        "gc_warning_threshold_secs": 0.0,
+        "decode_log_interval": 40,
+        "enable_request_time_stats_logging": false,
+        "kv_events_config": null,
+        "enable_forward_pass_metrics": false,
+        "forward_pass_metrics_worker_id": "",
+        "forward_pass_metrics_ipc_name": null,
+        "enable_trace": false,
+        "otlp_traces_endpoint": "localhost:4317",
+        "export_metrics_to_file": false,
+        "export_metrics_to_file_dir": null,
+        "stat_loggers": null,
+        "api_key": null,
+        "admin_api_key": null,
+        "served_model_name": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "weight_version": "default",
+        "chat_template": null,
+        "hf_chat_template_name": null,
+        "completion_template": null,
+        "file_storage_path": "sglang_storage",
+        "enable_cache_report": false,
+        "reasoning_parser": "qwen3",
+        "strip_thinking_cache": false,
+        "enable_strict_thinking": false,
+        "tool_call_parser": "qwen3_coder",
+        "tool_server": null,
+        "sampling_defaults": "model",
+        "asr_max_buffer_seconds": 60,
+        "asr_max_concurrent_sessions": 32,
+        "dp_size": 1,
+        "load_balance_method": "round_robin",
+        "attn_cp_size": 1,
+        "moe_dp_size": 1,
+        "dist_init_addr": null,
+        "nnodes": 1,
+        "node_rank": 0,
+        "json_model_override_args": "{}",
+        "preferred_sampling_params": null,
+        "enable_lora": null,
+        "enable_lora_overlap_loading": null,
+        "max_lora_rank": null,
+        "lora_target_modules": null,
+        "lora_paths": null,
+        "max_loaded_loras": null,
+        "max_loras_per_batch": 8,
+        "lora_eviction_policy": "lru",
+        "lora_backend": "csgmv",
+        "max_lora_chunk_size": 16,
+        "experts_shared_outer_loras": null,
+        "lora_use_virtual_experts": false,
+        "lora_strict_loading": false,
+        "lora_drain_wait_threshold": 0.0,
+        "attention_backend": "flash_attn_v100",
+        "decode_attention_backend": "flash_attn_v100",
+        "prefill_attention_backend": "flash_attn_v100",
+        "sampling_backend": "flashinfer",
+        "grammar_backend": "xgrammar",
+        "radix_cache_backend": null,
+        "mm_attention_backend": null,
+        "fp8_gemm_runner_backend": "auto",
+        "fp4_gemm_runner_backend": "auto",
+        "dsa_prefill_backend": null,
+        "dsa_decode_backend": null,
+        "dsa_topk_backend": "sgl-kernel",
+        "disable_flashinfer_autotune": false,
+        "mamba_backend": "triton",
+        "speculative_algorithm": "DFLASH",
+        "speculative_draft_model_path": "z-lab/Qwen3.5-122B-A10B-DFlash",
+        "speculative_draft_model_revision": "main",
+        "speculative_draft_load_format": null,
+        "speculative_num_steps": 1,
+        "speculative_eagle_topk": 1,
+        "speculative_num_draft_tokens": 16,
+        "speculative_dflash_block_size": 16,
+        "speculative_accept_threshold_single": 1.0,
+        "speculative_accept_threshold_acc": 1.0,
+        "speculative_token_map": null,
+        "speculative_attention_mode": "prefill",
+        "speculative_draft_attention_backend": null,
+        "speculative_draft_window_size": null,
+        "speculative_moe_runner_backend": "auto",
+        "speculative_moe_a2a_backend": null,
+        "speculative_draft_model_quantization": null,
+        "speculative_skip_dp_mlp_sync": false,
+        "speculative_ngram_min_bfs_breadth": 1,
+        "speculative_ngram_max_bfs_breadth": 10,
+        "speculative_ngram_match_type": "BFS",
+        "speculative_ngram_max_trie_depth": 18,
+        "speculative_ngram_capacity": 10000000,
+        "speculative_ngram_external_corpus_path": null,
+        "speculative_ngram_external_sam_budget": 0,
+        "speculative_ngram_external_corpus_max_tokens": 10000000,
+        "enable_multi_layer_eagle": false,
+        "speculative_adaptive": false,
+        "speculative_adaptive_config": null,
+        "ep_size": 1,
+        "moe_a2a_backend": "none",
+        "moe_runner_backend": "auto",
+        "flashinfer_mxfp4_moe_precision": "default",
+        "enable_flashinfer_allreduce_fusion": false,
+        "enforce_disable_flashinfer_allreduce_fusion": false,
+        "enable_aiter_allreduce_fusion": false,
+        "deepep_mode": "auto",
+        "deepep_dispatcher_output_dtype": "auto",
+        "ep_num_redundant_experts": 0,
+        "ep_dispatch_algorithm": null,
+        "init_expert_location": "trivial",
+        "enable_eplb": false,
+        "eplb_algorithm": "auto",
+        "eplb_rebalance_num_iterations": 1000,
+        "eplb_rebalance_layers_per_chunk": null,
+        "eplb_min_rebalancing_utilization_threshold": 1.0,
+        "expert_distribution_recorder_mode": null,
+        "expert_distribution_recorder_buffer_size": 1000,
+        "enable_expert_distribution_metrics": false,
+        "deepep_config": null,
+        "moe_dense_tp_size": null,
+        "elastic_ep_backend": null,
+        "enable_elastic_expert_backup": false,
+        "mooncake_ib_device": null,
+        "enable_deepep_waterfill": false,
+        "elastic_ep_rejoin": false,
+        "max_mamba_cache_size": 34,
+        "mamba_ssm_dtype": null,
+        "mamba_full_memory_ratio": 0.9,
+        "mamba_scheduler_strategy": "extra_buffer",
+        "mamba_track_interval": 256,
+        "linear_attn_backend": "triton",
+        "linear_attn_decode_backend": null,
+        "linear_attn_prefill_backend": null,
+        "enable_hierarchical_cache": false,
+        "hicache_ratio": 2.0,
+        "hicache_size": 0,
+        "hicache_write_policy": "write_through",
+        "hicache_io_backend": "kernel",
+        "hicache_mem_layout": "layer_first",
+        "hicache_storage_backend": null,
+        "hicache_storage_prefetch_policy": "timeout",
+        "hicache_storage_backend_extra_config": null,
+        "enable_hisparse": false,
+        "hisparse_config": null,
+        "enable_lmcache": false,
+        "lmcache_config_file": null,
+        "kt_weight_path": null,
+        "kt_method": "AMXINT4",
+        "kt_cpuinfer": null,
+        "kt_threadpool_count": 2,
+        "kt_num_gpu_experts": null,
+        "kt_max_deferred_experts_per_token": null,
+        "dllm_algorithm": null,
+        "dllm_algorithm_config": null,
+        "cpu_offload_gb": 0,
+        "offload_group_size": -1,
+        "offload_num_in_group": 1,
+        "offload_prefetch_step": 1,
+        "offload_mode": "cpu",
+        "enable_mis": false,
+        "disable_radix_cache": false,
+        "cuda_graph_max_bs": 4,
+        "cuda_graph_bs": [
+          1,
+          2,
+          4
+        ],
+        "disable_cuda_graph": false,
+        "disable_cuda_graph_padding": false,
+        "enable_breakable_cuda_graph": false,
+        "enable_profile_cuda_graph": false,
+        "enable_cudagraph_gc": false,
+        "debug_cuda_graph": false,
+        "enable_layerwise_nvtx_marker": false,
+        "enable_nccl_nvls": true,
+        "enable_symm_mem": false,
+        "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+        "enable_tokenizer_batch_encode": false,
+        "disable_tokenizer_batch_decode": false,
+        "disable_outlines_disk_cache": false,
+        "disable_custom_all_reduce": false,
+        "enable_mscclpp": false,
+        "enable_torch_symm_mem": false,
+        "pre_warm_nccl": false,
+        "disable_overlap_schedule": false,
+        "enable_mixed_chunk": false,
+        "enable_dp_attention": false,
+        "enable_dp_attention_local_control_broadcast": false,
+        "enable_dp_lm_head": false,
+        "enable_two_batch_overlap": false,
+        "enable_single_batch_overlap": false,
+        "tbo_token_distribution_threshold": 0.48,
+        "enable_torch_compile": false,
+        "disable_piecewise_cuda_graph": true,
+        "enforce_piecewise_cuda_graph": false,
+        "enable_torch_compile_debug_mode": false,
+        "torch_compile_max_bs": 32,
+        "piecewise_cuda_graph_max_tokens": 4096,
+        "piecewise_cuda_graph_tokens": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24,
+          28,
+          32,
+          48,
+          64,
+          80,
+          96,
+          112,
+          128,
+          144,
+          160,
+          176,
+          192,
+          208,
+          224,
+          240,
+          256,
+          288,
+          320,
+          352,
+          384,
+          416,
+          448,
+          480,
+          512,
+          576,
+          640,
+          704,
+          768,
+          832,
+          896,
+          960,
+          1024,
+          1280,
+          1536,
+          1792,
+          2048,
+          2304,
+          2560,
+          2816,
+          3072,
+          3328,
+          3584,
+          3840,
+          4096
+        ],
+        "piecewise_cuda_graph_compiler": "eager",
+        "torchao_config": "",
+        "enable_p2p_check": false,
+        "triton_attention_reduce_in_fp32": false,
+        "triton_attention_num_kv_splits": 8,
+        "triton_attention_split_tile_size": null,
+        "num_continuous_decode_steps": 1,
+        "delete_ckpt_after_loading": false,
+        "enable_memory_saver": false,
+        "enable_weights_cpu_backup": false,
+        "enable_draft_weights_cpu_backup": false,
+        "allow_auto_truncate": false,
+        "enable_custom_logit_processor": false,
+        "flashinfer_mla_disable_ragged": false,
+        "disable_shared_experts_fusion": false,
+        "enforce_shared_experts_fusion": false,
+        "disable_chunked_prefix_cache": true,
+        "disable_fast_image_processor": false,
+        "keep_mm_feature_on_device": false,
+        "enable_return_hidden_states": false,
+        "enable_return_routed_experts": false,
+        "enable_return_indexer_topk": false,
+        "scheduler_recv_interval": 1,
+        "numa_node": null,
+        "enable_deterministic_inference": false,
+        "rl_on_policy_target": null,
+        "enable_attn_tp_input_scattered": false,
+        "disable_attn_tp_gather": false,
+        "gc_threshold": null,
+        "kv_canary": "none",
+        "kv_canary_real_data": "none",
+        "kv_canary_sweep_interval": 0,
+        "enable_dsa_prefill_context_parallel": false,
+        "dsa_prefill_cp_mode": "round-robin-split",
+        "enable_fused_qk_norm_rope": false,
+        "enable_precise_embedding_interpolation": false,
+        "enable_fused_moe_sum_all_reduce": false,
+        "enable_prefill_context_parallel": false,
+        "prefill_cp_mode": "in-seq-split",
+        "enable_dynamic_batch_tokenizer": false,
+        "dynamic_batch_tokenizer_batch_size": 32,
+        "dynamic_batch_tokenizer_batch_timeout": 0.002,
+        "debug_tensor_dump_output_folder": null,
+        "debug_tensor_dump_layers": null,
+        "debug_tensor_dump_input_file": null,
+        "debug_tensor_dump_inject": false,
+        "disaggregation_mode": "null",
+        "disaggregation_transfer_backend": "mooncake",
+        "disaggregation_bootstrap_port": 8998,
+        "disaggregation_ib_device": null,
+        "disaggregation_decode_enable_radix_cache": false,
+        "disaggregation_decode_enable_offload_kvcache": false,
+        "num_reserved_decode_tokens": 512,
+        "disaggregation_decode_polling_interval": 1,
+        "encoder_only": false,
+        "language_only": false,
+        "encoder_transfer_backend": "zmq_to_scheduler",
+        "encoder_urls": [],
+        "enable_adaptive_dispatch_to_encoder": false,
+        "custom_weight_loader": [],
+        "weight_loader_disable_mmap": false,
+        "weight_loader_prefetch_checkpoints": false,
+        "weight_loader_prefetch_num_threads": 4,
+        "weight_loader_drop_cache_after_load": false,
+        "remote_instance_weight_loader_seed_instance_ip": null,
+        "remote_instance_weight_loader_seed_instance_service_port": null,
+        "remote_instance_weight_loader_send_weights_group_ports": null,
+        "remote_instance_weight_loader_backend": "nccl",
+        "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+        "engine_info_bootstrap_port": 6789,
+        "modelexpress_config": null,
+        "enable_pdmux": false,
+        "pdmux_config_path": null,
+        "sm_group_num": 8,
+        "enable_broadcast_mm_inputs_process": false,
+        "enable_prefix_mm_cache": false,
+        "mm_enable_dp_encoder": false,
+        "mm_process_config": {},
+        "limit_mm_data_per_request": null,
+        "enable_mm_global_cache": false,
+        "decrypted_config_file": null,
+        "decrypted_draft_config_file": null,
+        "forward_hooks": null,
+        "enable_quant_communications": false,
+        "msprobe_dump_config": null,
+        "enable_grpc": false,
+        "grpc_port": 18082,
+        "_quantization_explicitly_unset": false,
+        "_mamba_cache_chunk_size": 64,
+        "use_mla_backend": false,
+        "_mx_config_cache": {},
+        "max_speculative_num_draft_tokens": 16,
+        "last_gen_throughput": 0.0,
+        "memory_usage": {
+          "weight": 18.09,
+          "kvcache": 2.58,
+          "token_capacity": 225040,
+          "graph": 0.21
+        },
+        "effective_max_running_requests_per_dp": 4
+      }
+    ],
+    "version": "0.0.0.dev0",
+    "kv_events": null
+  },
+  "summary": {
+    "passed": true,
+    "passed_cases": 7,
+    "total_cases": 7
+  },
+  "cases": [
+    {
+      "name": "reasoning_enabled",
+      "passed": true,
+      "elapsed_s": 2.7201905980036827,
+      "request": {
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "messages": [
+          {
+            "role": "user",
+            "content": "A tray has 7 rows of 6 bolts. Five bolts are removed. Explain the arithmetic briefly and give the final number."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1024,
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        },
+        "separate_reasoning": true
+      },
+      "response": {
+        "id": "556dbdf415564c1db25c5b7e77e8d8d3",
+        "object": "chat.completion",
+        "created": 1785133617,
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\n\nFirst, calculate the total number of bolts initially on the tray by multiplying the rows by the bolts per row:\n$$7 \\times 6 = 42$$\n\nNext, subtract the number of bolts removed:\n$$42 - 5 = 37$$\n\n**Final number: 37**",
+              "reasoning_content": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Initial state: A tray has 7 rows of 6 bolts.\n    *   Action: Five bolts are removed.\n    *   Task: Explain the arithmetic briefly and give the final number.\n\n2.  **Calculate Initial Number of Bolts:**\n    *   \"7 rows of 6 bolts\" implies multiplication.\n    *   Calculation: $7 \\times 6$.\n    *   Result: 42 bolts.\n\n3.  **Calculate Final Number of Bolts:**\n    *   Action: \"Five bolts are removed\" implies subtraction.\n    *   Calculation: $42 - 5$.\n    *   Result: 37 bolts.\n\n4.  **Draft the Explanation:**\n    *   Start by finding the total number of bolts initially ($7 \\times 6 = 42$).\n    *   Subtract the removed bolts ($42 - 5 = 37$).\n    *   State the final answer clearly.\n\n5.  **Review and Refine:**\n    *   Does it meet the \"briefly\" constraint? Yes, keep it concise.\n    *   Is the arithmetic correct? $7 \\times 6 = 42$, $42 - 5 = 37$. Yes.\n    *   Is the final number clear? Yes.\n\n6.  **Final Output Generation:** (Matches the drafted explanation)\n    *   First, calculate the total bolts: $7 \\times 6 = 42$.\n    *   Then, subtract the removed bolts: $42 - 5 = 37$.\n    *   Final number: 37.cw\n",
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 36,
+          "total_tokens": 475,
+          "completion_tokens": 439,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 372
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 2.719131424993975,
+      "reasoning_audit": {
+        "chars": 1162,
+        "words": 160,
+        "unique_words": 70,
+        "max_character_run": 4,
+        "max_word_run": 2,
+        "attached_nine_count": 0,
+        "sha256": "cd117c0657ac25feab530ef3154039ce9b9e255a3fb55475fd4d504ca6abd49d"
+      },
+      "content_audit": {
+        "chars": 215,
+        "words": 37,
+        "unique_words": 25,
+        "max_character_run": 2,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "c9118bc05d44365f3b466afa0850d585b3357e173d741333379841b469c68727"
+      }
+    },
+    {
+      "name": "reasoning_disabled",
+      "passed": true,
+      "elapsed_s": 3.0191427470126655,
+      "request": {
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is 18 + 24? Answer with only the integer."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 64,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "separate_reasoning": true
+      },
+      "response": {
+        "id": "661c46b4ee724fb19b7e9e0213e22968",
+        "object": "chat.completion",
+        "created": 1785133620,
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 28,
+          "total_tokens": 31,
+          "completion_tokens": 3,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 3.0187361569987843,
+      "content_audit": {
+        "chars": 2,
+        "words": 1,
+        "unique_words": 1,
+        "max_character_run": 1,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "73475cb40a568e8da8a045ced110137e159f890ac4da883b6b17dc651b3a8049"
+      }
+    },
+    {
+      "name": "tool_roundtrip",
+      "passed": true,
+      "elapsed_s": 1.9279012640035944,
+      "requests": [
+        {
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Use get_weather to obtain the current weather in Brisbane. Do not guess or answer before calling it."
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the current weather for a city.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "temperature": 0,
+          "max_tokens": 256,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          },
+          "separate_reasoning": true
+        },
+        {
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Use get_weather to obtain the current weather in Brisbane. Do not guess or answer before calling it."
+            },
+            {
+              "role": "assistant",
+              "content": "\n\n",
+              "reasoning_content": "The user is asking me to get the current weather for Brisbane using the get_weather function. I need to call this function with the city parameter set to \"Brisbane\". I should not guess or answer before calling the function, as the user specifically instructed.\n",
+              "tool_calls": [
+                {
+                  "id": "call_12487e6a536a4f28a8427f15",
+                  "index": 0,
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Brisbane\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_12487e6a536a4f28a8427f15",
+              "name": "get_weather",
+              "content": "{\"city\": \"Brisbane\", \"temperature_c\": 23, \"condition\": \"sunny\"}"
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the current weather for a city.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "temperature": 0,
+          "max_tokens": 256,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          },
+          "separate_reasoning": true
+        }
+      ],
+      "responses": [
+        {
+          "id": "1d261e01ea284abeb0a8ebbf65e780d9",
+          "object": "chat.completion",
+          "created": 1785133621,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "\n\n",
+                "reasoning_content": "The user is asking me to get the current weather for Brisbane using the get_weather function. I need to call this function with the city parameter set to \"Brisbane\". I should not guess or answer before calling the function, as the user specifically instructed.\n",
+                "tool_calls": [
+                  {
+                    "id": "call_12487e6a536a4f28a8427f15",
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": "get_weather",
+                      "arguments": "{\"city\": \"Brisbane\"}"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": "tool_calls",
+              "matched_stop": null
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 305,
+            "total_tokens": 388,
+            "completion_tokens": 83,
+            "prompt_tokens_details": null,
+            "reasoning_tokens": 54
+          },
+          "metadata": {
+            "weight_version": "default"
+          }
+        },
+        {
+          "id": "9f1bb44c002646ddbab1209ae365ec7a",
+          "object": "chat.completion",
+          "created": 1785133622,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "\n\nThe current weather in Brisbane is:\n- Temperature: 23\u00b0C\n- Condition: Sunny",
+                "reasoning_content": "The function call was successful and returned the current weather information for Brisbane. I can now provide this information to the user.\n",
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": "stop",
+              "matched_stop": 248046
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 426,
+            "total_tokens": 474,
+            "completion_tokens": 48,
+            "prompt_tokens_details": null,
+            "reasoning_tokens": 26
+          },
+          "metadata": {
+            "weight_version": "default"
+          }
+        }
+      ],
+      "http_elapsed_s": [
+        1.0766529079992324,
+        0.8501703460060526
+      ],
+      "parsed_arguments": {
+        "city": "Brisbane"
+      },
+      "content_audit": {
+        "chars": 76,
+        "words": 11,
+        "unique_words": 11,
+        "max_character_run": 2,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "1752b5fd1217bf33a2369404a518d8a36b47564622ab53fb225e7fc49ddf3cda"
+      }
+    },
+    {
+      "name": "streaming_tool",
+      "passed": true,
+      "elapsed_s": 0.5754615839978214,
+      "request": {
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the add tool to calculate 19 + 23."
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "add",
+              "description": "Add two integers.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "a": {
+                    "type": "integer"
+                  },
+                  "b": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "a",
+                  "b"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto",
+        "temperature": 0,
+        "max_tokens": 256,
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        },
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "events": [
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "reasoning_content": null,
+                "role": "assistant",
+                "content": ""
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ]
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": "call_beba3aacc8624f33bda95a3c",
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": "add",
+                      "arguments": ""
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": "{"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": "\"a\": 19"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": ", \"b\": 23"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": "}"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "reasoning_content": null
+              },
+              "logprobs": null,
+              "finish_reason": "tool_calls",
+              "matched_stop": 248046
+            }
+          ]
+        },
+        {
+          "id": "76e32f9332564e30a7a193caf5008bbb",
+          "object": "chat.completion.chunk",
+          "created": 1785133623,
+          "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+          "choices": [],
+          "usage": {
+            "prompt_tokens": 308,
+            "total_tokens": 345,
+            "completion_tokens": 37,
+            "prompt_tokens_details": null,
+            "reasoning_tokens": 0
+          }
+        }
+      ],
+      "http_elapsed_s": 0.5751840790035203,
+      "assembled_tool_call": {
+        "id": "call_beba3aacc8624f33bda95a3c",
+        "name": "add",
+        "arguments": "{\"a\": 19, \"b\": 23}"
+      },
+      "parsed_arguments": {
+        "a": 19,
+        "b": 23
+      },
+      "finish_reasons": [
+        "tool_calls"
+      ]
+    },
+    {
+      "name": "multimodal_description",
+      "passed": true,
+      "elapsed_s": 0.9234701370005496,
+      "request": {
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "<data-url bytes=76510 sha256=cedc452ed4208059667d34a78e768af10dd7a26d3fbd74c9d42752026928587c>"
+                }
+              },
+              {
+                "type": "text",
+                "text": "Describe the central unusual activity and the vehicle in one concise sentence."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 192,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "separate_reasoning": true
+      },
+      "response": {
+        "id": "78b7001fe6ce4a59a37e82b79a231a8d",
+        "object": "chat.completion",
+        "created": 1785133624,
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": " A man irons clothes on a portable board mounted to the roof of a yellow taxi cab in a city street.",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 243,
+          "total_tokens": 267,
+          "completion_tokens": 24,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 0.9223897949996172,
+      "content_audit": {
+        "chars": 99,
+        "words": 21,
+        "unique_words": 18,
+        "max_character_run": 2,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "bd73a4bfe09635944190abfe2e9d29c89863122cb32a33d10fb11579ceb22789"
+      }
+    },
+    {
+      "name": "multimodal_reasoning",
+      "passed": true,
+      "elapsed_s": 9.073707620002097,
+      "request": {
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "<data-url bytes=76510 sha256=cedc452ed4208059667d34a78e768af10dd7a26d3fbd74c9d42752026928587c>"
+                }
+              },
+              {
+                "type": "text",
+                "text": "Decide whether the scene is ordinary or unusual. Reason from visible evidence, then explain the conclusion concisely."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1024,
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        },
+        "separate_reasoning": true
+      },
+      "response": {
+        "id": "e09c7baba9ab410b96ace030c92b6fb9",
+        "object": "chat.completion",
+        "created": 1785133633,
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "\n\nThe scene is **unusual**.\n\n**Reasoning:**\nThe image depicts a man ironing clothes on an ironing board that has been set up on the rear bumper of a yellow taxi cab in the middle of a city street. Ironing is a domestic chore typically performed indoors at a table or counter. Doing so on the back of a vehicle in active traffic is highly unconventional, impractical, and bizarre.",
+              "reasoning_content": "The user wants me to decide if the scene in the image is ordinary or unusual.\n\n1.  **Analyze the image:**\n    *   **Setting:** A city street with tall buildings, likely New York given the yellow taxis.\n    *   **Main Subject:** A man wearing a yellow hoodie.\n    *   **Action:** He is ironing clothes.\n    *   **Prop/Setup:** He has set up an ironing board on the back of a moving (or stopped in traffic) yellow taxi. Wait, looking closely at the wheels and the other taxi, the taxi he is standing on seems stationary or moving slowly, but he is standing on the rear bumper/hitch area. Actually, looking closer, he is standing on the rear bumper of a yellow SUV taxi. He has an ironing board set up on the ground behind the car, leaning against it? No, the ironing board legs are on the ground, and the board is positioned over the rear bumper. He is ironing a blue shirt.\n    *   **Context:** This is happening in the middle of a busy street with other traffic (another yellow taxi is driving by).\n\n2.  **Evaluate \"Ordinary\" vs. \"Unusual\":**\n    *   **Ordinary:** People ironing clothes in their homes, in laundromats, or maybe at a dry cleaning shop. People driving taxis.\n    *   **Unusual:** Ironing clothes on the back of a taxi in the middle of a city street. This is definitely not a standard activity. It looks like a street performance, a stunt, or a very bizarre situation.\n\n3.  **Formulate the reasoning:**\n    *   The core action is ironing clothes.\n    *   The location is the back of a taxi on a city street.\n    *   Combining these creates a highly incongruous and unexpected scenario. People do not typically set up ironing boards on vehicles in traffic.\n\n4.  **Draft the conclusion:**\n    *   The scene is unusual.\n    *   Reasoning: A man is ironing clothes on an ironing board set up on the back of a yellow taxi in the middle of a city street. This is a highly unconventional and impractical place to do laundry.\n\n5.  **Refine the explanation:**\n    *   Start with the conclusion: Unusual.\n    *   Explain the visible evidence: A man is ironing a shirt on an ironing board.\n    *   Explain the context: The ironing board is set up on the rear bumper of a yellow taxi cab on a busy city street.\n    *   Conclude why it's unusual: Ironing is a domestic chore usually done indoors, not on a moving vehicle in traffic.\n\n    *Self-Correction/Refinement:* Is the car moving? The taxi next to it is blurry, suggesting motion. The taxi the man is on looks relatively sharp, but it's in a lane of traffic. It's likely stopped or moving very slowly. Regardless, the act of ironing on the back of a car is the key unusual element.\n\n    *Final Polish:* \"The scene is unusual. A man is seen ironing clothes on an ironing board set up on the rear bumper of a yellow taxi cab in the middle of a city street. Ironing is a domestic chore typically done indoors, making this public, vehicular laundry setup highly unexpected and bizarre.\"\n",
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 251,
+          "total_tokens": 1058,
+          "completion_tokens": 807,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 721
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 9.070691175002139,
+      "reasoning_audit": {
+        "chars": 2941,
+        "words": 494,
+        "unique_words": 174,
+        "max_character_run": 4,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "76a73cdc9fe63312d491fc961e508d9c7bf6973cc7a459c523d7873eb76d5543"
+      },
+      "content_audit": {
+        "chars": 379,
+        "words": 67,
+        "unique_words": 49,
+        "max_character_run": 2,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "3b3f73c6c91ce16db6b9919e6d75f4677bb23f4f4a05c523b48ac7701d678d21"
+      }
+    },
+    {
+      "name": "multimodal_tool",
+      "passed": true,
+      "elapsed_s": 1.113580221994198,
+      "request": {
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "<data-url bytes=76510 sha256=cedc452ed4208059667d34a78e768af10dd7a26d3fbd74c9d42752026928587c>"
+                }
+              },
+              {
+                "type": "text",
+                "text": "Inspect the image and call report_scene with the visible activity, vehicle color/type, and setting. Do not answer in prose."
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "report_scene",
+              "description": "Report the important visible facts in an image.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "person_activity": {
+                    "type": "string"
+                  },
+                  "vehicle_color": {
+                    "type": "string"
+                  },
+                  "vehicle_type": {
+                    "type": "string"
+                  },
+                  "setting": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "person_activity",
+                  "vehicle_color",
+                  "vehicle_type",
+                  "setting"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto",
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "response": {
+        "id": "e9c498aa45164ac9bfca0107fed4ed60",
+        "object": "chat.completion",
+        "created": 1785133634,
+        "model": "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": null,
+              "reasoning_content": null,
+              "tool_calls": [
+                {
+                  "id": "call_d5556c8be59f48ebad0805b1",
+                  "index": 0,
+                  "type": "function",
+                  "function": {
+                    "name": "report_scene",
+                    "arguments": "{\"person_activity\": \"Ironing clothes on the back of a taxi\", \"vehicle_color\": \"Yellow\", \"vehicle_type\": \"Taxi\", \"setting\": \"City street\"}"
+                  }
+                }
+              ]
+            },
+            "logprobs": null,
+            "finish_reason": "tool_calls",
+            "matched_stop": null
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 573,
+          "total_tokens": 649,
+          "completion_tokens": 76,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 1.1125834600097733,
+      "parsed_arguments": {
+        "person_activity": "Ironing clothes on the back of a taxi",
+        "vehicle_color": "Yellow",
+        "vehicle_type": "Taxi",
+        "setting": "City street"
+      }
+    }
+  ]
+}

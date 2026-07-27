@@ -178,7 +178,7 @@ def render_plot(rows_by_model: dict[str, list[dict]], concurrency: int) -> str:
     parts.extend(
         [
             f'<text class="footer" x="{width / 2}" y="885" text-anchor="middle">Decode is median per-request client-visible rate, not aggregate batch throughput. Input rate is prompt tokens / last client TTFT.</text>',
-            f'<text class="footer" x="{width / 2}" y="907" text-anchor="middle">One audited cold-cache trial per cell · unsmoothed prompt-dependent acceptance · generated text retained · 2026-07-16</text>',
+            f'<text class="footer" x="{width / 2}" y="907" text-anchor="middle">One audited cold-cache trial per cell · unsmoothed prompt-dependent acceptance · generated text retained · Docker refresh 2026-07-27</text>',
             "</svg>",
         ]
     )
