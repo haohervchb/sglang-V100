@@ -1,16 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="930" viewBox="0 0 1400 930" role="img">
-<title>DFlash benchmark at concurrency 4</title>
-<desc>Audited V100 results for Qwen3.6 27B FP16 and Qwen3.5 122B-A10B GPTQ Int4.</desc>
+<title>V100 context benchmark at concurrency 4</title>
+<desc>Audited V100 context-scaling results for Qwen3.6 27B FP16 with DFlash, Qwen3.5 122B-A10B GPTQ Int4 with DFlash, and Laguna S 2.1 INT4 target-only.</desc>
 <rect width="100%" height="100%" fill="#ffffff"/>
 <style>text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#111827}.title{font-size:28px;font-weight:700}.subtitle{font-size:15px;fill:#4b5563}.panel-title{font-size:18px;font-weight:650}.axis{font-size:12px;fill:#4b5563}.unit{font-size:12px;fill:#6b7280}.footer{font-size:12px;fill:#6b7280}</style>
-<text class="title" x="700.0" y="48" text-anchor="middle">DFlash context scaling — concurrency 4</text>
-<text class="subtitle" x="700.0" y="76" text-anchor="middle">4× V100-SXM2-32GB · cold unique code prompts · greedy · 256 output tokens/request</text>
-<line x1="445" y1="108" x2="479" y2="108" stroke="#2563eb" stroke-width="4"/>
-<circle cx="462" cy="108" r="4" fill="#2563eb"/>
-<text x="489" y="113" font-size="14">27B FP16</text>
-<line x1="745" y1="108" x2="779" y2="108" stroke="#dc2626" stroke-width="4"/>
-<circle cx="762" cy="108" r="4" fill="#dc2626"/>
-<text x="789" y="113" font-size="14">122B-A10B GPTQ-Int4</text>
+<text class="title" x="700.0" y="48" text-anchor="middle">V100 context scaling — concurrency 4</text>
+<text class="subtitle" x="700.0" y="76" text-anchor="middle">Qwen DFlash + Laguna target-only · 4× V100-SXM2-32GB · cold unique code prompts · 256 output tokens/request</text>
+<line x1="205" y1="108" x2="239" y2="108" stroke="#2563eb" stroke-width="4"/>
+<circle cx="222" cy="108" r="4" fill="#2563eb"/>
+<text x="249" y="113" font-size="14">27B FP16</text>
+<line x1="595" y1="108" x2="629" y2="108" stroke="#dc2626" stroke-width="4"/>
+<circle cx="612" cy="108" r="4" fill="#dc2626"/>
+<text x="639" y="113" font-size="14">122B-A10B GPTQ-Int4</text>
+<line x1="985" y1="108" x2="1019" y2="108" stroke="#059669" stroke-width="4"/>
+<circle cx="1002" cy="108" r="4" fill="#059669"/>
+<text x="1029" y="113" font-size="14">Laguna S 2.1 INT4 (target-only)</text>
 <rect x="90" y="150" width="590" height="300" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
 <text class="panel-title" x="108" y="178">Median per-request decode rate</text>
 <text class="unit" x="165" y="188">tok/s</text>
@@ -69,6 +72,20 @@
 <circle cx="573.33" cy="346.52" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="614.17" cy="289.13" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="655.00" cy="294.61" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
+<path d="M 165.00 322.26 L 205.83 328.89 L 246.67 332.91 L 287.50 337.41 L 328.33 342.22 L 369.17 345.93 L 410.00 349.77 L 450.83 352.57 L 491.67 355.49 L 532.50 357.95 L 573.33 360.33 L 614.17 362.24 L 655.00 364.22" fill="none" stroke="#059669" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="165.00" cy="322.26" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="205.83" cy="328.89" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="246.67" cy="332.91" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="287.50" cy="337.41" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="328.33" cy="342.22" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="369.17" cy="345.93" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="410.00" cy="349.77" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="450.83" cy="352.57" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="491.67" cy="355.49" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="532.50" cy="357.95" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="573.33" cy="360.33" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="614.17" cy="362.24" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="655.00" cy="364.22" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
 <rect x="745" y="150" width="590" height="300" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
 <text class="panel-title" x="763" y="178">DFlash acceptance length</text>
 <text class="unit" x="820" y="188">tokens / verify</text>
@@ -123,6 +140,7 @@
 <circle cx="1228.33" cy="273.53" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="1269.17" cy="245.95" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="1310.00" cy="266.68" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
+<text class="unit" x="1306" y="212" text-anchor="end">Laguna target-only: N/A</text>
 <rect x="90" y="520" width="590" height="300" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
 <text class="panel-title" x="108" y="548">Median client TTFT</text>
 <text class="unit" x="165" y="558">seconds</text>
@@ -179,6 +197,20 @@
 <circle cx="573.33" cy="653.13" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="614.17" cy="641.41" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="655.00" cy="628.05" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
+<path d="M 165.00 756.42 L 205.83 747.76 L 246.67 735.85 L 287.50 725.22 L 328.33 714.67 L 369.17 704.02 L 410.00 692.63 L 450.83 681.61 L 491.67 668.87 L 532.50 656.90 L 573.33 643.29 L 614.17 630.39 L 655.00 615.88" fill="none" stroke="#059669" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="165.00" cy="756.42" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="205.83" cy="747.76" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="246.67" cy="735.85" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="287.50" cy="725.22" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="328.33" cy="714.67" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="369.17" cy="704.02" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="410.00" cy="692.63" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="450.83" cy="681.61" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="491.67" cy="668.87" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="532.50" cy="656.90" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="573.33" cy="643.29" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="614.17" cy="630.39" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="655.00" cy="615.88" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
 <rect x="745" y="520" width="590" height="300" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
 <text class="panel-title" x="763" y="548">Effective cold input rate</text>
 <text class="unit" x="820" y="558">input tok/s</text>
@@ -233,6 +265,20 @@
 <circle cx="1228.33" cy="632.91" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="1269.17" cy="629.02" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
 <circle cx="1310.00" cy="629.58" r="3.5" fill="#fff" stroke="#dc2626" stroke-width="2"/>
+<path d="M 820.00 609.86 L 860.83 591.03 L 901.67 589.29 L 942.50 589.92 L 983.33 594.35 L 1024.17 595.98 L 1065.00 600.66 L 1105.83 601.63 L 1146.67 606.25 L 1187.50 608.47 L 1228.33 612.54 L 1269.17 614.49 L 1310.00 618.24" fill="none" stroke="#059669" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="820.00" cy="609.86" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="860.83" cy="591.03" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="901.67" cy="589.29" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="942.50" cy="589.92" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="983.33" cy="594.35" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1024.17" cy="595.98" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1065.00" cy="600.66" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1105.83" cy="601.63" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1146.67" cy="606.25" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1187.50" cy="608.47" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1228.33" cy="612.54" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1269.17" cy="614.49" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
+<circle cx="1310.00" cy="618.24" r="3.5" fill="#fff" stroke="#059669" stroke-width="2"/>
 <text class="footer" x="700.0" y="885" text-anchor="middle">Decode is median per-request client-visible rate, not aggregate batch throughput. Input rate is prompt tokens / last client TTFT.</text>
-<text class="footer" x="700.0" y="907" text-anchor="middle">One audited cold-cache trial per cell · unsmoothed prompt-dependent acceptance · generated text retained · Docker refresh 2026-07-27</text>
+<text class="footer" x="700.0" y="907" text-anchor="middle">One audited cold-cache trial per cell · Qwen DFlash acceptance unsmoothed; Laguna target-only N/A · generated text retained · 2026-07-27</text>
 </svg>

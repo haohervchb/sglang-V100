@@ -135,10 +135,12 @@ class Audit:
         model: str,
         image_path: Path,
         output_path: Path,
+        multimodal_mode: str,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.output_path = output_path
+        self.multimodal_mode = multimodal_mode
         image_bytes = image_path.read_bytes()
         mime = "image/png" if image_path.suffix.lower() == ".png" else "image/jpeg"
         self.image_url = (
@@ -168,6 +170,37 @@ class Audit:
                 f"HTTP {response.status_code}: {json.dumps(body)[:2000]}"
             )
         return body, elapsed
+
+    def expect_multimodal_unsupported(
+        self, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        started = time.perf_counter()
+        response = requests.post(
+            f"{self.base_url}/v1/chat/completions",
+            json=payload,
+            timeout=900,
+        )
+        elapsed = time.perf_counter() - started
+        try:
+            body = response.json()
+        except requests.JSONDecodeError:
+            body = {"raw_text": response.text}
+        assert 400 <= response.status_code < 500, (
+            "text-only model did not reject image input: "
+            f"HTTP {response.status_code}: {json.dumps(body)[:2000]}"
+        )
+        error_text = json.dumps(body).lower()
+        assert any(
+            keyword in error_text
+            for keyword in ("image", "multimodal", "vision", "media")
+        ), f"image rejection was not explicit: {body}"
+        return {
+            "request": compact_request(payload),
+            "response_status": response.status_code,
+            "response": body,
+            "http_elapsed_s": elapsed,
+            "expected_capability": "text-only",
+        }
 
     def run_case(self, name: str, function: Callable[[], dict[str, Any]]) -> None:
         started = time.perf_counter()
@@ -432,6 +465,8 @@ class Audit:
             "chat_template_kwargs": {"enable_thinking": False},
             "separate_reasoning": True,
         }
+        if self.multimodal_mode == "unsupported":
+            return self.expect_multimodal_unsupported(payload)
         body, elapsed = self.post_chat(payload)
         message = body["choices"][0]["message"]
         content = message.get("content") or ""
@@ -474,6 +509,8 @@ class Audit:
             "chat_template_kwargs": {"enable_thinking": True},
             "separate_reasoning": True,
         }
+        if self.multimodal_mode == "unsupported":
+            return self.expect_multimodal_unsupported(payload)
         body, elapsed = self.post_chat(payload)
         message = body["choices"][0]["message"]
         reasoning = message.get("reasoning_content") or ""
@@ -521,6 +558,8 @@ class Audit:
             "max_tokens": 256,
             "chat_template_kwargs": {"enable_thinking": False},
         }
+        if self.multimodal_mode == "unsupported":
+            return self.expect_multimodal_unsupported(payload)
         body, elapsed = self.post_chat(payload)
         message = body["choices"][0]["message"]
         calls = message.get("tool_calls") or []
@@ -563,6 +602,7 @@ class Audit:
         result = {
             "model": self.model,
             "base_url": self.base_url,
+            "multimodal_mode": self.multimodal_mode,
             "image": self.image_info,
             "server_info": server_info,
             "summary": {
@@ -587,9 +627,24 @@ def main() -> None:
         type=Path,
         default=Path("examples/assets/example_image.png"),
     )
+    parser.add_argument(
+        "--multimodal-mode",
+        choices=("image", "unsupported"),
+        default="image",
+        help=(
+            "Use 'image' for vision-capable models or 'unsupported' to require "
+            "an explicit 4xx rejection from a text-only model."
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    audit = Audit(args.base_url, args.model, args.image, args.output)
+    audit = Audit(
+        args.base_url,
+        args.model,
+        args.image,
+        args.output,
+        args.multimodal_mode,
+    )
     if not audit.run():
         raise SystemExit(1)
 

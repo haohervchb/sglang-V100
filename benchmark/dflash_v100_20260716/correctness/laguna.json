@@ -1,0 +1,1984 @@
+{
+  "model": "poolside/Laguna-S-2.1-INT4",
+  "base_url": "http://127.0.0.1:8082",
+  "multimodal_mode": "unsupported",
+  "image": {
+    "path": "examples/assets/example_image.png",
+    "bytes": 57365,
+    "sha256": "e06917184a00b14abd70cd8ea0ff5dca9abfbbad29f7b25c02f97133d4cd060e"
+  },
+  "server_info": {
+    "model_path": "poolside/Laguna-S-2.1-INT4",
+    "tokenizer_path": "poolside/Laguna-S-2.1-INT4",
+    "tokenizer_mode": "auto",
+    "tokenizer_backend": "huggingface",
+    "tokenizer_worker_num": 1,
+    "detokenizer_worker_num": 1,
+    "skip_tokenizer_init": false,
+    "load_format": "auto",
+    "model_loader_extra_config": "{}",
+    "trust_remote_code": true,
+    "context_length": 262144,
+    "is_embedding": false,
+    "prefill_only_disable_kv_cache": false,
+    "enable_multimodal": null,
+    "revision": null,
+    "model_impl": "auto",
+    "model_config_parser": "auto",
+    "host": "0.0.0.0",
+    "port": 8082,
+    "fastapi_root_path": "",
+    "grpc_mode": false,
+    "skip_server_warmup": false,
+    "warmups": null,
+    "nccl_port": null,
+    "checkpoint_engine_wait_weights_before_ready": false,
+    "ssl_keyfile": null,
+    "ssl_certfile": null,
+    "ssl_ca_certs": null,
+    "ssl_keyfile_password": null,
+    "enable_ssl_refresh": false,
+    "enable_http2": false,
+    "dtype": "float16",
+    "quantization": null,
+    "quantization_param_path": null,
+    "kv_cache_dtype": "auto",
+    "enable_fp32_lm_head": false,
+    "modelopt_quant": null,
+    "modelopt_checkpoint_restore_path": null,
+    "modelopt_checkpoint_save_path": null,
+    "modelopt_export_path": null,
+    "quantize_and_serve": false,
+    "rl_quant_profile": null,
+    "mem_fraction_static": 0.76,
+    "max_running_requests": 4,
+    "max_queued_requests": null,
+    "max_total_tokens": null,
+    "chunked_prefill_size": 4096,
+    "enable_dynamic_chunking": false,
+    "max_prefill_tokens": 16384,
+    "prefill_max_requests": null,
+    "schedule_policy": "fcfs",
+    "enable_priority_scheduling": false,
+    "disable_priority_preemption": false,
+    "default_priority_value": null,
+    "abort_on_priority_when_disabled": false,
+    "schedule_low_priority_values_first": false,
+    "priority_scheduling_preemption_threshold": 10,
+    "schedule_conservativeness": 1.0,
+    "page_size": 16,
+    "swa_full_tokens_ratio": 0.08,
+    "disable_hybrid_swa_memory": false,
+    "radix_eviction_policy": "lru",
+    "enable_prefill_delayer": false,
+    "prefill_delayer_max_delay_passes": 30,
+    "prefill_delayer_token_usage_low_watermark": null,
+    "prefill_delayer_forward_passes_buckets": null,
+    "prefill_delayer_wait_seconds_buckets": null,
+    "prefill_delayer_queue_min_ratio": null,
+    "prefill_delayer_max_delay_ms": null,
+    "device": "cuda",
+    "tp_size": 4,
+    "pp_size": 1,
+    "pp_max_micro_batch_size": null,
+    "pp_async_batch_depth": 0,
+    "stream_interval": 1,
+    "batch_notify_size": 16,
+    "stream_response_default_include_usage": false,
+    "incremental_streaming_output": false,
+    "enable_streaming_session": false,
+    "random_seed": 761627509,
+    "constrained_json_whitespace_pattern": null,
+    "constrained_json_disable_any_whitespace": false,
+    "watchdog_timeout": 300,
+    "soft_watchdog_timeout": null,
+    "dist_timeout": null,
+    "download_dir": null,
+    "model_checksum": null,
+    "base_gpu_id": 0,
+    "gpu_id_step": 1,
+    "sleep_on_idle": false,
+    "load_snapshot_publish_interval": 15,
+    "use_ray": false,
+    "custom_sigquit_handler": null,
+    "log_level": "info",
+    "log_level_http": null,
+    "log_requests": false,
+    "log_requests_level": 2,
+    "log_requests_format": "text",
+    "log_requests_target": null,
+    "uvicorn_access_log_exclude_prefixes": [],
+    "crash_dump_folder": null,
+    "show_time_cost": false,
+    "enable_metrics": false,
+    "grpc_http_sidecar_port": null,
+    "enable_mfu_metrics": false,
+    "enable_metrics_for_all_schedulers": false,
+    "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+    "tokenizer_metrics_allowed_custom_labels": null,
+    "extra_metric_labels": null,
+    "bucket_time_to_first_token": null,
+    "bucket_inter_token_latency": null,
+    "bucket_e2e_request_latency": null,
+    "prompt_tokens_buckets": null,
+    "generation_tokens_buckets": null,
+    "gc_warning_threshold_secs": 0.0,
+    "decode_log_interval": 40,
+    "enable_request_time_stats_logging": false,
+    "kv_events_config": null,
+    "enable_forward_pass_metrics": false,
+    "forward_pass_metrics_worker_id": "",
+    "forward_pass_metrics_ipc_name": null,
+    "enable_trace": false,
+    "otlp_traces_endpoint": "localhost:4317",
+    "export_metrics_to_file": false,
+    "export_metrics_to_file_dir": null,
+    "stat_loggers": null,
+    "api_key": null,
+    "admin_api_key": null,
+    "served_model_name": "poolside/Laguna-S-2.1-INT4",
+    "weight_version": "default",
+    "chat_template": null,
+    "hf_chat_template_name": null,
+    "completion_template": null,
+    "file_storage_path": "sglang_storage",
+    "enable_cache_report": false,
+    "reasoning_parser": "poolside_v1",
+    "strip_thinking_cache": false,
+    "enable_strict_thinking": false,
+    "tool_call_parser": "poolside_v1",
+    "tool_server": null,
+    "sampling_defaults": "model",
+    "asr_max_buffer_seconds": 60,
+    "asr_max_concurrent_sessions": 32,
+    "dp_size": 1,
+    "load_balance_method": "round_robin",
+    "attn_cp_size": 1,
+    "moe_dp_size": 1,
+    "dist_init_addr": null,
+    "nnodes": 1,
+    "node_rank": 0,
+    "json_model_override_args": "{}",
+    "preferred_sampling_params": null,
+    "enable_lora": null,
+    "enable_lora_overlap_loading": null,
+    "max_lora_rank": null,
+    "lora_target_modules": null,
+    "lora_paths": null,
+    "max_loaded_loras": null,
+    "max_loras_per_batch": 8,
+    "lora_eviction_policy": "lru",
+    "lora_backend": "csgmv",
+    "max_lora_chunk_size": 16,
+    "experts_shared_outer_loras": null,
+    "lora_use_virtual_experts": false,
+    "lora_strict_loading": false,
+    "lora_drain_wait_threshold": 0.0,
+    "attention_backend": "flash_attn_v100",
+    "decode_attention_backend": null,
+    "prefill_attention_backend": null,
+    "sampling_backend": "flashinfer",
+    "grammar_backend": "xgrammar",
+    "radix_cache_backend": null,
+    "mm_attention_backend": null,
+    "fp8_gemm_runner_backend": "auto",
+    "fp4_gemm_runner_backend": "auto",
+    "dsa_prefill_backend": null,
+    "dsa_decode_backend": null,
+    "dsa_topk_backend": "sgl-kernel",
+    "disable_flashinfer_autotune": false,
+    "mamba_backend": "triton",
+    "speculative_algorithm": null,
+    "speculative_draft_model_path": null,
+    "speculative_draft_model_revision": null,
+    "speculative_draft_load_format": null,
+    "speculative_num_steps": null,
+    "speculative_eagle_topk": null,
+    "speculative_num_draft_tokens": null,
+    "speculative_dflash_block_size": null,
+    "speculative_accept_threshold_single": 1.0,
+    "speculative_accept_threshold_acc": 1.0,
+    "speculative_token_map": null,
+    "speculative_attention_mode": "prefill",
+    "speculative_draft_attention_backend": null,
+    "speculative_draft_window_size": null,
+    "speculative_moe_runner_backend": "marlin",
+    "speculative_moe_a2a_backend": null,
+    "speculative_draft_model_quantization": null,
+    "speculative_skip_dp_mlp_sync": false,
+    "speculative_ngram_min_bfs_breadth": 1,
+    "speculative_ngram_max_bfs_breadth": 10,
+    "speculative_ngram_match_type": "BFS",
+    "speculative_ngram_max_trie_depth": 18,
+    "speculative_ngram_capacity": 10000000,
+    "speculative_ngram_external_corpus_path": null,
+    "speculative_ngram_external_sam_budget": 0,
+    "speculative_ngram_external_corpus_max_tokens": 10000000,
+    "enable_multi_layer_eagle": false,
+    "speculative_adaptive": false,
+    "speculative_adaptive_config": null,
+    "ep_size": 1,
+    "moe_a2a_backend": "none",
+    "moe_runner_backend": "marlin",
+    "flashinfer_mxfp4_moe_precision": "default",
+    "enable_flashinfer_allreduce_fusion": false,
+    "enforce_disable_flashinfer_allreduce_fusion": false,
+    "enable_aiter_allreduce_fusion": false,
+    "deepep_mode": "auto",
+    "deepep_dispatcher_output_dtype": "auto",
+    "ep_num_redundant_experts": 0,
+    "ep_dispatch_algorithm": null,
+    "init_expert_location": "trivial",
+    "enable_eplb": false,
+    "eplb_algorithm": "auto",
+    "eplb_rebalance_num_iterations": 1000,
+    "eplb_rebalance_layers_per_chunk": null,
+    "eplb_min_rebalancing_utilization_threshold": 1.0,
+    "expert_distribution_recorder_mode": null,
+    "expert_distribution_recorder_buffer_size": 1000,
+    "enable_expert_distribution_metrics": false,
+    "deepep_config": null,
+    "moe_dense_tp_size": null,
+    "elastic_ep_backend": null,
+    "enable_elastic_expert_backup": false,
+    "mooncake_ib_device": null,
+    "enable_deepep_waterfill": false,
+    "elastic_ep_rejoin": false,
+    "max_mamba_cache_size": null,
+    "mamba_ssm_dtype": null,
+    "mamba_full_memory_ratio": 0.9,
+    "mamba_scheduler_strategy": "no_buffer",
+    "mamba_track_interval": 256,
+    "linear_attn_backend": "triton",
+    "linear_attn_decode_backend": null,
+    "linear_attn_prefill_backend": null,
+    "enable_hierarchical_cache": false,
+    "hicache_ratio": 2.0,
+    "hicache_size": 0,
+    "hicache_write_policy": "write_through",
+    "hicache_io_backend": "kernel",
+    "hicache_mem_layout": "layer_first",
+    "hicache_storage_backend": null,
+    "hicache_storage_prefetch_policy": "timeout",
+    "hicache_storage_backend_extra_config": null,
+    "enable_hisparse": false,
+    "hisparse_config": null,
+    "enable_lmcache": false,
+    "lmcache_config_file": null,
+    "kt_weight_path": null,
+    "kt_method": "AMXINT4",
+    "kt_cpuinfer": null,
+    "kt_threadpool_count": 2,
+    "kt_num_gpu_experts": null,
+    "kt_max_deferred_experts_per_token": null,
+    "dllm_algorithm": null,
+    "dllm_algorithm_config": null,
+    "cpu_offload_gb": 0,
+    "offload_group_size": -1,
+    "offload_num_in_group": 1,
+    "offload_prefetch_step": 1,
+    "offload_mode": "cpu",
+    "enable_mis": false,
+    "disable_radix_cache": false,
+    "cuda_graph_max_bs": 4,
+    "cuda_graph_bs": [
+      1,
+      2,
+      4
+    ],
+    "disable_cuda_graph": false,
+    "disable_cuda_graph_padding": false,
+    "enable_breakable_cuda_graph": false,
+    "enable_profile_cuda_graph": false,
+    "enable_cudagraph_gc": false,
+    "debug_cuda_graph": false,
+    "enable_layerwise_nvtx_marker": false,
+    "enable_nccl_nvls": true,
+    "enable_symm_mem": false,
+    "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+    "enable_tokenizer_batch_encode": false,
+    "disable_tokenizer_batch_decode": false,
+    "disable_outlines_disk_cache": false,
+    "disable_custom_all_reduce": false,
+    "enable_mscclpp": false,
+    "enable_torch_symm_mem": false,
+    "pre_warm_nccl": false,
+    "disable_overlap_schedule": false,
+    "enable_mixed_chunk": false,
+    "enable_dp_attention": false,
+    "enable_dp_attention_local_control_broadcast": false,
+    "enable_dp_lm_head": false,
+    "enable_two_batch_overlap": false,
+    "enable_single_batch_overlap": false,
+    "tbo_token_distribution_threshold": 0.48,
+    "enable_torch_compile": false,
+    "disable_piecewise_cuda_graph": false,
+    "enforce_piecewise_cuda_graph": false,
+    "enable_torch_compile_debug_mode": false,
+    "torch_compile_max_bs": 32,
+    "piecewise_cuda_graph_max_tokens": 4096,
+    "piecewise_cuda_graph_tokens": [
+      4,
+      8,
+      12,
+      16,
+      20,
+      24,
+      28,
+      32,
+      48,
+      64,
+      80,
+      96,
+      112,
+      128,
+      144,
+      160,
+      176,
+      192,
+      208,
+      224,
+      240,
+      256,
+      288,
+      320,
+      352,
+      384,
+      416,
+      448,
+      480,
+      512,
+      576,
+      640,
+      704,
+      768,
+      832,
+      896,
+      960,
+      1024,
+      1280,
+      1536,
+      1792,
+      2048,
+      2304,
+      2560,
+      2816,
+      3072,
+      3328,
+      3584,
+      3840,
+      4096
+    ],
+    "piecewise_cuda_graph_compiler": "eager",
+    "torchao_config": "",
+    "enable_p2p_check": false,
+    "triton_attention_reduce_in_fp32": false,
+    "triton_attention_num_kv_splits": 128,
+    "triton_attention_split_tile_size": null,
+    "num_continuous_decode_steps": 1,
+    "delete_ckpt_after_loading": false,
+    "enable_memory_saver": false,
+    "enable_weights_cpu_backup": false,
+    "enable_draft_weights_cpu_backup": false,
+    "allow_auto_truncate": false,
+    "enable_custom_logit_processor": false,
+    "flashinfer_mla_disable_ragged": false,
+    "disable_shared_experts_fusion": false,
+    "enforce_shared_experts_fusion": false,
+    "disable_chunked_prefix_cache": false,
+    "disable_fast_image_processor": false,
+    "keep_mm_feature_on_device": false,
+    "enable_return_hidden_states": false,
+    "enable_return_routed_experts": false,
+    "enable_return_indexer_topk": false,
+    "scheduler_recv_interval": 1,
+    "numa_node": null,
+    "enable_deterministic_inference": false,
+    "rl_on_policy_target": null,
+    "enable_attn_tp_input_scattered": false,
+    "disable_attn_tp_gather": false,
+    "gc_threshold": null,
+    "kv_canary": "none",
+    "kv_canary_real_data": "none",
+    "kv_canary_sweep_interval": 0,
+    "enable_dsa_prefill_context_parallel": false,
+    "dsa_prefill_cp_mode": "round-robin-split",
+    "enable_fused_qk_norm_rope": false,
+    "enable_precise_embedding_interpolation": false,
+    "enable_fused_moe_sum_all_reduce": false,
+    "enable_prefill_context_parallel": false,
+    "prefill_cp_mode": "in-seq-split",
+    "enable_dynamic_batch_tokenizer": false,
+    "dynamic_batch_tokenizer_batch_size": 32,
+    "dynamic_batch_tokenizer_batch_timeout": 0.002,
+    "debug_tensor_dump_output_folder": null,
+    "debug_tensor_dump_layers": null,
+    "debug_tensor_dump_input_file": null,
+    "debug_tensor_dump_inject": false,
+    "disaggregation_mode": "null",
+    "disaggregation_transfer_backend": "mooncake",
+    "disaggregation_bootstrap_port": 8998,
+    "disaggregation_ib_device": null,
+    "disaggregation_decode_enable_radix_cache": false,
+    "disaggregation_decode_enable_offload_kvcache": false,
+    "num_reserved_decode_tokens": 512,
+    "disaggregation_decode_polling_interval": 1,
+    "encoder_only": false,
+    "language_only": false,
+    "encoder_transfer_backend": "zmq_to_scheduler",
+    "encoder_urls": [],
+    "enable_adaptive_dispatch_to_encoder": false,
+    "custom_weight_loader": [],
+    "weight_loader_disable_mmap": false,
+    "weight_loader_prefetch_checkpoints": false,
+    "weight_loader_prefetch_num_threads": 4,
+    "weight_loader_drop_cache_after_load": false,
+    "remote_instance_weight_loader_seed_instance_ip": null,
+    "remote_instance_weight_loader_seed_instance_service_port": null,
+    "remote_instance_weight_loader_send_weights_group_ports": null,
+    "remote_instance_weight_loader_backend": "nccl",
+    "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+    "engine_info_bootstrap_port": 6789,
+    "modelexpress_config": null,
+    "enable_pdmux": false,
+    "pdmux_config_path": null,
+    "sm_group_num": 8,
+    "enable_broadcast_mm_inputs_process": false,
+    "enable_prefix_mm_cache": false,
+    "mm_enable_dp_encoder": false,
+    "mm_process_config": {},
+    "limit_mm_data_per_request": null,
+    "enable_mm_global_cache": false,
+    "decrypted_config_file": null,
+    "decrypted_draft_config_file": null,
+    "forward_hooks": null,
+    "enable_quant_communications": false,
+    "msprobe_dump_config": null,
+    "status": "ready",
+    "max_total_num_tokens": 399184,
+    "max_req_input_len": 262138,
+    "internal_states": [
+      {
+        "model_path": "poolside/Laguna-S-2.1-INT4",
+        "tokenizer_path": "poolside/Laguna-S-2.1-INT4",
+        "tokenizer_mode": "auto",
+        "tokenizer_backend": "huggingface",
+        "tokenizer_worker_num": 1,
+        "detokenizer_worker_num": 1,
+        "skip_tokenizer_init": false,
+        "load_format": "auto",
+        "model_loader_extra_config": "{}",
+        "trust_remote_code": true,
+        "context_length": 262144,
+        "is_embedding": false,
+        "prefill_only_disable_kv_cache": false,
+        "enable_multimodal": null,
+        "revision": null,
+        "model_impl": "auto",
+        "model_config_parser": "auto",
+        "host": "0.0.0.0",
+        "port": 8082,
+        "fastapi_root_path": "",
+        "grpc_mode": false,
+        "skip_server_warmup": false,
+        "warmups": null,
+        "nccl_port": null,
+        "checkpoint_engine_wait_weights_before_ready": false,
+        "ssl_keyfile": null,
+        "ssl_certfile": null,
+        "ssl_ca_certs": null,
+        "ssl_keyfile_password": null,
+        "enable_ssl_refresh": false,
+        "enable_http2": false,
+        "dtype": "float16",
+        "quantization": null,
+        "quantization_param_path": null,
+        "kv_cache_dtype": "auto",
+        "enable_fp32_lm_head": false,
+        "modelopt_quant": null,
+        "modelopt_checkpoint_restore_path": null,
+        "modelopt_checkpoint_save_path": null,
+        "modelopt_export_path": null,
+        "quantize_and_serve": false,
+        "rl_quant_profile": null,
+        "mem_fraction_static": 0.76,
+        "max_running_requests": 4,
+        "max_queued_requests": null,
+        "max_total_tokens": null,
+        "chunked_prefill_size": 4096,
+        "enable_dynamic_chunking": false,
+        "max_prefill_tokens": 16384,
+        "prefill_max_requests": null,
+        "schedule_policy": "fcfs",
+        "enable_priority_scheduling": false,
+        "disable_priority_preemption": false,
+        "default_priority_value": null,
+        "abort_on_priority_when_disabled": false,
+        "schedule_low_priority_values_first": false,
+        "priority_scheduling_preemption_threshold": 10,
+        "schedule_conservativeness": 1.0,
+        "page_size": 16,
+        "swa_full_tokens_ratio": 0.08,
+        "disable_hybrid_swa_memory": false,
+        "radix_eviction_policy": "lru",
+        "enable_prefill_delayer": false,
+        "prefill_delayer_max_delay_passes": 30,
+        "prefill_delayer_token_usage_low_watermark": null,
+        "prefill_delayer_forward_passes_buckets": null,
+        "prefill_delayer_wait_seconds_buckets": null,
+        "prefill_delayer_queue_min_ratio": null,
+        "prefill_delayer_max_delay_ms": null,
+        "device": "cuda",
+        "tp_size": 4,
+        "pp_size": 1,
+        "pp_max_micro_batch_size": 4,
+        "pp_async_batch_depth": 0,
+        "stream_interval": 1,
+        "batch_notify_size": 16,
+        "stream_response_default_include_usage": false,
+        "incremental_streaming_output": false,
+        "enable_streaming_session": false,
+        "random_seed": 761627509,
+        "constrained_json_whitespace_pattern": null,
+        "constrained_json_disable_any_whitespace": false,
+        "watchdog_timeout": 300,
+        "soft_watchdog_timeout": null,
+        "dist_timeout": null,
+        "download_dir": null,
+        "model_checksum": null,
+        "base_gpu_id": 0,
+        "gpu_id_step": 1,
+        "sleep_on_idle": false,
+        "load_snapshot_publish_interval": 15,
+        "use_ray": false,
+        "custom_sigquit_handler": null,
+        "log_level": "info",
+        "log_level_http": null,
+        "log_requests": false,
+        "log_requests_level": 2,
+        "log_requests_format": "text",
+        "log_requests_target": null,
+        "uvicorn_access_log_exclude_prefixes": [],
+        "crash_dump_folder": null,
+        "show_time_cost": false,
+        "enable_metrics": false,
+        "grpc_http_sidecar_port": null,
+        "enable_mfu_metrics": false,
+        "enable_metrics_for_all_schedulers": false,
+        "tokenizer_metrics_custom_labels_header": "x-custom-labels",
+        "tokenizer_metrics_allowed_custom_labels": null,
+        "extra_metric_labels": null,
+        "bucket_time_to_first_token": null,
+        "bucket_inter_token_latency": null,
+        "bucket_e2e_request_latency": null,
+        "prompt_tokens_buckets": null,
+        "generation_tokens_buckets": null,
+        "gc_warning_threshold_secs": 0.0,
+        "decode_log_interval": 40,
+        "enable_request_time_stats_logging": false,
+        "kv_events_config": null,
+        "enable_forward_pass_metrics": false,
+        "forward_pass_metrics_worker_id": "",
+        "forward_pass_metrics_ipc_name": null,
+        "enable_trace": false,
+        "otlp_traces_endpoint": "localhost:4317",
+        "export_metrics_to_file": false,
+        "export_metrics_to_file_dir": null,
+        "stat_loggers": null,
+        "api_key": null,
+        "admin_api_key": null,
+        "served_model_name": "poolside/Laguna-S-2.1-INT4",
+        "weight_version": "default",
+        "chat_template": null,
+        "hf_chat_template_name": null,
+        "completion_template": null,
+        "file_storage_path": "sglang_storage",
+        "enable_cache_report": false,
+        "reasoning_parser": "poolside_v1",
+        "strip_thinking_cache": false,
+        "enable_strict_thinking": false,
+        "tool_call_parser": "poolside_v1",
+        "tool_server": null,
+        "sampling_defaults": "model",
+        "asr_max_buffer_seconds": 60,
+        "asr_max_concurrent_sessions": 32,
+        "dp_size": 1,
+        "load_balance_method": "round_robin",
+        "attn_cp_size": 1,
+        "moe_dp_size": 1,
+        "dist_init_addr": null,
+        "nnodes": 1,
+        "node_rank": 0,
+        "json_model_override_args": "{}",
+        "preferred_sampling_params": null,
+        "enable_lora": null,
+        "enable_lora_overlap_loading": null,
+        "max_lora_rank": null,
+        "lora_target_modules": null,
+        "lora_paths": null,
+        "max_loaded_loras": null,
+        "max_loras_per_batch": 8,
+        "lora_eviction_policy": "lru",
+        "lora_backend": "csgmv",
+        "max_lora_chunk_size": 16,
+        "experts_shared_outer_loras": null,
+        "lora_use_virtual_experts": false,
+        "lora_strict_loading": false,
+        "lora_drain_wait_threshold": 0.0,
+        "attention_backend": "flash_attn_v100",
+        "decode_attention_backend": "flash_attn_v100",
+        "prefill_attention_backend": "flash_attn_v100",
+        "sampling_backend": "flashinfer",
+        "grammar_backend": "xgrammar",
+        "radix_cache_backend": null,
+        "mm_attention_backend": null,
+        "fp8_gemm_runner_backend": "auto",
+        "fp4_gemm_runner_backend": "auto",
+        "dsa_prefill_backend": null,
+        "dsa_decode_backend": null,
+        "dsa_topk_backend": "sgl-kernel",
+        "disable_flashinfer_autotune": false,
+        "mamba_backend": "triton",
+        "speculative_algorithm": null,
+        "speculative_draft_model_path": null,
+        "speculative_draft_model_revision": null,
+        "speculative_draft_load_format": null,
+        "speculative_num_steps": null,
+        "speculative_eagle_topk": null,
+        "speculative_num_draft_tokens": null,
+        "speculative_dflash_block_size": null,
+        "speculative_accept_threshold_single": 1.0,
+        "speculative_accept_threshold_acc": 1.0,
+        "speculative_token_map": null,
+        "speculative_attention_mode": "prefill",
+        "speculative_draft_attention_backend": null,
+        "speculative_draft_window_size": null,
+        "speculative_moe_runner_backend": "marlin",
+        "speculative_moe_a2a_backend": null,
+        "speculative_draft_model_quantization": null,
+        "speculative_skip_dp_mlp_sync": false,
+        "speculative_ngram_min_bfs_breadth": 1,
+        "speculative_ngram_max_bfs_breadth": 10,
+        "speculative_ngram_match_type": "BFS",
+        "speculative_ngram_max_trie_depth": 18,
+        "speculative_ngram_capacity": 10000000,
+        "speculative_ngram_external_corpus_path": null,
+        "speculative_ngram_external_sam_budget": 0,
+        "speculative_ngram_external_corpus_max_tokens": 10000000,
+        "enable_multi_layer_eagle": false,
+        "speculative_adaptive": false,
+        "speculative_adaptive_config": null,
+        "ep_size": 1,
+        "moe_a2a_backend": "none",
+        "moe_runner_backend": "marlin",
+        "flashinfer_mxfp4_moe_precision": "default",
+        "enable_flashinfer_allreduce_fusion": false,
+        "enforce_disable_flashinfer_allreduce_fusion": false,
+        "enable_aiter_allreduce_fusion": false,
+        "deepep_mode": "auto",
+        "deepep_dispatcher_output_dtype": "auto",
+        "ep_num_redundant_experts": 0,
+        "ep_dispatch_algorithm": null,
+        "init_expert_location": "trivial",
+        "enable_eplb": false,
+        "eplb_algorithm": "auto",
+        "eplb_rebalance_num_iterations": 1000,
+        "eplb_rebalance_layers_per_chunk": null,
+        "eplb_min_rebalancing_utilization_threshold": 1.0,
+        "expert_distribution_recorder_mode": null,
+        "expert_distribution_recorder_buffer_size": 1000,
+        "enable_expert_distribution_metrics": false,
+        "deepep_config": null,
+        "moe_dense_tp_size": null,
+        "elastic_ep_backend": null,
+        "enable_elastic_expert_backup": false,
+        "mooncake_ib_device": null,
+        "enable_deepep_waterfill": false,
+        "elastic_ep_rejoin": false,
+        "max_mamba_cache_size": null,
+        "mamba_ssm_dtype": null,
+        "mamba_full_memory_ratio": 0.9,
+        "mamba_scheduler_strategy": "no_buffer",
+        "mamba_track_interval": 256,
+        "linear_attn_backend": "triton",
+        "linear_attn_decode_backend": null,
+        "linear_attn_prefill_backend": null,
+        "enable_hierarchical_cache": false,
+        "hicache_ratio": 2.0,
+        "hicache_size": 0,
+        "hicache_write_policy": "write_through",
+        "hicache_io_backend": "kernel",
+        "hicache_mem_layout": "layer_first",
+        "hicache_storage_backend": null,
+        "hicache_storage_prefetch_policy": "timeout",
+        "hicache_storage_backend_extra_config": null,
+        "enable_hisparse": false,
+        "hisparse_config": null,
+        "enable_lmcache": false,
+        "lmcache_config_file": null,
+        "kt_weight_path": null,
+        "kt_method": "AMXINT4",
+        "kt_cpuinfer": null,
+        "kt_threadpool_count": 2,
+        "kt_num_gpu_experts": null,
+        "kt_max_deferred_experts_per_token": null,
+        "dllm_algorithm": null,
+        "dllm_algorithm_config": null,
+        "cpu_offload_gb": 0,
+        "offload_group_size": -1,
+        "offload_num_in_group": 1,
+        "offload_prefetch_step": 1,
+        "offload_mode": "cpu",
+        "enable_mis": false,
+        "disable_radix_cache": false,
+        "cuda_graph_max_bs": 4,
+        "cuda_graph_bs": [
+          1,
+          2,
+          4
+        ],
+        "disable_cuda_graph": false,
+        "disable_cuda_graph_padding": false,
+        "enable_breakable_cuda_graph": false,
+        "enable_profile_cuda_graph": false,
+        "enable_cudagraph_gc": false,
+        "debug_cuda_graph": false,
+        "enable_layerwise_nvtx_marker": false,
+        "enable_nccl_nvls": true,
+        "enable_symm_mem": false,
+        "disable_flashinfer_cutlass_moe_fp4_allgather": false,
+        "enable_tokenizer_batch_encode": false,
+        "disable_tokenizer_batch_decode": false,
+        "disable_outlines_disk_cache": false,
+        "disable_custom_all_reduce": false,
+        "enable_mscclpp": false,
+        "enable_torch_symm_mem": false,
+        "pre_warm_nccl": false,
+        "disable_overlap_schedule": false,
+        "enable_mixed_chunk": false,
+        "enable_dp_attention": false,
+        "enable_dp_attention_local_control_broadcast": false,
+        "enable_dp_lm_head": false,
+        "enable_two_batch_overlap": false,
+        "enable_single_batch_overlap": false,
+        "tbo_token_distribution_threshold": 0.48,
+        "enable_torch_compile": false,
+        "disable_piecewise_cuda_graph": false,
+        "enforce_piecewise_cuda_graph": false,
+        "enable_torch_compile_debug_mode": false,
+        "torch_compile_max_bs": 32,
+        "piecewise_cuda_graph_max_tokens": 4096,
+        "piecewise_cuda_graph_tokens": [
+          4,
+          8,
+          12,
+          16,
+          20,
+          24,
+          28,
+          32,
+          48,
+          64,
+          80,
+          96,
+          112,
+          128,
+          144,
+          160,
+          176,
+          192,
+          208,
+          224,
+          240,
+          256,
+          288,
+          320,
+          352,
+          384,
+          416,
+          448,
+          480,
+          512,
+          576,
+          640,
+          704,
+          768,
+          832,
+          896,
+          960,
+          1024,
+          1280,
+          1536,
+          1792,
+          2048,
+          2304,
+          2560,
+          2816,
+          3072,
+          3328,
+          3584,
+          3840,
+          4096
+        ],
+        "piecewise_cuda_graph_compiler": "eager",
+        "torchao_config": "",
+        "enable_p2p_check": false,
+        "triton_attention_reduce_in_fp32": false,
+        "triton_attention_num_kv_splits": 128,
+        "triton_attention_split_tile_size": null,
+        "num_continuous_decode_steps": 1,
+        "delete_ckpt_after_loading": false,
+        "enable_memory_saver": false,
+        "enable_weights_cpu_backup": false,
+        "enable_draft_weights_cpu_backup": false,
+        "allow_auto_truncate": false,
+        "enable_custom_logit_processor": false,
+        "flashinfer_mla_disable_ragged": false,
+        "disable_shared_experts_fusion": false,
+        "enforce_shared_experts_fusion": false,
+        "disable_chunked_prefix_cache": true,
+        "disable_fast_image_processor": false,
+        "keep_mm_feature_on_device": false,
+        "enable_return_hidden_states": false,
+        "enable_return_routed_experts": false,
+        "enable_return_indexer_topk": false,
+        "scheduler_recv_interval": 1,
+        "numa_node": null,
+        "enable_deterministic_inference": false,
+        "rl_on_policy_target": null,
+        "enable_attn_tp_input_scattered": false,
+        "disable_attn_tp_gather": false,
+        "gc_threshold": null,
+        "kv_canary": "none",
+        "kv_canary_real_data": "none",
+        "kv_canary_sweep_interval": 0,
+        "enable_dsa_prefill_context_parallel": false,
+        "dsa_prefill_cp_mode": "round-robin-split",
+        "enable_fused_qk_norm_rope": false,
+        "enable_precise_embedding_interpolation": false,
+        "enable_fused_moe_sum_all_reduce": false,
+        "enable_prefill_context_parallel": false,
+        "prefill_cp_mode": "in-seq-split",
+        "enable_dynamic_batch_tokenizer": false,
+        "dynamic_batch_tokenizer_batch_size": 32,
+        "dynamic_batch_tokenizer_batch_timeout": 0.002,
+        "debug_tensor_dump_output_folder": null,
+        "debug_tensor_dump_layers": null,
+        "debug_tensor_dump_input_file": null,
+        "debug_tensor_dump_inject": false,
+        "disaggregation_mode": "null",
+        "disaggregation_transfer_backend": "mooncake",
+        "disaggregation_bootstrap_port": 8998,
+        "disaggregation_ib_device": null,
+        "disaggregation_decode_enable_radix_cache": false,
+        "disaggregation_decode_enable_offload_kvcache": false,
+        "num_reserved_decode_tokens": 512,
+        "disaggregation_decode_polling_interval": 1,
+        "encoder_only": false,
+        "language_only": false,
+        "encoder_transfer_backend": "zmq_to_scheduler",
+        "encoder_urls": [],
+        "enable_adaptive_dispatch_to_encoder": false,
+        "custom_weight_loader": [],
+        "weight_loader_disable_mmap": false,
+        "weight_loader_prefetch_checkpoints": false,
+        "weight_loader_prefetch_num_threads": 4,
+        "weight_loader_drop_cache_after_load": false,
+        "remote_instance_weight_loader_seed_instance_ip": null,
+        "remote_instance_weight_loader_seed_instance_service_port": null,
+        "remote_instance_weight_loader_send_weights_group_ports": null,
+        "remote_instance_weight_loader_backend": "nccl",
+        "remote_instance_weight_loader_start_seed_via_transfer_engine": false,
+        "engine_info_bootstrap_port": 6789,
+        "modelexpress_config": null,
+        "enable_pdmux": false,
+        "pdmux_config_path": null,
+        "sm_group_num": 8,
+        "enable_broadcast_mm_inputs_process": false,
+        "enable_prefix_mm_cache": false,
+        "mm_enable_dp_encoder": false,
+        "mm_process_config": {},
+        "limit_mm_data_per_request": null,
+        "enable_mm_global_cache": false,
+        "decrypted_config_file": null,
+        "decrypted_draft_config_file": null,
+        "forward_hooks": null,
+        "enable_quant_communications": false,
+        "msprobe_dump_config": null,
+        "enable_grpc": false,
+        "grpc_port": 18082,
+        "_quantization_explicitly_unset": false,
+        "use_mla_backend": false,
+        "_mx_config_cache": {},
+        "max_speculative_num_draft_tokens": null,
+        "last_gen_throughput": 0.0,
+        "memory_usage": {
+          "weight": 17.46,
+          "kvcache": 5.66,
+          "token_capacity": 399184,
+          "graph": 0.09
+        },
+        "effective_max_running_requests_per_dp": 4
+      }
+    ],
+    "version": "0.0.0.dev0",
+    "kv_events": null
+  },
+  "summary": {
+    "passed": true,
+    "passed_cases": 7,
+    "total_cases": 7
+  },
+  "cases": [
+    {
+      "name": "reasoning_enabled",
+      "passed": true,
+      "elapsed_s": 12.682609968003817,
+      "request": {
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "messages": [
+          {
+            "role": "user",
+            "content": "A tray has 7 rows of 6 bolts. Five bolts are removed. Explain the arithmetic briefly and give the final number."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1024,
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        },
+        "separate_reasoning": true
+      },
+      "response": {
+        "id": "4435878a925348678b11530b5cc61d12",
+        "object": "chat.completion",
+        "created": 1785136103,
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "The tray initially has \\(7 \\times 6 = 42\\) bolts. After removing 5 bolts, the remaining number is \\(42 - 5 = 37\\).\n\n**Final Answer:** \\boxed{37}",
+              "reasoning_content": "Okay, let me try to figure this out. So the problem says there's a tray with 7 rows of 6 bolts each. Then five bolts are removed. I need to explain the arithmetic and give the final number. Hmm, let's break it down step by step.\n\nFirst, I need to find out how many bolts there are in total before any are removed. The tray has 7 rows, and each row has 6 bolts. So to find the total number of bolts initially, I should multiply the number of rows by the number of bolts per row. That would be 7 times 6. Let me do that calculation. 7 multiplied by 6 is... 42. So there are 42 bolts in total on the tray.\n\nNow, the problem states that five bolts are removed. So I need to subtract the number of bolts removed from the initial total. That would be 42 minus 5. Let me check that. 42 minus 5 is 37. So after removing five bolts, there should be 37 bolts left on the tray.\n\nWait, let me make sure I didn't miss anything. The problem mentions a tray with 7 rows of 6 bolts. So each row has 6 bolts, and there are 7 such rows. Multiplying those gives the total. Then subtracting the five removed. That seems straightforward. I don't think there's any trick here, like maybe some rows having different numbers or something. The problem states it clearly: 7 rows of 6 bolts each. So 7 times 6 is definitely 42. Then minus 5 is 37. \n\nIs there another way to approach this? Maybe by considering each row and subtracting the bolts removed from each row? But the problem doesn't specify that the five bolts are removed from specific rows. It just says five bolts are removed in total. So it's a straightforward subtraction from the total. \n\nAlternatively, if the five bolts were removed from one row, then that row would have 6 - 5 = 1 bolt left, and the other rows would still have 6 each. So total would be 6*6 + 1 = 37. But that's the same result. So regardless of how the bolts are removed, as long as five are taken away from the total, the final number is 37. \n\nTherefore, the arithmetic is 7*6 = 42, then 42 - 5 = 37. The final number of bolts remaining is 37.",
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 24
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 67,
+          "total_tokens": 652,
+          "completion_tokens": 585,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 535
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 12.680703840000206,
+      "reasoning_audit": {
+        "chars": 2053,
+        "words": 395,
+        "unique_words": 136,
+        "max_character_run": 3,
+        "max_word_run": 2,
+        "attached_nine_count": 0,
+        "sha256": "20b73f1159f5654fa64db8c04657fa9e8bef73418618a5543d605116ccc2bec1"
+      },
+      "content_audit": {
+        "chars": 144,
+        "words": 24,
+        "unique_words": 19,
+        "max_character_run": 2,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "fb41f95579a114c410f45f252dd6aed384ff88b2179945776155be83342426e3"
+      }
+    },
+    {
+      "name": "reasoning_disabled",
+      "passed": true,
+      "elapsed_s": 0.11507897399133071,
+      "request": {
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is 18 + 24? Answer with only the integer."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 64,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "separate_reasoning": true
+      },
+      "response": {
+        "id": "63dbba2e88fb42f6b5357e30acc2db17",
+        "object": "chat.completion",
+        "created": 1785136103,
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 24
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 57,
+          "total_tokens": 60,
+          "completion_tokens": 3,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "http_elapsed_s": 0.11473437599488534,
+      "content_audit": {
+        "chars": 2,
+        "words": 1,
+        "unique_words": 1,
+        "max_character_run": 1,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "73475cb40a568e8da8a045ced110137e159f890ac4da883b6b17dc651b3a8049"
+      }
+    },
+    {
+      "name": "tool_roundtrip",
+      "passed": true,
+      "elapsed_s": 1.1072736700007226,
+      "requests": [
+        {
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Use get_weather to obtain the current weather in Brisbane. Do not guess or answer before calling it."
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the current weather for a city.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "temperature": 0,
+          "max_tokens": 256,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          },
+          "separate_reasoning": true
+        },
+        {
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Use get_weather to obtain the current weather in Brisbane. Do not guess or answer before calling it."
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "reasoning_content": null,
+              "tool_calls": [
+                {
+                  "id": "call_06c690bb36b7442ab940ef0d",
+                  "index": 0,
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Brisbane\"}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "tool_call_id": "call_06c690bb36b7442ab940ef0d",
+              "name": "get_weather",
+              "content": "{\"city\": \"Brisbane\", \"temperature_c\": 23, \"condition\": \"sunny\"}"
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the current weather for a city.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "temperature": 0,
+          "max_tokens": 256,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          },
+          "separate_reasoning": true
+        }
+      ],
+      "responses": [
+        {
+          "id": "0ed05eabfa7a4817be5beb7d9d01346c",
+          "object": "chat.completion",
+          "created": 1785136103,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": "call_06c690bb36b7442ab940ef0d",
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": "get_weather",
+                      "arguments": "{\"city\": \"Brisbane\"}"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": "tool_calls",
+              "matched_stop": null
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 168,
+            "total_tokens": 192,
+            "completion_tokens": 24,
+            "prompt_tokens_details": null,
+            "reasoning_tokens": 1
+          },
+          "metadata": {
+            "weight_version": "default"
+          }
+        },
+        {
+          "id": "63e2c7fe563e47d4873c61e1896668f1",
+          "object": "chat.completion",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "The current weather in Brisbane is **23\u00b0C** with **sunny** conditions.",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": "stop",
+              "matched_stop": 24
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 225,
+            "total_tokens": 245,
+            "completion_tokens": 20,
+            "prompt_tokens_details": null,
+            "reasoning_tokens": 1
+          },
+          "metadata": {
+            "weight_version": "default"
+          }
+        }
+      ],
+      "http_elapsed_s": [
+        0.6014529550011503,
+        0.5051112189976266
+      ],
+      "parsed_arguments": {
+        "city": "Brisbane"
+      },
+      "content_audit": {
+        "chars": 70,
+        "words": 11,
+        "unique_words": 11,
+        "max_character_run": 2,
+        "max_word_run": 1,
+        "attached_nine_count": 0,
+        "sha256": "e2e6c3caff93af990ed86e26b7a9be7c83b2717c3301952b3d8c52db8f36c110"
+      }
+    },
+    {
+      "name": "streaming_tool",
+      "passed": true,
+      "elapsed_s": 1.2143058729998302,
+      "request": {
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the add tool to calculate 19 + 23."
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "add",
+              "description": "Add two integers.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "a": {
+                    "type": "integer"
+                  },
+                  "b": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "a",
+                  "b"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto",
+        "temperature": 0,
+        "max_tokens": 256,
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        },
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "events": [
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "reasoning_content": null,
+                "role": "assistant",
+                "content": ""
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ]
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": "I",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": "'ll",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " use",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " the",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " add",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " tool",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " to",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " calculate",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " ",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": "1",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": "9",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " +",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": " ",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": "2",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": "3",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136104,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": ".",
+                "reasoning_content": null,
+                "tool_calls": null
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136105,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": "call_891202c68a4042fdae377741",
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": "add",
+                      "arguments": ""
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136105,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": "{\"a\": 19"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136105,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": ", \"b\": 23"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136105,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": null,
+                "content": null,
+                "reasoning_content": null,
+                "tool_calls": [
+                  {
+                    "id": null,
+                    "index": 0,
+                    "type": "function",
+                    "function": {
+                      "name": null,
+                      "arguments": "}"
+                    }
+                  }
+                ]
+              },
+              "logprobs": null,
+              "finish_reason": null,
+              "matched_stop": null
+            }
+          ],
+          "usage": null
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136105,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "reasoning_content": null
+              },
+              "logprobs": null,
+              "finish_reason": "tool_calls",
+              "matched_stop": 24
+            }
+          ]
+        },
+        {
+          "id": "ae2f2e7fc1da453aaf46227cc30af099",
+          "object": "chat.completion.chunk",
+          "created": 1785136105,
+          "model": "poolside/Laguna-S-2.1-INT4",
+          "choices": [],
+          "usage": {
+            "prompt_tokens": 169,
+            "total_tokens": 222,
+            "completion_tokens": 53,
+            "prompt_tokens_details": null,
+            "reasoning_tokens": 0
+          }
+        }
+      ],
+      "http_elapsed_s": 1.2139701010019053,
+      "assembled_tool_call": {
+        "id": "call_891202c68a4042fdae377741",
+        "name": "add",
+        "arguments": "{\"a\": 19, \"b\": 23}"
+      },
+      "parsed_arguments": {
+        "a": 19,
+        "b": 23
+      },
+      "finish_reasons": [
+        "tool_calls"
+      ]
+    },
+    {
+      "name": "multimodal_description",
+      "passed": true,
+      "elapsed_s": 0.007355171997915022,
+      "request": {
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "<data-url bytes=76510 sha256=cedc452ed4208059667d34a78e768af10dd7a26d3fbd74c9d42752026928587c>"
+                }
+              },
+              {
+                "type": "text",
+                "text": "Describe the central unusual activity and the vehicle in one concise sentence."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 192,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "separate_reasoning": true
+      },
+      "response_status": 400,
+      "response": {
+        "object": "error",
+        "message": "This model does not support multimodal input (image).",
+        "type": "BadRequestError",
+        "param": null,
+        "code": 400
+      },
+      "http_elapsed_s": 0.0065031789999920875,
+      "expected_capability": "text-only"
+    },
+    {
+      "name": "multimodal_reasoning",
+      "passed": true,
+      "elapsed_s": 0.0058575769944582134,
+      "request": {
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "<data-url bytes=76510 sha256=cedc452ed4208059667d34a78e768af10dd7a26d3fbd74c9d42752026928587c>"
+                }
+              },
+              {
+                "type": "text",
+                "text": "Decide whether the scene is ordinary or unusual. Reason from visible evidence, then explain the conclusion concisely."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1024,
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        },
+        "separate_reasoning": true
+      },
+      "response_status": 400,
+      "response": {
+        "object": "error",
+        "message": "This model does not support multimodal input (image).",
+        "type": "BadRequestError",
+        "param": null,
+        "code": 400
+      },
+      "http_elapsed_s": 0.00499955601117108,
+      "expected_capability": "text-only"
+    },
+    {
+      "name": "multimodal_tool",
+      "passed": true,
+      "elapsed_s": 0.005939166992902756,
+      "request": {
+        "model": "poolside/Laguna-S-2.1-INT4",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "<data-url bytes=76510 sha256=cedc452ed4208059667d34a78e768af10dd7a26d3fbd74c9d42752026928587c>"
+                }
+              },
+              {
+                "type": "text",
+                "text": "Inspect the image and call report_scene with the visible activity, vehicle color/type, and setting. Do not answer in prose."
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "report_scene",
+              "description": "Report the important visible facts in an image.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "person_activity": {
+                    "type": "string"
+                  },
+                  "vehicle_color": {
+                    "type": "string"
+                  },
+                  "vehicle_type": {
+                    "type": "string"
+                  },
+                  "setting": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "person_activity",
+                  "vehicle_color",
+                  "vehicle_type",
+                  "setting"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto",
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "response_status": 400,
+      "response": {
+        "object": "error",
+        "message": "This model does not support multimodal input (image).",
+        "type": "BadRequestError",
+        "param": null,
+        "code": 400
+      },
+      "http_elapsed_s": 0.005051772008300759,
+      "expected_capability": "text-only"
+    }
+  ]
+}

@@ -118,6 +118,67 @@ class ServingChatTestCase(unittest.TestCase):
         self.fastapi_request.headers = {}
 
     # ------------- conversion tests -------------
+    def test_text_only_model_rejects_multimodal_content(self):
+        for media_part, media_name in (
+            (
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                },
+                "image",
+            ),
+            (
+                {
+                    "type": "video_url",
+                    "video_url": {"url": "https://example.com/video.mp4"},
+                },
+                "video",
+            ),
+            (
+                {
+                    "type": "audio_url",
+                    "audio_url": {"url": "https://example.com/audio.wav"},
+                },
+                "audio",
+            ),
+        ):
+            with self.subTest(media_name=media_name):
+                req = ChatCompletionRequest(
+                    model="x",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                media_part,
+                                {"type": "text", "text": "Describe this."},
+                            ],
+                        }
+                    ],
+                )
+                self.assertEqual(
+                    self.chat._validate_request(req),
+                    f"This model does not support multimodal input ({media_name}).",
+                )
+
+    def test_multimodal_model_accepts_multimodal_content(self):
+        self.tm.model_config.is_multimodal = True
+        req = ChatCompletionRequest(
+            model="x",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "data:image/png;base64,AA=="},
+                        },
+                        {"type": "text", "text": "Describe this."},
+                    ],
+                }
+            ],
+        )
+        self.assertIsNone(self.chat._validate_request(req))
+
     def test_convert_to_internal_request_single(self):
         with (
             patch(

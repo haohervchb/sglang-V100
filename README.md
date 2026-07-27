@@ -785,19 +785,25 @@ cold-cache trial per cell, not a confidence interval. Definitions, acceptance
 values, retained outputs, raw request timings, exact server settings, and
 Docker validation are in
 [the quick-comparison directory](benchmark/v100_quick_comparison_20260727/README.md).
-The full Qwen-only sweep below was collected later from a refreshed repository
-corpus and supersedes the quick sample for Qwen context-scaling analysis; the
-quick chart remains the directly matched Qwen-versus-Laguna comparison.
+The full three-model sweep below was collected later from a refreshed
+repository corpus and supersedes this quick sample for context-scaling
+analysis.
 
-### Audited Docker DFlash 1K–25K sweep (2026-07-27)
+### Audited Docker 1K–25K context sweep (2026-07-27)
 
-This full sweep refresh used the newly built `sglang-v100:18878a5f0` image on
-four V100-SXM2-32GB GPUs, TP4, greedy decoding, cold unique repository-source
-prompts, and 256 output tokens per request. The matrix covers 13 prompt lengths
-(1K through 25K in 2K increments) at 1, 2, and 4 concurrent clients for both
-models: 78 cells and 182 request responses. Every request reported zero cached
-prompt tokens and passed the generated-text repetition/diversity audit; the 91
-request-level prompt hashes are identical across models.
+This full sweep refresh used four V100-SXM2-32GB GPUs, TP4, greedy decoding,
+cold unique repository-source prompts, and 256 output tokens per request. The
+Qwen runs used `sglang-v100:18878a5f0`
+(`sha256:f9feb5340d56…`); the Laguna run and its text-only media-validation fix
+used `sglang-v100:laguna-mmfix-20260727`
+(`sha256:b4c9a16f10a9…`, also tagged `sglang-v100:latest`). The matrix covers
+13 prompt lengths (1K through 25K in 2K increments) at 1, 2, and 4 concurrent
+clients for all three targets: 117 cells and 273 request responses. Every
+request reported zero cached prompt tokens and passed the generated-text
+repetition/diversity audit. The 91 request-level hashes are identical between
+the Qwen runs; Laguna uses its corrected Mistral-family tokenizer, so it uses
+the same deterministic construction and exact lengths but different token
+IDs.
 
 "Decode" below and in the plots means the median per-request client-visible
 decode rate, not summed batch throughput. TTFT is client request start to the
@@ -811,33 +817,41 @@ prompt-dependent, so its unsmoothed line is expected to be jagged.
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | 1 | 27B FP16 | 101.2 tok/s | 86.6 tok/s | 0.307 s | 6.884 s | 4.49 | 4.13 |
 | 1 | 122B GPTQ-Int4 | 109.2 tok/s | 81.9 tok/s | 0.292 s | 5.299 s | 4.20 | 3.41 |
+| 1 | Laguna S 2.1 INT4, target-only | 47.9 tok/s | 44.2 tok/s | 0.278 s | 5.734 s | N/A | N/A |
 | 2 | 27B FP16 | 91.0 tok/s | 49.6 tok/s | 0.562 s | 11.161 s | 4.88 | 3.85 |
 | 2 | 122B GPTQ-Int4 | 97.2 tok/s | 51.9 tok/s | 0.542 s | 8.517 s | 4.53 | 3.66 |
+| 2 | Laguna S 2.1 INT4, target-only | 37.4 tok/s | 26.9 tok/s | 0.426 s | 9.092 s | N/A | N/A |
 | 4 | 27B FP16 | 63.4 tok/s | 18.1 tok/s | 1.005 s | 17.955 s | 4.11 | 4.72 |
 | 4 | 122B GPTQ-Int4 | 82.0 tok/s | 50.2 tok/s | 0.813 s | 13.695 s | 4.49 | 3.85 |
+| 4 | Laguna S 2.1 INT4, target-only | 36.4 tok/s | 15.4 tok/s | 0.858 s | 14.912 s | N/A | N/A |
 
-![DFlash context scaling at concurrency 1](benchmark/dflash_v100_20260716/plots/dflash_concurrency_1.svg)
+![V100 context scaling at concurrency 1](benchmark/dflash_v100_20260716/plots/dflash_concurrency_1.svg)
 
-![DFlash context scaling at concurrency 2](benchmark/dflash_v100_20260716/plots/dflash_concurrency_2.svg)
+![V100 context scaling at concurrency 2](benchmark/dflash_v100_20260716/plots/dflash_concurrency_2.svg)
 
-![DFlash context scaling at concurrency 4](benchmark/dflash_v100_20260716/plots/dflash_concurrency_4.svg)
+![V100 context scaling at concurrency 4](benchmark/dflash_v100_20260716/plots/dflash_concurrency_4.svg)
 
 The effective input-rate panel is total prompt tokens divided by the latest
 first-token time; it includes scheduling and chunked-prefill behavior and is
-not an isolated kernel microbenchmark. The full generated text, raw timings,
-server arguments, CSV summaries, audit rules, and reproduction commands are in
-[the benchmark directory](benchmark/dflash_v100_20260716/README.md). Four
-timing cells were repeated unchanged after one-time prefill/JIT-path stalls;
-only the immediate steady reruns are plotted, and every replacement is
-disclosed with its prompt hashes retained in the benchmark notes.
+not an isolated kernel microbenchmark. The DFlash acceptance panel applies to
+the two Qwen servers; Laguna is target-only, so its acceptance is correctly
+shown as N/A. The full generated text, raw timings, server arguments, CSV
+summaries, audit rules, and reproduction commands are in
+[the benchmark directory](benchmark/dflash_v100_20260716/README.md). Five
+timing cells were repeated unchanged after one-time prefill/JIT-path stalls,
+including Laguna 1K/concurrency-4; only the immediate steady reruns are
+plotted, and every replacement is disclosed in the benchmark notes.
 
-The same Docker servers also passed seven live agent/multimodal checks per
-model: separated reasoning on/off, native tool-call round trip, streamed tool
-arguments, image description, image reasoning, and image-conditioned
-structured tool calling. Raw API responses are retained. Manual review found
-one inert `.cw` suffix at the end of one 122B hidden reasoning trace; the
-separated final answer was correct, and the suffix did not recur in the other
-agent or multimodal cases. See the
+The Qwen Docker servers passed all seven live agent and vision checks. Laguna
+passed reasoning on/off, native and streamed tool calling, and three
+text-only media-contract checks. Its checkpoint has no vision configuration:
+image input must be rejected explicitly, not silently stripped. The audit
+first exposed that silent-stripping bug and image-conditioned hallucinations;
+the rebuilt image now returns HTTP 400 with an explicit unsupported-multimodal
+message for all three media cases. Raw API responses are retained. Manual
+review found one inert `.cw` suffix at the end of one 122B hidden reasoning
+trace; the separated final answer was correct, and the suffix did not recur.
+See the
 [correctness audit](benchmark/dflash_v100_20260716/README.md#agent-and-multimodal-correctness-audit)
 for the exact scope and artifacts.
 
@@ -845,7 +859,8 @@ For Docker, keep the device, network, IPC, single cache-volume, and environment
 prefix from the earlier `docker run` example, then replace its arguments
 beginning with `--model` with those from the selected command above. The image
 entrypoint adds `sglang serve` automatically. Keep `--enable-multimodal` for
-the audited 27B and 122B configurations.
+the audited 27B and 122B configurations. Do not add it to the text-only Laguna
+checkpoint.
 
 `--context-length` is an upper bound, not a promise that the KV pool can hold
 that many live tokens. At `--mem-fraction-static 0.78`, the measured 122B
@@ -853,7 +868,9 @@ configuration allocated 225,040 target/draft KV slots, admitted four requests,
 and left about 1.6 GiB on the tightest rank after draft graph capture. At 0.70,
 the audited 27B configuration allocated 306,144 target/draft KV slots, admitted
 four requests, and left about 3.4 GiB on the tightest rank after draft graph
-capture.
+capture. At 0.76 with `--swa-full-tokens-ratio 0.08`, Laguna allocated 399,184
+full-attention and 31,920 sliding-window token slots, admitted four requests,
+and left 5.25–5.77 GiB per GPU after graph capture.
 The 35B-A3B AWQ block-size-8 configuration allocated 943,472 target/draft KV
 slots and left about 2.3 GiB on the tightest rank after graph capture. The
 unquantized FP16 configuration allocated 370,048 target/draft KV slots and also

@@ -399,6 +399,24 @@ class OpenAIServingChat(OpenAIServingBase):
         if not request.messages:
             return "Messages cannot be empty."
 
+        if not self.tokenizer_manager.model_config.is_multimodal:
+            media_types = {
+                getattr(part, "type", None)
+                for message in request.messages
+                if isinstance(message.content, list)
+                for part in message.content
+                if getattr(part, "type", None)
+                in ("image_url", "video_url", "audio_url")
+            }
+            if media_types:
+                media_names = ", ".join(
+                    sorted(media_type.removesuffix("_url") for media_type in media_types)
+                )
+                return (
+                    "This model does not support multimodal input "
+                    f"({media_names})."
+                )
+
         if (
             isinstance(request.tool_choice, str)
             and request.tool_choice.lower() == "required"
