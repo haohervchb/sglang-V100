@@ -45,6 +45,24 @@ The FlashInfer package and cubin versions used by the working SM70 stack differ
 slightly, so the serving commands set `FLASHINFER_DISABLE_VERSION_CHECK=1`.
 This is expected for this fork.
 
+### Updating an existing host installation
+
+If `scripts/install_v100.sh` has already completed successfully for this
+checkout, the Laguna S 2.1 target and DFlash changes do not require rebuilding
+FlashInfer, `sglang-kernel`, native V100 attention, or Marlin. The SGLang
+package is installed editable and the new SM70 arithmetic is Triton JIT code,
+so update the checkout and keep using the existing `sglang-v100` environment:
+
+```bash
+git -C "$HOME/sglang-V100" pull --ff-only
+conda activate sglang-v100
+bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
+```
+
+Rerun `scripts/install_v100.sh` only when the installer, dependency pins,
+patches, `sgl-kernel`, or Python dependency metadata change. A normal pull of
+the Laguna Python/model code is not a native rebuild trigger.
+
 ## Docker: pull and run
 
 The Docker image mirrors the host build: CUDA 12.8, Torch 2.9.1, the patched
@@ -60,6 +78,12 @@ docker pull geesegeesegeese/sglang-v100:latest
 The published image and its tags are also available on Docker Hub at
 <https://hub.docker.com/r/geesegeesegeese/sglang-v100>, so it can be browsed or
 pulled without a local build.
+
+Published images can lag the source branch. For Laguna S 2.1, use a tag known
+to contain commit `02157f0a7` or build `sglang-v100:latest` locally with the
+command below. Rebuilding after a Laguna-only source update reuses the
+FlashInfer, native-attention, `sglang-kernel`, and Marlin layers; only the late
+Python application and validation layers need to run again.
 
 Model checkpoints are not embedded in the image. The command below bind-mounts
 the host Hugging Face cache, so it reuses checkpoints already downloaded by a
@@ -142,15 +166,20 @@ DOCKER_BUILDKIT=1 docker build --network=host \
 Build parallelism is selected from the CPUs and available memory visible to
 Docker. To impose a manual limit, add `--build-arg MAX_JOBS=16`. Replace the
 published image name in the serving command with `sglang-v100:latest` to use
-the local build.
+the local build. No Laguna-specific build argument or Dockerfile change is
+required.
 
 The container validates the GPU stack, verifies the real SM70 Marlin repack,
 and warms the FlashInfer sampler before starting SGLang. If the Docker Compose
-v2 plugin is installed, the equivalent local-build command is:
+v2 plugin is installed, it can build the same local image with:
 
 ```bash
-docker compose -f docker/v100-compose.yaml up --build
+docker compose -f docker/v100-compose.yaml build
 ```
+
+`docker compose -f docker/v100-compose.yaml up --build` additionally starts
+the Qwen3.5 DFlash command stored in the Compose file; it does not select
+Laguna. Use the explicit Laguna `docker run` command below after building.
 
 ## Serve models
 
@@ -417,7 +446,8 @@ build layers remain reusable. The first DFlash launch may populate the existing
 Triton and TorchInductor caches.
 
 Run `conda activate sglang-v100` before using these commands. They are
-four-request configurations tested on this machine.
+model-specific configurations tested on this machine; Laguna uses two live
+requests, while the Qwen DFlash examples use four.
 Hybrid DFlash target verification requires an exact CUDA graph for every live
 batch size. The runtime therefore expands `--cuda-graph-bs 1 2 4` to target
 graphs 1, 2, 3, and 4; the added batch-three graph used about 20–30 MiB per GPU
@@ -453,6 +483,39 @@ FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 sglang serve \
+  --model poolside/Laguna-S-2.1-INT4 \
+  --trust-remote-code \
+  --dtype float16 \
+  --kv-cache-dtype auto \
+  --attention-backend flash_attn_v100 \
+  --moe-runner-backend marlin \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.76 \
+  --swa-full-tokens-ratio 0.08 \
+  --context-length 262144 \
+  --page-size 16 \
+  --max-running-requests 2 \
+  --chunked-prefill-size 4096 \
+  --triton-attention-num-kv-splits 128 \
+  --cuda-graph-max-bs 2 \
+  --cuda-graph-bs 1 2 \
+  --enable-nccl-nvls \
+  --reasoning-parser poolside_v1 \
+  --tool-call-parser poolside_v1
+```
+
+For a locally built container, the equivalent target-only command is:
+
+```bash
+mkdir -p "$HOME/.cache/huggingface"
+
+docker run --rm --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -v sglang-v100-jit:/root/sglang-v100-jit \
+  sglang-v100:latest \
   --model poolside/Laguna-S-2.1-INT4 \
   --trust-remote-code \
   --dtype float16 \
@@ -521,10 +584,16 @@ sglang serve \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path poolside/Laguna-S-2.1-DFlash-INT4 \
   --speculative-draft-model-revision 49ca3b03d80ef2934d942b290ab343b18deb9db4 \
-  --speculative-dflash-block-size 16 \
+  --speculative-dflash-block-size 8 \
   --reasoning-parser poolside_v1 \
   --tool-call-parser poolside_v1
 ```
+
+SGLang's DFlash block size includes the already committed token at position
+zero. Therefore block size 8 produces seven speculative tokens, matching
+Poolside's recommended serving setting. Block size 16 produces fifteen
+speculative tokens and matches the setting used for Poolside's published
+throughput benchmarks; tune it only after confirming nonzero acceptance.
 
 The target checkpoint's compressed-tensors metadata is detected automatically;
 do not add a GPTQ or AWQ `--quantization` override. The explicit Marlin runner
