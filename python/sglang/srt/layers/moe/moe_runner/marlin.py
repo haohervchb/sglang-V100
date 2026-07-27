@@ -140,6 +140,8 @@ def fused_experts_none_to_marlin(
         inplace=marlin_inplace,
         routed_scaling_factor=runner_config.routed_scaling_factor,
         clamp_limit=runner_config.swiglu_limit,
+        gate_up_input_scale=runner_config.gate_up_input_scale,
+        wide_output_scale=runner_config.wide_output_scale,
     ).to(hidden_states.dtype)
 
     return StandardCombineInput(

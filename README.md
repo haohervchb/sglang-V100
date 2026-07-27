@@ -437,7 +437,59 @@ Grammar-constrained requests (`tool_choice="required"` or a named tool choice)
 are rejected with HTTP 400; use `auto` or serve without DFlash when the API must
 enforce a tool choice.
 
-### Poolside Laguna-S-2.1 INT4 with DFlash
+### Poolside Laguna-S-2.1 INT4 and DFlash
+
+The following target-only command is validated on four V100-SXM2-32GB GPUs.
+The low SWA/full ratio is important: Laguna has many sliding-window layers, so
+the generic `0.8` default wastes most of the KV budget on their 32K-token
+window. This configuration allocated 399,184 full-attention token slots and
+31,920 sliding-window token slots per rank: enough for one complete 262K
+request, with 399K aggregate full-attention slots shared by up to two live
+requests. The 128-way decode split improved 90K-context decode by about 7% over
+this fork's automatic 64-way setting.
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+sglang serve \
+  --model poolside/Laguna-S-2.1-INT4 \
+  --trust-remote-code \
+  --dtype float16 \
+  --kv-cache-dtype auto \
+  --attention-backend flash_attn_v100 \
+  --moe-runner-backend marlin \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.76 \
+  --swa-full-tokens-ratio 0.08 \
+  --context-length 262144 \
+  --page-size 16 \
+  --max-running-requests 2 \
+  --chunked-prefill-size 4096 \
+  --triton-attention-num-kv-splits 128 \
+  --cuda-graph-max-bs 2 \
+  --cuda-graph-bs 1 2 \
+  --enable-nccl-nvls \
+  --reasoning-parser poolside_v1 \
+  --tool-call-parser poolside_v1
+```
+
+Checkpoint compatibility matters for DFlash. As of 2026-07-27, the current
+target revision `67dbeda456e68139f281c40831f9d12049d8fc11` contains Poolside's
+replaced INT4 routed-expert weights, while the current draft revision
+`49ca3b03d80ef2934d942b290ab343b18deb9db4` still contains the original draft
+weights. That pair was tested through both spec-v1 and spec-v2 and accepted
+zero draft tokens. Do not enable DFlash for that pair: it adds overhead without
+acceleration.
+
+Until Poolside publishes a matching draft, reproduce the original published
+pairing by selecting target revision
+`72e6387d8a2ba9096984edb6771a710d82482944` with `--revision`. This requires
+downloading that target revision separately. The old-revision pair was not
+rerun on this machine because retaining the extra target needs roughly another
+67 GB, so check acceptance before production use. A pinned DFlash command is:
 
 ```bash
 FLASHINFER_DISABLE_VERSION_CHECK=1 \
@@ -447,6 +499,8 @@ SGLANG_ENABLE_SPEC_V2=1 \
 SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
 sglang serve \
   --model poolside/Laguna-S-2.1-INT4 \
+  --revision 72e6387d8a2ba9096984edb6771a710d82482944 \
+  --trust-remote-code \
   --dtype float16 \
   --kv-cache-dtype auto \
   --attention-backend flash_attn_v100 \
@@ -455,14 +509,18 @@ sglang serve \
   --host 0.0.0.0 \
   --port 8082 \
   --mem-fraction-static 0.76 \
+  --swa-full-tokens-ratio 0.08 \
   --context-length 262144 \
+  --page-size 16 \
   --max-running-requests 2 \
   --chunked-prefill-size 4096 \
+  --triton-attention-num-kv-splits 128 \
   --cuda-graph-max-bs 2 \
   --cuda-graph-bs 1 2 \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path poolside/Laguna-S-2.1-DFlash-INT4 \
+  --speculative-draft-model-revision 49ca3b03d80ef2934d942b290ab343b18deb9db4 \
   --speculative-dflash-block-size 16 \
   --reasoning-parser poolside_v1 \
   --tool-call-parser poolside_v1
@@ -476,10 +534,10 @@ worker retains the draft model's per-layer normalization and gated attention.
 `--kv-cache-dtype auto` resolves to FP16 on V100; the checkpoint's FP8 KV-cache
 calibration data is not used by this backend.
 
-The target and draft downloads require about 75 GB of storage. The command is a
-conservative two-request starting point for four 32 GB cards. After warming the
-JIT caches and checking free memory, 0.78 can provide more KV capacity. Laguna
-reasoning is opt-in per request with
+The target and draft downloads require about 75 GB of storage; retaining both
+INT4 target revisions requires substantially more. The commands are
+conservative two-request starting points for four 32 GB cards. Laguna reasoning
+is opt-in per request with
 `chat_template_kwargs={"enable_thinking": true}`.
 
 ### Qwen3.6-27B dense FP16 with DFlash

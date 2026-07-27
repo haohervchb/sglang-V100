@@ -360,8 +360,6 @@ class CompressedTensorsWNA16MoE(CompressedTensorsMoEScheme):
             layer.w2_weight_scale.shape[2],
             self.group_size,
         )
-        if self.moe_runner_config.wide_output_scale != 1.0:
-            marlin_w2_scales.div_(self.moe_runner_config.wide_output_scale)
         replace_tensor("w2_weight_scale", marlin_w2_scales)
 
         layer.workspace = marlin_make_workspace(layer.w13_weight_packed.device, 4)
@@ -451,6 +449,8 @@ class CompressedTensorsWNA16MoE(CompressedTensorsMoEScheme):
             is_k_full=self.is_k_full,
             routed_scaling_factor=self.moe_runner_config.routed_scaling_factor,
             workspace=layer.workspace,
+            gate_up_input_scale=self.moe_runner_config.gate_up_input_scale,
+            wide_output_scale=self.moe_runner_config.wide_output_scale,
         )
         return StandardCombineInput(hidden_states=output)
 

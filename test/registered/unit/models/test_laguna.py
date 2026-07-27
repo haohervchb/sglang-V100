@@ -26,7 +26,6 @@ from sglang.srt.models.laguna import (
     LagunaForCausalLM,
     LagunaModel,
     LagunaRMSNorm,
-    bound_aux_hidden_for_fp16,
 )
 from sglang.srt.models.registry import ModelRegistry
 from sglang.srt.speculative.dflash_worker import DFlashWorker
@@ -262,22 +261,6 @@ class TestLagunaDFlash(unittest.TestCase):
         )
         self.assertAlmostEqual(
             model.model.layers[0].self_attn.attn.v_scale.item(), 0.00125
-        )
-
-    def test_target_feature_transport_preserves_direction(self):
-        hidden = torch.tensor(
-            [[80_000.0, -80_000.0, 40_000.0]], dtype=torch.float32
-        )
-
-        captured = bound_aux_hidden_for_fp16(hidden)
-
-        self.assertEqual(captured.dtype, torch.float16)
-        self.assertTrue(torch.isfinite(captured).all())
-        expected_direction = hidden / hidden.square().mean(dim=-1, keepdim=True).sqrt()
-        actual_direction = captured.float()
-        actual_direction /= actual_direction.square().mean(dim=-1, keepdim=True).sqrt()
-        torch.testing.assert_close(
-            actual_direction, expected_direction, rtol=1e-3, atol=1e-3
         )
 
     def test_v100_residual_emulates_bf16_without_overflow(self):

@@ -69,6 +69,10 @@ class MoeRunnerConfig:
     # may scale final projection weights by this value and restore the branch
     # when it is accumulated into its wide residual stream.
     wide_output_scale: float = 1.0
+    # Scale the input to a gate/up projection before its FP16 GEMM. The
+    # model-specific activation restores this scale in FP32 before applying
+    # SwiGLU, preventing an earlier overflow without changing the function.
+    gate_up_input_scale: float = 1.0
 
 
 @dataclass

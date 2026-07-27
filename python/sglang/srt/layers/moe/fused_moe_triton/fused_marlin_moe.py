@@ -87,6 +87,8 @@ def fused_marlin_moe(
     inplace: bool = False,
     routed_scaling_factor: Optional[float] = None,
     clamp_limit: Optional[float] = None,
+    gate_up_input_scale: float = 1.0,
+    wide_output_scale: float = 1.0,
 ) -> torch.Tensor:
     """
     This function computes a Mixture of Experts (MoE) layer using two sets of
@@ -206,8 +208,13 @@ def fused_marlin_moe(
     # per-rank results are summed and all-reduced.
     is_ep = is_expert_parallel or expert_map is not None
 
+    if gate_up_input_scale != 1.0:
+        marlin_hidden_states = hidden_states / gate_up_input_scale
+    else:
+        marlin_hidden_states = hidden_states
+
     intermediate_cache1 = moe_wna16_marlin_gemm(
-        hidden_states,
+        marlin_hidden_states,
         intermediate_cache1,
         w1,
         None,  # b_bias_or_none
@@ -235,7 +242,18 @@ def fused_marlin_moe(
         is_zp_float=w1_zeros is not None and w1_zeros.dtype != torch.int32,
     )
 
-    if clamp_limit is not None:
+    if wide_output_scale != 1.0:
+        if clamp_limit is not None:
+            raise ValueError(
+                "Laguna's SM70 wide-output path does not support SwiGLU clamping."
+            )
+        from sglang.srt.layers.laguna_rmsnorm import laguna_silu_and_mul_sm70
+
+        intermediate_cache2, activation_scales = laguna_silu_and_mul_sm70(
+            intermediate_cache1.view(-1, 2 * N),
+            gate_up_scale=gate_up_input_scale,
+        )
+    elif clamp_limit is not None:
         swiglu_limit_func(
             intermediate_cache2,
             intermediate_cache1.view(-1, 2 * N),
@@ -275,6 +293,15 @@ def fused_marlin_moe(
         use_fp32_reduce=True,
         is_zp_float=w2_zeros is not None and w2_zeros.dtype != torch.int32,
     ).view(-1, topk, K)
+
+    if wide_output_scale != 1.0:
+        from sglang.srt.layers.laguna_rmsnorm import laguna_scale_output_sm70
+
+        laguna_scale_output_sm70(
+            intermediate_cache3,
+            activation_scales,
+            residual_scale=wide_output_scale,
+        )
 
     output = hidden_states if inplace else torch.empty_like(hidden_states)
 
