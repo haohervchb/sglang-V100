@@ -600,13 +600,18 @@ sglang serve \
 ```
 
 SGLang's DFlash block size includes the already committed token at position
-zero. Therefore block size 8 produces seven speculative tokens, matching
-Poolside's recommended serving setting. Block size 16 produces fifteen
-speculative tokens and matches Poolside's published throughput setting.
-Block 8 is the V100 default because it reduces verification work and graph
-memory. In a six-cell block-16 check (1K, 9K, and 25K at concurrency 1 and 4),
-block 16 was 2.7% faster only at 1K/concurrency-1; block 8 was faster in the
-other five cells and led by about 11–15% at concurrency 4.
+zero. Therefore block size 4 produces three speculative tokens, block size 8
+produces seven, and block size 16 produces fifteen. Poolside recommends block
+size 8 for general serving and uses 16 for its published throughput setting.
+Block size 8 is this fork's neutral V100 default: when neither DFlash block-size
+flag is supplied, Laguna with `flash_attn_v100` selects 8 instead of the
+checkpoint's throughput-oriented default of 16. Explicit CLI settings remain
+authoritative.
+
+Use block size 16 for high-acceptance math and code-generation workloads.
+Block size 4 is the defensive profile for long-form prose or repository review
+when the logged acceptance length stays near two. Block size 2 gives up too
+much speculative opportunity and can be slower than target-only decode.
 
 The audited block-8 sweep covered 1K through 25K prompts in 2K increments at
 concurrency 1, 2, and 4. All 91 responses completed with 256 output tokens and
@@ -663,6 +668,34 @@ kernel-only A/B because acceptance changes with generated text.
 | 4 | 1K | 36.4 tok/s | 36.6 tok/s | 1.01x | 47.5 tok/s | 2.46 |
 | 4 | 9K | 26.4 tok/s | 26.4 tok/s | 1.00x | 33.4 tok/s | 2.46 |
 | 4 | 25K | 15.4 tok/s | 15.4 tok/s | 1.00x | 17.6 tok/s | 2.23 |
+
+A follow-up fixed-block audit used the tuned target and otherwise identical
+cold-prompt settings. At concurrency 2, block 4 was 5–17% faster than block 8.
+The two were close at concurrency 4, while block 8 retained a small
+single-request lead. Block 4 remained faster than target-only in all nine
+cells, making it the safer default for workloads whose logged accept length is
+near two.
+
+| Concurrency | Context | Block 2 | Block 4 | Block 8 |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1K | 57.6 tok/s | 76.4 tok/s | 77.3 tok/s |
+| 1 | 9K | 52.6 tok/s | 63.1 tok/s | 65.7 tok/s |
+| 1 | 25K | 51.5 tok/s | 62.5 tok/s | 67.0 tok/s |
+| 2 | 1K | 51.0 tok/s | 62.2 tok/s | 53.3 tok/s |
+| 2 | 9K | 46.1 tok/s | 51.6 tok/s | 44.5 tok/s |
+| 2 | 25K | 33.2 tok/s | 34.9 tok/s | 33.3 tok/s |
+| 4 | 1K | 43.0 tok/s | 46.2 tok/s | 47.5 tok/s |
+| 4 | 9K | 31.2 tok/s | 32.9 tok/s | 33.4 tok/s |
+| 4 | 25K | 17.1 tok/s | 18.2 tok/s | 17.6 tok/s |
+
+The low acceptance above is workload-specific, not a general failure of the
+Laguna drafter. A separate block-16, temperature-zero task audit measured
+acceptance of 5.82 on HumanEval-style code, 6.17 on GSM8K-style arithmetic,
+and 8.83–9.46 on deterministic math/reasoning prompts. End-to-end output rate
+was 2.0–3.1x target-only for those short prompts. Long-form database prose
+accepted only 2.88 and improved 1.09x, matching the repository-review
+behavior. Spec-v1 and spec-v2 both produced 2.876 acceptance on that same prose
+prompt, ruling out the overlap scheduler as the source of the weak agreement.
 
 The selector changes low-token-count MoE execution only. Effective prefill
 rate was unchanged within normal cold-run variation, and the lack of a

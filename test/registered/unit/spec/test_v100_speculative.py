@@ -369,12 +369,61 @@ def test_dflash_does_not_inherit_gptq_target_quantization(monkeypatch):
         max_running_requests=4,
         disable_overlap_schedule=False,
         enable_mixed_chunk=False,
+        attention_backend="flash_attn_v100",
     )
 
     _handle_dflash(server_args)
 
     assert server_args.speculative_draft_model_quantization is None
     assert server_args.speculative_num_draft_tokens == 16
+
+
+@pytest.mark.parametrize(
+    ("attention_backend", "explicit_block_size", "expected_block_size"),
+    [
+        ("flash_attn_v100", None, 8),
+        ("triton", None, 16),
+        ("flash_attn_v100", 4, 4),
+        ("flash_attn_v100", 16, 16),
+    ],
+)
+def test_laguna_dflash_uses_v100_tuned_default_block_size(
+    monkeypatch, attention_backend, explicit_block_size, expected_block_size
+):
+    from sglang.srt.utils import hf_transformers_utils
+
+    monkeypatch.setattr(
+        hf_transformers_utils,
+        "get_config",
+        lambda *args, **kwargs: SimpleNamespace(
+            architectures=["DFlashLagunaForCausalLM"],
+            quantization_config={"quant_method": "compressed-tensors"},
+            num_hidden_layers=6,
+            dflash_config={"block_size": 16},
+        ),
+    )
+    server_args = SimpleNamespace(
+        enable_dp_attention=False,
+        pp_size=1,
+        speculative_draft_model_path="poolside/Laguna-S-2.1-DFlash-INT4",
+        trust_remote_code=False,
+        speculative_draft_model_revision="main",
+        json_model_override_args="{}",
+        speculative_draft_model_quantization=None,
+        speculative_num_steps=None,
+        speculative_eagle_topk=None,
+        speculative_dflash_block_size=explicit_block_size,
+        speculative_num_draft_tokens=None,
+        speculative_draft_window_size=None,
+        max_running_requests=4,
+        disable_overlap_schedule=False,
+        enable_mixed_chunk=False,
+        attention_backend=attention_backend,
+    )
+
+    _handle_dflash(server_args)
+
+    assert server_args.speculative_num_draft_tokens == expected_block_size
 
 
 @pytest.mark.parametrize("kind", ["decode", "extend"])

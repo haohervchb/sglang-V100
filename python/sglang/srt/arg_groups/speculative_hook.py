@@ -175,6 +175,17 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
             "Failed to inspect the DFLASH draft config before model loading: %s", e
         )
 
+    draft_architectures = (
+        getattr(draft_hf_config, "architectures", None)
+        if draft_hf_config is not None
+        else None
+    )
+    is_laguna_dflash_on_v100 = (
+        draft_architectures is not None
+        and "DFlashLagunaForCausalLM" in draft_architectures
+        and getattr(server_args, "attention_backend", None) == "flash_attn_v100"
+    )
+
     if (
         draft_hf_config is not None
         and getattr(draft_hf_config, "quantization_config", None) is None
@@ -227,6 +238,24 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
             )
         server_args.speculative_num_draft_tokens = int(
             server_args.speculative_dflash_block_size
+        )
+
+    if (
+        server_args.speculative_num_draft_tokens is None
+        and is_laguna_dflash_on_v100
+    ):
+        # The checkpoint stores the block-16 throughput configuration, while
+        # Poolside recommends seven speculative tokens (block size 8) for
+        # general serving. Use that neutral default on SM70. Block 16 remains
+        # valuable for high-acceptance math/code workloads, while block 4 is a
+        # defensive option for long-form prose and repository review.
+        # Explicit CLI values above remain authoritative.
+        server_args.speculative_num_draft_tokens = 8
+        logger.info(
+            "Using Poolside's recommended DFLASH block size 8 for Laguna with "
+            "flash_attn_v100. "
+            "Override with --speculative-dflash-block-size after benchmarking "
+            "acceptance on your workload."
         )
 
     if server_args.speculative_num_draft_tokens is None:
