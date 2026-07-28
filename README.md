@@ -446,8 +446,9 @@ build layers remain reusable. The first DFlash launch may populate the existing
 Triton and TorchInductor caches.
 
 Run `conda activate sglang-v100` before using these commands. They are
-model-specific configurations tested on this machine; Laguna uses two live
-requests, while the Qwen DFlash examples use four.
+model-specific configurations tested on this machine. The conservative
+Laguna target-only example uses two live requests; the audited DFlash and Qwen
+examples use four.
 Hybrid DFlash target verification requires an exact CUDA graph for every live
 batch size. The runtime therefore expands `--cuda-graph-bs 1 2 4` to target
 graphs 1, 2, 3, and 4; the added batch-three graph used about 20–30 MiB per GPU
@@ -539,20 +540,18 @@ docker run --rm --gpus all --network host --ipc host \
   --tool-call-parser poolside_v1
 ```
 
-Checkpoint compatibility matters for DFlash. As of 2026-07-27, the current
-target revision `67dbeda456e68139f281c40831f9d12049d8fc11` contains Poolside's
-replaced INT4 routed-expert weights, while the current draft revision
-`49ca3b03d80ef2934d942b290ab343b18deb9db4` still contains the original draft
-weights. That pair was tested through both spec-v1 and spec-v2 and accepted
-zero draft tokens. Do not enable DFlash for that pair: it adds overhead without
-acceleration.
+Poolside replaced the incompatible drafter on 2026-07-28. The following exact
+pair is validated on four V100-SXM2-32GB GPUs:
 
-Until Poolside publishes a matching draft, reproduce the original published
-pairing by selecting target revision
-`72e6387d8a2ba9096984edb6771a710d82482944` with `--revision`. This requires
-downloading that target revision separately. The old-revision pair was not
-rerun on this machine because retaining the extra target needs roughly another
-67 GB, so check acceptance before production use. A pinned DFlash command is:
+- target revision `67dbeda456e68139f281c40831f9d12049d8fc11`;
+- draft revision `f6b32f4fb7ef2fb2ad481bb4c05433a2bf8b0ed1`.
+
+The draft safetensors SHA-256 is
+`c9665e30bbced996011d1a3f8dcc392af4ea5463fc8a469cdc7019f2795a24b5`.
+Its six auxiliary target-layer norms, projection, attention gates, and
+six-layer draft stack match the Laguna integration merged in
+[SGLang #29446](https://github.com/sgl-project/sglang/pull/29446). A pinned,
+reproducible DFlash command is:
 
 ```bash
 FLASHINFER_DISABLE_VERSION_CHECK=1 \
@@ -562,7 +561,7 @@ SGLANG_ENABLE_SPEC_V2=1 \
 SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
 sglang serve \
   --model poolside/Laguna-S-2.1-INT4 \
-  --revision 72e6387d8a2ba9096984edb6771a710d82482944 \
+  --revision 67dbeda456e68139f281c40831f9d12049d8fc11 \
   --trust-remote-code \
   --dtype float16 \
   --kv-cache-dtype auto \
@@ -575,15 +574,15 @@ sglang serve \
   --swa-full-tokens-ratio 0.08 \
   --context-length 262144 \
   --page-size 16 \
-  --max-running-requests 2 \
+  --max-running-requests 4 \
   --chunked-prefill-size 4096 \
   --triton-attention-num-kv-splits 128 \
-  --cuda-graph-max-bs 2 \
-  --cuda-graph-bs 1 2 \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
   --enable-nccl-nvls \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path poolside/Laguna-S-2.1-DFlash-INT4 \
-  --speculative-draft-model-revision 49ca3b03d80ef2934d942b290ab343b18deb9db4 \
+  --speculative-draft-model-revision f6b32f4fb7ef2fb2ad481bb4c05433a2bf8b0ed1 \
   --speculative-dflash-block-size 8 \
   --reasoning-parser poolside_v1 \
   --tool-call-parser poolside_v1
@@ -592,8 +591,20 @@ sglang serve \
 SGLang's DFlash block size includes the already committed token at position
 zero. Therefore block size 8 produces seven speculative tokens, matching
 Poolside's recommended serving setting. Block size 16 produces fifteen
-speculative tokens and matches the setting used for Poolside's published
-throughput benchmarks; tune it only after confirming nonzero acceptance.
+speculative tokens and matches Poolside's published throughput setting.
+Block 8 is the V100 default because it reduces verification work and graph
+memory. In a six-cell block-16 check (1K, 9K, and 25K at concurrency 1 and 4),
+block 16 was 2.7% faster only at 1K/concurrency-1; block 8 was faster in the
+other five cells and led by about 11–15% at concurrency 4.
+
+The audited block-8 sweep covered 1K through 25K prompts in 2K increments at
+concurrency 1, 2, and 4. All 91 responses completed with 256 output tokens and
+passed the retained-text corruption audit. Weighted acceptance across the 39
+cells ranged from 2.03 to 3.24 tokens per verify. Compared with target-only
+Laguna on identical prompt hashes, median per-request decode speed improved
+1.41x, 1.40x, and 1.28x at concurrency 1, 2, and 4 respectively. Prefill was
+effectively unchanged. Reasoning on/off, native and streamed tool calls, and
+all three text-only multimodal rejection contracts passed 7/7.
 
 The target checkpoint's compressed-tensors metadata is detected automatically;
 do not add a GPTQ or AWQ `--quantization` override. The explicit Marlin runner
@@ -603,10 +614,10 @@ worker retains the draft model's per-layer normalization and gated attention.
 `--kv-cache-dtype auto` resolves to FP16 on V100; the checkpoint's FP8 KV-cache
 calibration data is not used by this backend.
 
-The target and draft downloads require about 75 GB of storage; retaining both
-INT4 target revisions requires substantially more. The commands are
-conservative two-request starting points for four 32 GB cards. Laguna reasoning
-is opt-in per request with
+The target and draft downloads require about 75 GB of storage. The DFlash
+configuration retained 399,184 full-attention and 31,920 sliding-window target
+KV slots per rank, plus the draft KV pool, while admitting four requests.
+Laguna reasoning is opt-in per request with
 `chat_template_kwargs={"enable_thinking": true}`.
 
 ### Qwen3.6-27B dense FP16 with DFlash
@@ -789,21 +800,23 @@ The full three-model sweep below was collected later from a refreshed
 repository corpus and supersedes this quick sample for context-scaling
 analysis.
 
-### Audited Docker 1K–25K context sweep (2026-07-27)
+### Audited 1K–25K context sweep (updated 2026-07-28)
 
 This full sweep refresh used four V100-SXM2-32GB GPUs, TP4, greedy decoding,
 cold unique repository-source prompts, and 256 output tokens per request. The
 Qwen runs used `sglang-v100:18878a5f0`
 (`sha256:f9feb5340d56…`); the Laguna run and its text-only media-validation fix
 used `sglang-v100:laguna-mmfix-20260727`
-(`sha256:b4c9a16f10a9…`, also tagged `sglang-v100:latest`). The matrix covers
-13 prompt lengths (1K through 25K in 2K increments) at 1, 2, and 4 concurrent
-clients for all three targets: 117 cells and 273 request responses. Every
-request reported zero cached prompt tokens and passed the generated-text
+(`sha256:b4c9a16f10a9…`, also tagged `sglang-v100:latest`). The 2026-07-28
+Laguna DFlash follow-up used the same source at commit `19cac341d` with
+Poolside's repaired draft revision
+`f6b32f4fb7ef2fb2ad481bb4c05433a2bf8b0ed1`. The matrix covers 13 prompt
+lengths (1K through 25K in 2K increments) at 1, 2, and 4 concurrent clients
+for four configurations: 156 cells and 364 request responses. Every request
+reported zero cached prompt tokens and passed the generated-text
 repetition/diversity audit. The 91 request-level hashes are identical between
-the Qwen runs; Laguna uses its corrected Mistral-family tokenizer, so it uses
-the same deterministic construction and exact lengths but different token
-IDs.
+the Qwen runs, and between Laguna target-only and Laguna DFlash. Laguna uses
+its corrected Mistral-family tokenizer, so its token IDs differ from Qwen.
 
 "Decode" below and in the plots means the median per-request client-visible
 decode rate, not summed batch throughput. TTFT is client request start to the
@@ -818,12 +831,15 @@ prompt-dependent, so its unsmoothed line is expected to be jagged.
 | 1 | 27B FP16 | 101.2 tok/s | 86.6 tok/s | 0.307 s | 6.884 s | 4.49 | 4.13 |
 | 1 | 122B GPTQ-Int4 | 109.2 tok/s | 81.9 tok/s | 0.292 s | 5.299 s | 4.20 | 3.41 |
 | 1 | Laguna S 2.1 INT4, target-only | 47.9 tok/s | 44.2 tok/s | 0.278 s | 5.734 s | N/A | N/A |
+| 1 | Laguna S 2.1 INT4 + DFlash | 71.6 tok/s | 64.2 tok/s | 0.300 s | 5.778 s | 2.67 | 2.51 |
 | 2 | 27B FP16 | 91.0 tok/s | 49.6 tok/s | 0.562 s | 11.161 s | 4.88 | 3.85 |
 | 2 | 122B GPTQ-Int4 | 97.2 tok/s | 51.9 tok/s | 0.542 s | 8.517 s | 4.53 | 3.66 |
 | 2 | Laguna S 2.1 INT4, target-only | 37.4 tok/s | 26.9 tok/s | 0.426 s | 9.092 s | N/A | N/A |
+| 2 | Laguna S 2.1 INT4 + DFlash | 59.2 tok/s | 32.9 tok/s | 0.559 s | 10.335 s | 2.45 | 2.27 |
 | 4 | 27B FP16 | 63.4 tok/s | 18.1 tok/s | 1.005 s | 17.955 s | 4.11 | 4.72 |
 | 4 | 122B GPTQ-Int4 | 82.0 tok/s | 50.2 tok/s | 0.813 s | 13.695 s | 4.49 | 3.85 |
 | 4 | Laguna S 2.1 INT4, target-only | 36.4 tok/s | 15.4 tok/s | 0.858 s | 14.912 s | N/A | N/A |
+| 4 | Laguna S 2.1 INT4 + DFlash | 46.5 tok/s | 18.5 tok/s | 1.255 s | 15.266 s | 2.40 | 2.28 |
 
 ![V100 context scaling at concurrency 1](benchmark/dflash_v100_20260716/plots/dflash_concurrency_1.svg)
 
@@ -834,17 +850,18 @@ prompt-dependent, so its unsmoothed line is expected to be jagged.
 The effective input-rate panel is total prompt tokens divided by the latest
 first-token time; it includes scheduling and chunked-prefill behavior and is
 not an isolated kernel microbenchmark. The DFlash acceptance panel applies to
-the two Qwen servers; Laguna is target-only, so its acceptance is correctly
-shown as N/A. The full generated text, raw timings, server arguments, CSV
+both Qwen servers and Laguna DFlash; only the Laguna target-only series is N/A.
+The full generated text, raw timings, server arguments, CSV
 summaries, audit rules, and reproduction commands are in
 [the benchmark directory](benchmark/dflash_v100_20260716/README.md). Five
 timing cells were repeated unchanged after one-time prefill/JIT-path stalls,
 including Laguna 1K/concurrency-4; only the immediate steady reruns are
 plotted, and every replacement is disclosed in the benchmark notes.
 
-The Qwen Docker servers passed all seven live agent and vision checks. Laguna
-passed reasoning on/off, native and streamed tool calling, and three
-text-only media-contract checks. Its checkpoint has no vision configuration:
+The Qwen Docker servers passed all seven live agent and vision checks. Both
+Laguna target-only and Laguna DFlash passed reasoning on/off, native and
+streamed tool calling, and three text-only media-contract checks. Its
+checkpoint has no vision configuration:
 image input must be rejected explicitly, not silently stripped. The audit
 first exposed that silent-stripping bug and image-conditioned hallucinations;
 the rebuilt image now returns HTTP 400 with an explicit unsupported-multimodal
@@ -869,8 +886,10 @@ and left about 1.6 GiB on the tightest rank after draft graph capture. At 0.70,
 the audited 27B configuration allocated 306,144 target/draft KV slots, admitted
 four requests, and left about 3.4 GiB on the tightest rank after draft graph
 capture. At 0.76 with `--swa-full-tokens-ratio 0.08`, Laguna allocated 399,184
-full-attention and 31,920 sliding-window token slots, admitted four requests,
-and left 5.25–5.77 GiB per GPU after graph capture.
+full-attention and 31,920 sliding-window target token slots and admitted four
+requests. Target-only left 5.25–5.77 GiB per GPU after graph capture; block-8
+DFlash added its 399,184-slot draft KV pool and left about 1.6 GiB on the
+tightest rank.
 The 35B-A3B AWQ block-size-8 configuration allocated 943,472 target/draft KV
 slots and left about 2.3 GiB on the tightest rank after graph capture. The
 unquantized FP16 configuration allocated 370,048 target/draft KV slots and also

@@ -1,39 +1,45 @@
 # Audited Docker V100 context-scaling benchmark
 
-This directory contains the 2026-07-27 four-V100 Docker refresh used by the
-root README. The directory name is retained so existing plot links remain
-stable. The Qwen tests used image `sglang-v100:18878a5f0`
+This directory contains the 2026-07-27 four-V100 Docker refresh and the
+2026-07-28 Laguna DFlash follow-up used by the root README. The directory name
+is retained so existing plot links remain stable. The Qwen tests used image
+`sglang-v100:18878a5f0`
 (`sha256:f9feb5340d56d29f8b8e42463daf0f79a429ef90a5b0e5d6ed63c6283103cc42`),
 built from commit `18878a5f080ab6a1a160854126b8426438bcec21`. Laguna
 used the rebuilt `sglang-v100:laguna-mmfix-20260727` image
 (`sha256:b4c9a16f10a90e306ed2d7bacafd5865307210b62237f901aa6027a34fd5c302`),
-which is also tagged `sglang-v100:latest`.
+which is also tagged `sglang-v100:latest`. The Laguna DFlash follow-up used
+the equivalent `sglang-v100` Conda source at commit `19cac341d` and the
+repaired Poolside draft revision
+`f6b32f4fb7ef2fb2ad481bb4c05433a2bf8b0ed1`.
 
 ## Workload
 
 - Targets: Qwen3.6-27B FP16, Qwen3.5-122B-A10B factory GPTQ-Int4, and
   Poolside Laguna S 2.1 118B-A8B INT4.
-- Drafts: the matching z-lab block-16 DFlash checkpoints for Qwen. Laguna is
-  target-only because its downloaded draft is incompatible with the current
-  target revision.
+- Drafts: the matching z-lab block-16 DFlash checkpoints for Qwen and
+  Poolside's repaired block-8 Laguna DFlash INT4 checkpoint. Laguna
+  target-only is retained as the direct baseline.
 - Hardware: four V100-SXM2-32GB GPUs with NVLink and TP4.
 - Matrix: prompt lengths 1K through 25K in 2K steps, at 1, 2, and 4
-  concurrent clients (39 cells/model, 117 total).
+  concurrent clients (39 cells/configuration, 156 total).
 - Generation: greedy, exactly 256 output tokens/request, `ignore_eos=false`.
 - Cache: `/flush_cache` before every cell; every recorded `cached_tokens` value
   is zero.
 - Prompts: unique chat-formatted slices of this repository. All 91
-  request-level prompt hashes match across the two Qwen runs. Laguna uses its
-  corrected Mistral-family tokenizer and therefore has the same deterministic
-  construction and exact token lengths, but different token IDs and hashes.
+  request-level prompt hashes match across the two Qwen runs, and all 91 match
+  between Laguna target-only and Laguna DFlash. Laguna uses its corrected
+  Mistral-family tokenizer and therefore has the same deterministic
+  construction and exact token lengths as Qwen, but different token IDs and
+  hashes.
 - Repetitions: one audited trial per cell. Each length uses a different source
   slice, so the prompt-dependent acceptance curves are intentionally
   unsmoothed and jagged.
 
 The harness retains all generated text, prompt/output hashes, finish reasons,
 re-tokenized diversity, and maximum identical token/character runs. It aborts
-instead of summarizing a cell that fails the output audit. All 117 cells and
-all 273 request responses succeeded; every response contained 256
+instead of summarizing a cell that fails the output audit. All 156 cells and
+all 364 request responses succeeded; every response contained 256
 server-reported output tokens. No repeated-word, repeated-character,
 replacement-character, or
 stray-`9` corruption pattern was found. Two apparent letter-`9` matches in the
@@ -70,7 +76,7 @@ reasoning, streaming events, tool arguments, usage, hashes, and server settings
 are retained in [27B](correctness/27b.json) and
 [122B](correctness/122b.json).
 
-Laguna also passed 7/7 checks in the rebuilt image:
+Laguna target-only and Laguna DFlash each passed 7/7 checks:
 
 1. thinking enabled with separated, coherent reasoning and the correct answer;
 2. thinking disabled without reasoning leakage;
@@ -88,7 +94,8 @@ hallucinations. The serving layer now rejects image, video, or audio parts
 before template conversion for every text-only model. The rebuilt container
 passed the full OpenAI serving-chat unit file (61 tests) and the live audit.
 Laguna's raw evidence is retained in
-[Laguna](correctness/laguna.json).
+[target-only](correctness/laguna.json) and
+[DFlash](correctness/laguna_dflash.json).
 
 Manual review found one isolated `.cw` suffix at the end of the 122B hidden
 reasoning trace. It did not appear in the separated final answer, affect the
@@ -107,8 +114,33 @@ was explicitly kept in FP16 with `SGLANG_MAMBA_CONV_DTYPE=float16` and
 
 Laguna intentionally omitted `--enable-multimodal` and used
 `--reasoning-parser poolside_v1 --tool-call-parser poolside_v1`. Its final
-pool exposed 399,184 full-attention and 31,920 sliding-window token slots,
-admitted four requests, and left 5.25–5.77 GiB per GPU after graph capture.
+target pool exposed 399,184 full-attention and 31,920 sliding-window token
+slots and admitted four requests. Target-only left 5.25–5.77 GiB per GPU after
+graph capture; block-8 DFlash added a 399,184-slot draft KV pool and left about
+1.6 GiB on the tightest rank.
+
+The Laguna DFlash sweep accepted 2.03–3.24 tokens per verify across its 39
+cells. Relative to target-only, the median per-request decode ratio across the
+13 context lengths was 1.41x at concurrency 1, 1.40x at concurrency 2, and
+1.28x at concurrency 4. Median prefill-rate ratios were 0.99x at every
+concurrency, so the measured gain is decode-side.
+
+A separate block-16 tuning run sampled 1K, 9K, and 25K at concurrency 1 and 4.
+Block 16 was 2.7% faster only for 1K/concurrency-1. Block 8 was faster in the
+other five cells; at concurrency 4 it led by 15.2%, 13.6%, and 11.3%
+respectively. The acceptance increase was too small to offset twice the verify
+width on V100. Those six trials are retained in
+[`laguna_dflash_block16_tuning`](results/laguna_dflash_block16_tuning).
+
+Greedy target-only and DFlash text is not byte-identical: the native
+multi-token split-K verification kernel and ordinary one-token Triton decode
+reduce attention in different orders, so near-tied logits can choose different
+tokens. None of the 91 complete 256-token hashes matched end-to-end, although
+individual prefixes could match for hundreds of tokens. This is not an
+unverified-draft path: each committed draft token is compared with target
+top-1, and the SM70 fused accept/bonus kernel matched the eager reference in
+2,000 randomized cases. Use target-only when bitwise greedy reproducibility is
+a requirement.
 
 ## Metrics
 
@@ -121,7 +153,7 @@ admitted four requests, and left 5.25–5.77 GiB per GPU after graph capture.
   time. It includes scheduling and chunked-prefill effects and is not an
   isolated kernel microbenchmark.
 - `weighted_accept_length`: total output tokens divided by total DFlash verify
-  calls for the cell. It is N/A for target-only Laguna.
+  calls for the cell. It is N/A only for target-only Laguna.
 
 ## Reproduce
 
@@ -156,6 +188,16 @@ For target-only Laguna:
   --output-dir benchmark/dflash_v100_20260716/results/laguna
 ```
 
+For Laguna DFlash:
+
+```bash
+/home/rah/miniconda3/envs/sglang-v100/bin/python \
+  benchmark/dflash_v100_20260716/run_benchmark.py \
+  --model-key laguna-s-2.1-int4-dflash \
+  --tokenizer poolside/Laguna-S-2.1-INT4 \
+  --output-dir benchmark/dflash_v100_20260716/results/laguna_dflash
+```
+
 Run the live correctness audit against each corresponding server:
 
 ```bash
@@ -174,6 +216,12 @@ Run the live correctness audit against each corresponding server:
   --model poolside/Laguna-S-2.1-INT4 \
   --multimodal-mode unsupported \
   --output benchmark/dflash_v100_20260716/correctness/laguna.json
+
+/home/rah/miniconda3/envs/sglang-v100/bin/python \
+  benchmark/dflash_v100_20260716/run_agent_multimodal_audit.py \
+  --model poolside/Laguna-S-2.1-INT4 \
+  --multimodal-mode unsupported \
+  --output benchmark/dflash_v100_20260716/correctness/laguna_dflash.json
 ```
 
 Regenerate the dependency-free SVG figures with:

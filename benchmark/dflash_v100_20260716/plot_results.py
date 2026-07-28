@@ -12,9 +12,10 @@ from typing import Callable
 
 
 MODELS = [
-    ("27B FP16", "27b", "#2563eb"),
-    ("122B-A10B GPTQ-Int4", "122b", "#dc2626"),
-    ("Laguna S 2.1 INT4 (target-only)", "laguna", "#059669"),
+    ("Qwen 27B FP16 + DFlash", "27b", "#2563eb"),
+    ("Qwen 122B-A10B Int4 + DFlash", "122b", "#dc2626"),
+    ("Laguna 118B-A8B Int4 target-only", "laguna", "#059669"),
+    ("Laguna 118B-A8B Int4 + DFlash", "laguna_dflash", "#7c3aed"),
 ]
 PANELS: list[tuple[str, str, Callable[[float], float], str]] = [
     (
@@ -93,16 +94,16 @@ def render_plot(rows_by_model: dict[str, list[dict]], concurrency: int) -> str:
         "<title>V100 context benchmark at concurrency "
         + str(concurrency)
         + "</title>",
-        "<desc>Audited V100 context-scaling results for Qwen3.6 27B FP16 with DFlash, Qwen3.5 122B-A10B GPTQ Int4 with DFlash, and Laguna S 2.1 INT4 target-only.</desc>",
+        "<desc>Audited V100 context-scaling results for Qwen3.6 27B FP16 with DFlash, Qwen3.5 122B-A10B GPTQ Int4 with DFlash, and Laguna S 2.1 INT4 with and without DFlash.</desc>",
         '<rect width="100%" height="100%" fill="#ffffff"/>',
         '<style>text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#111827}.title{font-size:28px;font-weight:700}.subtitle{font-size:15px;fill:#4b5563}.panel-title{font-size:18px;font-weight:650}.axis{font-size:12px;fill:#4b5563}.unit{font-size:12px;fill:#6b7280}.footer{font-size:12px;fill:#6b7280}</style>',
         f'<text class="title" x="{width / 2}" y="48" text-anchor="middle">V100 context scaling — concurrency {concurrency}</text>',
-        f'<text class="subtitle" x="{width / 2}" y="76" text-anchor="middle">Qwen DFlash + Laguna target-only · 4× V100-SXM2-32GB · cold unique code prompts · 256 output tokens/request</text>',
+        f'<text class="subtitle" x="{width / 2}" y="76" text-anchor="middle">Qwen and Laguna DFlash · Laguna target-only baseline · 4× V100-SXM2-32GB · 256 output tokens/request</text>',
     ]
 
-    legend_x = 205
+    legend_x = 30
     for index, (label, _, color) in enumerate(MODELS):
-        x = legend_x + index * 390
+        x = legend_x + index * 335
         parts.extend(
             [
                 f'<line x1="{x}" y1="108" x2="{x + 34}" y2="108" stroke="{color}" stroke-width="4"/>',
@@ -182,13 +183,13 @@ def render_plot(rows_by_model: dict[str, list[dict]], concurrency: int) -> str:
                 )
         if metric == "weighted_accept_length_median":
             parts.append(
-                f'<text class="unit" x="{plot_x + plot_w - 4}" y="{plot_y + 17}" text-anchor="end">Laguna target-only: N/A</text>'
+                f'<text class="unit" x="{plot_x + plot_w - 4}" y="{plot_y + 17}" text-anchor="end">Target-only: N/A</text>'
             )
 
     parts.extend(
         [
             f'<text class="footer" x="{width / 2}" y="885" text-anchor="middle">Decode is median per-request client-visible rate, not aggregate batch throughput. Input rate is prompt tokens / last client TTFT.</text>',
-            f'<text class="footer" x="{width / 2}" y="907" text-anchor="middle">One audited cold-cache trial per cell · Qwen DFlash acceptance unsmoothed; Laguna target-only N/A · generated text retained · 2026-07-27</text>',
+            f'<text class="footer" x="{width / 2}" y="907" text-anchor="middle">One audited cold-cache trial per cell · DFlash acceptance unsmoothed; target-only N/A · generated text retained · 2026-07-28</text>',
             "</svg>",
         ]
     )
