@@ -48,14 +48,24 @@ This is expected for this fork.
 ### Updating an existing host installation
 
 If `scripts/install_v100.sh` has already completed successfully for this
-checkout, the Laguna S 2.1 target and DFlash changes do not require rebuilding
-FlashInfer, `sglang-kernel`, native V100 attention, or Marlin. The SGLang
-package is installed editable and the new SM70 arithmetic is Triton JIT code,
-so update the checkout and keep using the existing `sglang-v100` environment:
+checkout, normal Python/model changes do not require rebuilding FlashInfer,
+`sglang-kernel`, native V100 attention, or Marlin. The SGLang package is
+installed editable, so update the checkout and keep using the existing
+`sglang-v100` environment:
 
 ```bash
 git -C "$HOME/sglang-V100" pull --ff-only
 conda activate sglang-v100
+bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
+```
+
+The Laguna SM70 Marlin selector added on 2026-07-28 is a native-kernel change.
+After pulling it onto a host built from an older revision, rebuild only Marlin
+once, then validate:
+
+```bash
+conda activate sglang-v100
+bash "$HOME/sglang-V100/scripts/setup_v100_marlin.sh"
 bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
 ```
 
@@ -79,11 +89,12 @@ The published image and its tags are also available on Docker Hub at
 <https://hub.docker.com/r/geesegeesegeese/sglang-v100>, so it can be browsed or
 pulled without a local build.
 
-Published images can lag the source branch. For Laguna S 2.1, use a tag known
-to contain commit `02157f0a7` or build `sglang-v100:latest` locally with the
-command below. Rebuilding after a Laguna-only source update reuses the
-FlashInfer, native-attention, `sglang-kernel`, and Marlin layers; only the late
-Python application and validation layers need to run again.
+Published images can lag the source branch. Build `sglang-v100:latest` locally
+with the command below when testing an unpublished change. A normal
+Laguna Python-only update reuses every native layer. A change to the
+Laguna-specific Marlin patch rebuilds Marlin and the later application and
+validation layers, while retaining the cached FlashInfer, native-attention,
+and `sglang-kernel` layers.
 
 Model checkpoints are not embedded in the image. The command below bind-mounts
 the host Hugging Face cache, so it reuses checkpoints already downloaded by a
@@ -436,14 +447,14 @@ MTP layer from the target checkpoint.
 
 ## DFlash support
 
-DFlash spec-v2 is implemented entirely in the Python runtime plus Triton JIT
-kernels. It adds no package, compiler, patch, or native-extension requirement,
-so the existing local and Docker build commands are unchanged. On a local
-editable install, pulling this branch exposes the new modules immediately. In
-Docker, the source change invalidates only the late `COPY python` application
-layer; the cached FlashInfer, native V100 attention, `sglang-kernel`, and Marlin
-build layers remain reusable. The first DFlash launch may populate the existing
-Triton and TorchInductor caches.
+DFlash spec-v2 itself is implemented entirely in the Python runtime plus Triton
+JIT kernels. It adds no package, compiler, patch, or native-extension
+requirement. On a local editable install, pulling DFlash-only changes exposes
+the new modules immediately. In Docker, those source changes invalidate only
+the late `COPY python` application layer. The Laguna SM70 Marlin geometry
+selector documented below is a separate native optimization and requires the
+one-time Marlin rebuild described above. The first DFlash launch may populate
+the existing Triton and TorchInductor caches.
 
 Run `conda activate sglang-v100` before using these commands. They are
 model-specific configurations tested on this machine. The conservative
@@ -608,11 +619,57 @@ all three text-only multimodal rejection contracts passed 7/7.
 
 The target checkpoint's compressed-tensors metadata is detected automatically;
 do not add a GPTQ or AWQ `--quantization` override. The explicit Marlin runner
-selects this fork's SM70 INT4 MoE repack and execution path. Global and
-sliding-window target attention use the TileLang V100 kernels, while the DFlash
-worker retains the draft model's per-layer normalization and gated attention.
-`--kv-cache-dtype auto` resolves to FP16 on V100; the checkpoint's FP8 KV-cache
-calibration data is not used by this backend.
+logs `CompressedTensorsWNA16MarlinMoEMethod`: SGLang repacks the checkpoint
+into Marlin's `uint4b8` layout and executes
+`torch.ops._moe_C.moe_wna16_marlin_gemm`. In this command, “Marlin” therefore
+names the repack/layout and SM70 WNA16 kernel family. It is not
+`gptq_marlin` or `awq_marlin`, and the checkpoint remains compressed-tensors
+symmetric INT4 with group size 32. Global and sliding-window target attention
+use the TileLang V100 kernels, while the DFlash worker retains the draft
+model's per-layer normalization and gated attention. `--kv-cache-dtype auto`
+resolves to FP16 on V100; the checkpoint's FP8 KV-cache calibration data is not
+used by this backend.
+
+#### Laguna SM70 pipeline audit (2026-07-28)
+
+Laguna and Qwen3.5-122B-A10B have the same 48-layer, 3072-hidden,
+256-expert, 1024-intermediate MoE dimensions, but their per-token work is not
+the same. Laguna routes ten experts instead of Qwen's eight, producing 25%
+more routed expert rows, and its group-32 compressed-tensors weights carry four
+times the scale granularity of Qwen's group-128 GPTQ weights. Laguna DFlash
+also accepted only about 2.19–2.91 tokens per verification in the check below,
+versus roughly 3.4–4.5 in the audited Qwen sweep. The smaller advertised active
+parameter count therefore does not imply a faster V100 decode path.
+
+The SM70 selector now has measured TP4 geometries for Laguna's gate/up and down
+projections at ordinary decode and DFlash block-8/block-16 widths. All fourteen
+automatic-selector shapes (one through 64 input tokens, both projections)
+matched a dequantized FP16 reference. Gate/up kernel time improved 1.41–1.70x
+at block-8 verification widths; down-projection time improved 1.09–1.11x.
+
+This cold-prompt end-to-end A/B used identical prompt hashes, 256 generated
+tokens, and one trial per cell. “Target tuned” isolates the Marlin selector;
+the DFlash columns are the resulting absolute rate and acceptance, not a
+kernel-only A/B because acceptance changes with generated text.
+
+| Concurrency | Context | Target baseline | Target tuned | Target gain | DFlash tuned | Accept |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1K | 47.9 tok/s | 59.9 tok/s | 1.25x | 77.3 tok/s | 2.91 |
+| 1 | 9K | 47.3 tok/s | 59.3 tok/s | 1.25x | 65.7 tok/s | 2.56 |
+| 1 | 25K | 44.2 tok/s | 54.3 tok/s | 1.23x | 67.0 tok/s | 2.67 |
+| 2 | 1K | 37.4 tok/s | 42.7 tok/s | 1.14x | 53.3 tok/s | 2.47 |
+| 2 | 9K | 34.9 tok/s | 39.5 tok/s | 1.13x | 44.5 tok/s | 2.28 |
+| 2 | 25K | 26.9 tok/s | 29.7 tok/s | 1.11x | 33.3 tok/s | 2.19 |
+| 4 | 1K | 36.4 tok/s | 36.6 tok/s | 1.01x | 47.5 tok/s | 2.46 |
+| 4 | 9K | 26.4 tok/s | 26.4 tok/s | 1.00x | 33.4 tok/s | 2.46 |
+| 4 | 25K | 15.4 tok/s | 15.4 tok/s | 1.00x | 17.6 tok/s | 2.23 |
+
+The selector changes low-token-count MoE execution only. Effective prefill
+rate was unchanged within normal cold-run variation, and the lack of a
+concurrency-four target gain shows that another saturated pipeline stage
+dominates there. Reasoning on/off, native and streamed tool calls, and all
+three explicit text-only multimodal rejection contracts passed 7/7 on both
+target-only and DFlash servers after the change.
 
 The target and draft downloads require about 75 GB of storage. The DFlash
 configuration retained 399,184 full-attention and 31,920 sliding-window target
@@ -825,6 +882,10 @@ verify calls. One audited cold-cache trial was collected per cell, so the
 point-to-point variation is real workload variation, not a confidence band.
 Each length uses a different unique source slice; DFlash acceptance is
 prompt-dependent, so its unsmoothed line is expected to be jagged.
+
+This retained full sweep predates the Laguna-specific SM70 Marlin selector.
+Its Laguna lines are the baseline used by the pipeline A/B above; the Qwen
+lines are unaffected.
 
 | Concurrency | Target | Decode at 1K | Decode at 25K | TTFT at 1K | TTFT at 25K | Accept at 1K | Accept at 25K |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |

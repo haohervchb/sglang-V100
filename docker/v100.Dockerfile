@@ -78,10 +78,10 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && python -m pip install --force-reinstall --no-deps \
       nvidia-nccl-cu12==2.27.5
 
-COPY patches /opt/sglang/patches
-
 # Patched FlashInfer SM70 source. This is editable because its JIT headers and
 # Python sources are both needed at runtime.
+COPY patches/flashinfer-sm70.patch \
+      /opt/sglang/patches/flashinfer-sm70.patch
 RUN git clone https://github.com/haohervchb/flashinfer.git \
       /opt/deps/flashinfer-sm70 \
     && git -C /opt/deps/flashinfer-sm70 checkout --detach \
@@ -94,6 +94,10 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 
 # Native SM70 attention fallback. Docker has nvcc but no GPU during build, so
 # the final small patch permits the explicit sm_70 cross-compilation.
+COPY patches/flash-attention-v100-sglang.patch \
+     patches/flash-attention-v100-torch291.patch \
+     patches/flash-attention-v100-cross-compile.patch \
+     /opt/sglang/patches/
 RUN git clone https://github.com/ai-bond/flash-attention-v100.git \
       /opt/deps/flash-attention-v100 \
     && git -C /opt/deps/flash-attention-v100 checkout --detach \
@@ -128,6 +132,8 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 RUN git clone --depth 1 --branch v4.2.1 \
       https://github.com/NVIDIA/cutlass.git /opt/cutlass
 COPY scripts/setup_v100_marlin.sh /opt/sglang/scripts/setup_v100_marlin.sh
+COPY patches/marlin-v100-qwen-sm70-tuning.patch \
+      /opt/sglang/patches/marlin-v100-qwen-sm70-tuning.patch
 RUN export CUTLASS_DIR=/opt/cutlass \
     && export MARLIN_V100_REPO=/opt/deps/marlin-v100 \
     && export MARLIN_V100_REF=6d72a49939701d26b15b617a4cd2423174adb2d1 \

@@ -9,7 +9,7 @@
 # package so it is auto-detected at runtime on SM70 (no env var needed).
 #
 # Usage (from any directory):
-#   conda activate flashinfer-sm70        # or whichever env runs sglang
+#   conda activate sglang-v100            # or whichever env runs sglang
 #   bash scripts/setup_v100_marlin.sh
 #
 # Re-run is safe: it rebuilds incrementally and re-installs the .so.
@@ -114,6 +114,9 @@ ACTIVE_PYTHON="$("$(which "$PYTHON")" -c 'import sys; print(sys.executable)')"
 # A symlink to a venv interpreter is not sufficient: Python discovers the
 # environment from pyvenv.cfg beside the symlink and silently falls back to the
 # system prefix. A forwarding launcher preserves both venv and Conda prefixes.
+# Remove an existing venv symlink first: shell redirection follows symlinks and
+# would otherwise overwrite the active environment's Python executable.
+rm -f "$REPO/.venv/bin/python"
 printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$ACTIVE_PYTHON" > "$REPO/.venv/bin/python"
 chmod +x "$REPO/.venv/bin/python"
 
@@ -181,5 +184,5 @@ else
   log "smoke test deferred to a separate cached build layer"
 fi
 
-log "done. SGLang on SM70 will now auto-detect and use this kernel for AWQ/GPTQ MoE."
+log "done. SGLang on SM70 will now auto-detect and use this kernel for AWQ/GPTQ/compressed-tensors MoE."
 log "tuning knobs (optional): SM70_MARLIN_MOE_CTA_GEOMETRY, SM70_MARLIN_MOE_SPLIT_K, SM70_MARLIN_MOE_METADATA_CACHE"
