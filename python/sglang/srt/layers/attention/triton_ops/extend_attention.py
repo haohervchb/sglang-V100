@@ -20,6 +20,7 @@ import torch
 import triton
 import triton.language as tl
 
+from sglang.srt.layers.attention.triton_ops.fp8_sm70 import fp8_e4m3fn_to_fp32
 from sglang.srt.layers.attention.triton_ops.prefill_attention import (
     context_attention_fwd,
 )
@@ -28,6 +29,7 @@ from sglang.srt.utils import is_cuda, is_hip
 _is_cuda = is_cuda()
 if _is_cuda:
     CUDA_CAPABILITY = torch.cuda.get_device_capability()
+_is_sm70 = _is_cuda and CUDA_CAPABILITY[0] == 7
 
 _is_hip = is_hip()
 
@@ -270,6 +272,7 @@ def _fwd_kernel(
     SKIP_PREFIX_CUSTOM_MASK: tl.constexpr,
     STORE_TRANSPOSE: tl.constexpr,
     HAS_SINK: tl.constexpr,
+    SM70_FP8_KV: tl.constexpr,
 ):
     cur_seq = tl.program_id(0)
     cur_head = tl.program_id(1)
@@ -382,6 +385,8 @@ def _fwd_kernel(
                 mask=(mask_n[None, :]) & (mask_d[:, None]),
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                k = fp8_e4m3fn_to_fp32(k).to(tl.float16)
             qk = tl.dot(q.to(k.dtype), k)
             if BLOCK_DPE > 0:
                 offs_kpe = (
@@ -394,6 +399,8 @@ def _fwd_kernel(
                     mask=mask_n[None, :],
                     other=0.0,
                 )
+                if SM70_FP8_KV:
+                    kpe = fp8_e4m3fn_to_fp32(kpe).to(tl.float16)
                 qk += tl.dot(qpe.to(kpe.dtype), kpe)
             qk *= sm_scale * k_scale
 
@@ -423,6 +430,8 @@ def _fwd_kernel(
                 mask=mask_n[:, None] & mask_dv[None, :],
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                v = fp8_e4m3fn_to_fp32(v).to(tl.float16)
             p = p.to(v.dtype)
             acc = acc * re_scale[:, None] + tl.dot(p, v) * v_scale
 
@@ -605,6 +614,16 @@ def extend_attention_fwd(
     SKIP_PREFIX_CUSTOM_MASK = skip_prefix_custom_mask
 
     HAS_SINK = sinks is not None
+    sm70_fp8_kv = (
+        _is_sm70
+        and k_buffer.dtype == torch.float8_e4m3fn
+        and v_buffer.dtype == torch.float8_e4m3fn
+    )
+    if sm70_fp8_kv:
+        # SM70 PTX has no native FP8 operand type. Keep the compact E4M3
+        # storage and decode raw bytes inside the attention tile.
+        k_buffer = k_buffer.view(torch.uint8)
+        v_buffer = v_buffer.view(torch.uint8)
 
     grid = (batch_size, head_num, triton.cdiv(max_len_extend, BLOCK_M))
     num_stages = 1
@@ -657,6 +676,7 @@ def extend_attention_fwd(
         IS_CAUSAL=is_causal,
         SKIP_PREFIX_CUSTOM_MASK=SKIP_PREFIX_CUSTOM_MASK,
         HAS_SINK=HAS_SINK,
+        SM70_FP8_KV=sm70_fp8_kv,
         STORE_TRANSPOSE=_is_hip,
         num_warps=num_warps,
         num_stages=num_stages,
@@ -739,6 +759,7 @@ def _fwd_kernel_unified(
     IS_CAUSAL: tl.constexpr,
     USE_CUSTOM_MASK: tl.constexpr,
     HAS_SINK: tl.constexpr,
+    SM70_FP8_KV: tl.constexpr,
 ):
     """
     Unified 1-stage kernel for deterministic extend attention.
@@ -885,6 +906,8 @@ def _fwd_kernel_unified(
                 mask=(mask_n[None, :]) & (mask_d[:, None]),
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                k = fp8_e4m3fn_to_fp32(k).to(tl.float16)
 
             qk = tl.dot(q.to(k.dtype), k)
             if BLOCK_DPE > 0:
@@ -898,6 +921,8 @@ def _fwd_kernel_unified(
                     mask=mask_n[None, :],
                     other=0.0,
                 )
+                if SM70_FP8_KV:
+                    kpe = fp8_e4m3fn_to_fp32(kpe).to(tl.float16)
                 qk += tl.dot(qpe.to(kpe.dtype), kpe)
 
             qk *= sm_scale_withk
@@ -930,6 +955,8 @@ def _fwd_kernel_unified(
                 mask=mask_n[:, None] & mask_dv[None, :],
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                v = fp8_e4m3fn_to_fp32(v).to(tl.float16)
             p = p.to(v.dtype)
             acc = acc * re_scale[:, None] + tl.dot(p, v)
 
@@ -1012,6 +1039,14 @@ def extend_attention_fwd_unified(
 
     USE_CUSTOM_MASK = custom_mask is not None
     HAS_SINK = sinks is not None
+    sm70_fp8_kv = (
+        _is_sm70
+        and k_buffer.dtype == torch.float8_e4m3fn
+        and v_buffer.dtype == torch.float8_e4m3fn
+    )
+    if sm70_fp8_kv:
+        k_buffer = k_buffer.view(torch.uint8)
+        v_buffer = v_buffer.view(torch.uint8)
 
     # For sliding window attention, window_start_pos tracks the absolute position
     # of the first key in each sequence's window
@@ -1063,6 +1098,7 @@ def extend_attention_fwd_unified(
         IS_CAUSAL=is_causal,
         USE_CUSTOM_MASK=USE_CUSTOM_MASK,
         HAS_SINK=HAS_SINK,
+        SM70_FP8_KV=sm70_fp8_kv,
         num_warps=num_warps,
         num_stages=num_stages,
         **extra_kargs,

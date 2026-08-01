@@ -173,6 +173,7 @@ class LinearBase(torch.nn.Module):
         if params_dtype is None:
             params_dtype = torch.get_default_dtype()
         self.params_dtype = params_dtype
+        self.prefix = prefix
         self.quant_config = quant_config
         if quant_config is None:
             from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
@@ -546,6 +547,18 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
             use_presharded_weights=use_presharded_weights,
         )
         self.prefix = prefix
+
+    def forward_fused_silu_and_mul(
+        self, input_: torch.Tensor
+    ) -> Optional[torch.Tensor]:
+        if self.gather_output:
+            return None
+        if self.bias is not None and not self.skip_bias_add:
+            return None
+        fused_apply = getattr(self.quant_method, "apply_fused_silu_and_mul", None)
+        if fused_apply is None:
+            return None
+        return fused_apply(self, input_)
 
     def weight_loader(
         self,

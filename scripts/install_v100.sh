@@ -25,7 +25,8 @@ die() { printf '\n\033[1;31m[install_v100] ERROR:\033[0m %s\n' "$*" >&2; exit 1;
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPS_ROOT="${SGLANG_V100_DEPS_DIR:-$HOME/.cache/sglang-v100-sources}"
 FLASHINFER_REV="c3c40a7b90b792fc59f90f8f55c9e2de9c1b6833"
-FLASH_ATTN_V100_REV="d89800edf608d85744f3ab6188be5fd0736acf39"
+ONECAT_VLLM_REV="3ec0c68c6596d6ab31fbdee9fa676254a52c2b7d"
+ONECAT_CUTLASS_REV="da5e086dab31d63815acafdac9a9c5893b1c69e2"
 
 [[ -d "$REPO_ROOT/.git" ]] || die "$REPO_ROOT is not an SGLang-V100 checkout."
 
@@ -103,7 +104,30 @@ python -m pip install -e "$REPO_ROOT/python"
 prepare_patched_repo() {
   local name=$1 url=$2 rev=$3 destination=$4
   shift 4
-  local patch_file patch_fingerprint stamp_file
+  local backup_destination old_fingerprint patch_file patch_fingerprint stamp_file
+
+  if (( $# > 0 )); then
+    patch_fingerprint="$({ sha256sum "$@"; } | sha256sum | awk '{print $1}')"
+  else
+    patch_fingerprint="$(printf '%s' "$rev" | sha256sum | awk '{print $1}')"
+  fi
+  stamp_file="$destination/.sglang-v100-patches"
+
+  # An installer-managed checkout is expected to be dirty because patches are
+  # applied without creating commits. If those patches change, retain that
+  # checkout verbatim and build a clean replacement rather than either
+  # rejecting a normal upgrade or discarding possible local edits.
+  if [[ -d "$destination/.git" ]] && [[ -f "$stamp_file" ]] && \
+      [[ "$(<"$stamp_file")" != "$patch_fingerprint" ]] && \
+      ! git -C "$destination" diff --quiet; then
+    old_fingerprint="$(<"$stamp_file")"
+    backup_destination="${destination}.sglang-v100-backup-${old_fingerprint:0:12}"
+    [[ ! -e "$backup_destination" ]] || \
+      die "managed dependency backup already exists: $backup_destination"
+    log "Preserving previous patched $name checkout at $backup_destination"
+    mv "$destination" "$backup_destination"
+    stamp_file="$destination/.sglang-v100-patches"
+  fi
 
   if [[ ! -d "$destination/.git" ]]; then
     log "Cloning $name at $rev"
@@ -118,8 +142,6 @@ prepare_patched_repo() {
     git -C "$destination" checkout --detach "$rev"
   fi
 
-  patch_fingerprint="$({ sha256sum "$@"; } | sha256sum | awk '{print $1}')"
-  stamp_file="$destination/.sglang-v100-patches"
   if [[ -f "$stamp_file" ]] && [[ "$(<"$stamp_file")" == "$patch_fingerprint" ]]; then
     return
   fi
@@ -141,17 +163,28 @@ prepare_patched_repo \
   "$FLASHINFER_REV" "$FLASHINFER_DIR" \
   "$REPO_ROOT/patches/flashinfer-sm70.patch"
 log "Installing the proven FlashInfer SM70 source"
+python -m pip uninstall -y flashinfer-python flashinfer-cubin || true
 python -m pip install --no-deps --no-build-isolation -e "$FLASHINFER_DIR"
 
-FLASH_ATTN_V100_DIR="$DEPS_ROOT/flash-attention-v100"
+ONECAT_VLLM_DIR="$DEPS_ROOT/1cat-vllm"
 prepare_patched_repo \
-  flash-attention-v100 https://github.com/ai-bond/flash-attention-v100.git \
-  "$FLASH_ATTN_V100_REV" "$FLASH_ATTN_V100_DIR" \
-  "$REPO_ROOT/patches/flash-attention-v100-sglang.patch" \
-  "$REPO_ROOT/patches/flash-attention-v100-torch291.patch"
-log "Building the native SM70 attention fallback"
+  1Cat-vLLM https://github.com/1CatAI/1Cat-vLLM.git \
+  "$ONECAT_VLLM_REV" "$ONECAT_VLLM_DIR" \
+  "$REPO_ROOT/patches/1cat-vllm-sm70-sglang.patch"
+FLASH_ATTN_V100_DIR="$ONECAT_VLLM_DIR/flash-attention-v100"
+log "Building enhanced SM70 attention with direct E4M3 XQA"
 python -m pip install --force-reinstall --no-deps --no-build-isolation \
   "$FLASH_ATTN_V100_DIR"
+
+ONECAT_CUTLASS_DIR="$DEPS_ROOT/cutlass-1cat"
+prepare_patched_repo \
+  CUTLASS https://github.com/NVIDIA/cutlass.git \
+  "$ONECAT_CUTLASS_REV" "$ONECAT_CUTLASS_DIR"
+
+log "Building the TurboMind SM70 block-FP8 GEMM backend"
+SGLANG_1CAT_VLLM_ROOT="$ONECAT_VLLM_DIR" \
+SGLANG_1CAT_CUTLASS_ROOT="$ONECAT_CUTLASS_DIR" \
+  python "$REPO_ROOT/scripts/build_sm70_turbomind.py"
 
 if [[ ! -d "$HOME/cutlass/.git" ]]; then
   git clone --depth 1 --branch v4.2.1 \

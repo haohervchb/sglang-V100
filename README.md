@@ -29,10 +29,11 @@ threads that available RAM can safely sustain, rather than a hard-coded job
 count. Set `MAX_JOBS=16` before the command only if you want to impose a limit.
 
 The installer builds only SM70 `sglang-kernel` targets, applies the exact
-FlashInfer SM70, native V100 attention, and Marlin SM70 compatibility patches
-kept in this repository, verifies NCCL, and precompiles FlashInfer's sampling
-module. The last step moves its roughly minute-long cold JIT cost from the
-first chat into installation/startup.
+FlashInfer SM70, 1Cat V100 attention, and Marlin SM70 compatibility patches
+kept in this repository, builds the TurboMind W8A16 block-FP8 extension,
+verifies NCCL, and precompiles FlashInfer's sampling module. The last step moves
+its roughly minute-long cold JIT cost from the first chat into
+installation/startup.
 
 If only the final validation step fails, do not rerun the installer or rebuild
 anything. After pulling the latest changes, rerun validation directly:
@@ -41,9 +42,9 @@ anything. After pulling the latest changes, rerun validation directly:
 bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
 ```
 
-The FlashInfer package and cubin versions used by the working SM70 stack differ
-slightly, so the serving commands set `FLASHINFER_DISABLE_VERSION_CHECK=1`.
-This is expected for this fork.
+The installer removes the separately distributed FlashInfer cubin package and
+uses the pinned SM70 source build for both Python and native code. No
+FlashInfer version-check override is required.
 
 ### Updating an existing host installation
 
@@ -73,13 +74,18 @@ Rerun `scripts/install_v100.sh` only when the installer, dependency pins,
 patches, `sgl-kernel`, or Python dependency metadata change. A normal pull of
 the Laguna Python/model code is not a native rebuild trigger.
 
+When an installer-managed dependency patch changes, the installer preserves
+the prior patched source beside the replacement as
+`<dependency>.sglang-v100-backup-<fingerprint>`. Remove that backup only after
+the rebuilt environment passes `scripts/smoke_v100.sh`.
+
 ## Docker: pull and run
 
 The Docker image mirrors the host build: CUDA 12.8, Torch 2.9.1, the patched
-FlashInfer SM70 source, native V100 attention fallback, SM70-only
-`sglang-kernel`, V100 Marlin, and NCCL 2.27.5. It contains the complete serving
-runtime; no repository checkout or host Python environment is mounted into the
-container. Pull the published image with:
+FlashInfer SM70 source, direct-E4M3 V100 XQA, TurboMind W8A16 block-FP8,
+SM70-only `sglang-kernel`, V100 Marlin, and NCCL 2.27.5. It contains the
+complete serving runtime; no repository checkout or host Python environment
+is mounted into the container. Pull the published image with:
 
 ```bash
 docker pull geesegeesegeese/sglang-v100:latest
@@ -200,7 +206,6 @@ uses all four visible GPUs. Stop one server before starting another.
 ### Qwen3.5-122B-A10B GPTQ Int4
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -223,7 +228,6 @@ sglang serve \
 ### Qwen3.5-122B-A10B AWQ
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -246,7 +250,6 @@ sglang serve \
 ### Qwen3.6-35B-A3B AWQ
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -268,7 +271,6 @@ sglang serve \
 ### Qwen3.6-27B dense FP16
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -286,6 +288,50 @@ sglang serve \
   --chunked-prefill-size 16384 \
   --enable-nccl-nvls
 ```
+
+### Qwen3.6-27B block-FP8 on V100
+
+V100 has no native FP8 tensor-core arithmetic, so this fork serves the factory
+`Qwen/Qwen3.6-27B-FP8` checkpoint as W8A16. TurboMind handles small-M decode
+GEMMs directly from block-FP8 weights; large prefill projections temporarily
+materialize one FP16 weight at a time and use cuBLAS. This avoids retaining a
+full FP16 model while keeping prefill close to the unquantized checkpoint.
+
+The following target-only command uses the compact E4M3 KV cache. It is the
+recommended starting point for long-context, single-request serving on four
+32 GB V100s:
+
+```bash
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+sglang serve \
+  --model Qwen/Qwen3.6-27B-FP8 \
+  --dtype float16 \
+  --kv-cache-dtype fp8_e4m3 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 4096 \
+  --mamba-full-memory-ratio 0.1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 1 \
+  --cuda-graph-bs 1 \
+  --enable-nccl-nvls \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
+Use `--kv-cache-dtype auto` for an FP16 KV cache. FP16 KV is a little faster
+for decode, while E4M3 provides approximately twice the KV-token capacity.
+The SM70 E4M3 path uses direct XQA for decode and dequantizes each active
+prefix page once into reusable FP16 scratch for prefill. It does not repeatedly
+decode the same cache bytes for each GQA query head.
 
 ## Decode acceleration with MTP or DFlash
 
@@ -384,7 +430,6 @@ command includes its runtime environment variables inline and listens on port
 Qwen3.5-122B-A10B GPTQ-Int4 with its built-in MTP layer:
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -415,7 +460,6 @@ sglang serve \
 Qwen3.6-27B dense FP16 with its built-in MTP layer:
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -491,7 +535,6 @@ requests. The 128-way decode split improved 90K-context decode by about 7% over
 this fork's automatic 64-way setting.
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 sglang serve \
@@ -565,7 +608,6 @@ six-layer draft stack match the Laguna integration merged in
 reproducible DFlash command is:
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_ENABLE_SPEC_V2=1 \
@@ -710,10 +752,70 @@ KV slots per rank, plus the draft KV pool, while admitting four requests.
 Laguna reasoning is opt-in per request with
 `chat_template_kwargs={"enable_thinking": true}`.
 
+### Qwen3.6-27B block-FP8 with DFlash
+
+This is the validated single-request DFlash configuration for the factory FP8
+target and its block-16 draft:
+
+```bash
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --model Qwen/Qwen3.6-27B-FP8 \
+  --dtype float16 \
+  --kv-cache-dtype fp8_e4m3 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.75 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 4096 \
+  --mamba-full-memory-ratio 0.1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 1 \
+  --cuda-graph-bs 1 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.6-27B-DFlash \
+  --speculative-dflash-block-size 16 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
+On four V100-SXM2-32GB GPUs, the cold-cache random benchmark used TP4, one
+live request, a 4,096-token prefill chunk, three 1K/256 requests after one
+warmup, and one request for each 25K prefill endpoint:
+
+| Target weights | KV cache | Decoder | 1K decode | Mean TPOT | DFlash accept | 25K prefill |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| FP8 | FP16 | target only | 53.35 tok/s | 17.48 ms | N/A | 3,480 tok/s |
+| FP8 | E4M3 | target only | 51.73 tok/s | 17.96 ms | N/A | 3,456 tok/s |
+| FP8 | FP16 | DFlash-16 | 117.58 tok/s | 7.12 ms | 4.18 | — |
+| FP8 | E4M3 | DFlash-16 | 84.48 tok/s | 10.41 ms | 4.23 | 3,400 tok/s |
+
+E4M3 DFlash added only 1.2% to the 25K target prefill time. Before the
+page-once scratch path, that same workload ran at 1,245 input tok/s because
+each query-head tile decoded the same E4M3 cache bytes independently. The
+corrected 1K-to-25K cold-context sweep is recorded in
+[`benchmark/qwen36_27b_fp8_v100_20260801/results.csv`](benchmark/qwen36_27b_fp8_v100_20260801/results.csv).
+
+Deterministic prose passed on the target-only and DFlash paths. DFlash also
+passed reasoning on/off and a parsed `tool_choice="auto"` call plus tool-result
+round trip, while the FP8-KV and TurboMind kernels passed numerical comparisons
+against their FP16 references, including concurrent CUDA streams.
+The DFlash configuration retained 852,032 target and draft KV slots per rank at
+`--mem-fraction-static 0.75`; the served 262,144-token context therefore fits
+with JIT headroom.
+
 ### Qwen3.6-27B dense FP16 with DFlash
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -746,7 +848,6 @@ sglang serve \
 ### Qwen3.6-35B-A3B FP16 with DFlash
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -782,7 +883,6 @@ use FP16 when retaining the unquantized target weights is more important.
 ### Qwen3.6-35B-A3B AWQ with DFlash
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
@@ -820,7 +920,6 @@ for one live request and compare it with the block-size-8 default above.
 ### Qwen3.5-122B-A10B GPTQ-Int4 with DFlash
 
 ```bash
-FLASHINFER_DISABLE_VERSION_CHECK=1 \
 NCCL_P2P_LEVEL=NVL \
 SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \

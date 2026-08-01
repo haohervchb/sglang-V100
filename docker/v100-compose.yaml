@@ -13,7 +13,6 @@ services:
     restart: "no"
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
-      FLASHINFER_DISABLE_VERSION_CHECK: "1"
       NCCL_P2P_LEVEL: NVL
       SGLANG_CUSTOM_ALLREDUCE_ALGO: 1stage
       SGLANG_MAMBA_CONV_DTYPE: float16

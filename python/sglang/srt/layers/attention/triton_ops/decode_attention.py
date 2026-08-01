@@ -22,12 +22,15 @@ It supports page size = 1.
 
 import logging
 
+import torch
 import triton
 import triton.language as tl
 
+from sglang.srt.layers.attention.triton_ops.fp8_sm70 import fp8_e4m3fn_to_fp32
 from sglang.srt.utils import is_hip
 
 _is_hip = is_hip()
+_is_sm70 = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 7
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,7 @@ def _fwd_kernel_stage1(
     Lk: tl.constexpr,
     Lv: tl.constexpr,
     xai_temperature_len: tl.constexpr,
+    SM70_FP8_KV: tl.constexpr,
 ):
     cur_batch = tl.program_id(0)
     cur_head = tl.program_id(1)
@@ -129,6 +133,8 @@ def _fwd_kernel_stage1(
                 mask=(offs_n[:, None] < split_kv_end) & (mask_d[None, :]),
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                k = fp8_e4m3fn_to_fp32(k).to(tl.float16)
             qk = tl.sum(q[None, :] * k, 1)
             qk *= sm_scale_withk
 
@@ -150,6 +156,8 @@ def _fwd_kernel_stage1(
                 mask=(offs_n[:, None] < split_kv_end) & (mask_dv[None, :]),
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                v = fp8_e4m3fn_to_fp32(v).to(tl.float16)
 
             n_e_max = tl.maximum(tl.max(qk, 0), e_max)
             re_scale = tl.exp(e_max - n_e_max)
@@ -198,6 +206,7 @@ def _decode_att_m_fwd(
     sm_scale_withk,
     logit_cap,
     xai_temperature_len=-1,
+    sm70_fp8_kv=False,
 ):
     BLOCK = _BLOCK
     # [TODO] work around SGPR limit on MI3xx
@@ -252,6 +261,7 @@ def _decode_att_m_fwd(
         num_stages=2,
         Lk=Lk,
         Lv=Lv,
+        SM70_FP8_KV=sm70_fp8_kv,
     )
 
 
@@ -289,6 +299,7 @@ def _fwd_grouped_kernel_stage1(
     Lv: tl.constexpr,
     HAS_MLA: tl.constexpr = False,
     USE_PDL: tl.constexpr = False,
+    SM70_FP8_KV: tl.constexpr = False,
 ):
     cur_batch = tl.program_id(0)
     cur_head_id = tl.program_id(1)
@@ -346,7 +357,10 @@ def _fwd_grouped_kernel_stage1(
 
     if split_kv_end > split_kv_start:
         q = tl.load(Q + offs_q, mask=(mask_h[:, None]) & (mask_d[None, :]), other=0.0)
-        q_k = q.to(K_Buffer.dtype.element_ty)
+        if SM70_FP8_KV:
+            q_k = q.to(tl.float16)
+        else:
+            q_k = q.to(K_Buffer.dtype.element_ty)
         if BLOCK_DPE > 0:
             qpe = tl.load(
                 Q + off_qpe, mask=(mask_h[:, None]) & (mask_dpe[None, :]), other=0.0
@@ -364,6 +378,8 @@ def _fwd_grouped_kernel_stage1(
                 mask=(offs_n[None, :] < split_kv_end) & (mask_d[:, None]),
                 other=0.0,
             )
+            if SM70_FP8_KV:
+                k = fp8_e4m3fn_to_fp32(k).to(tl.float16)
             qk = tl.dot(q_k, k)
             if BLOCK_DPE > 0:
                 offs_buf_kpe = kv_loc[None, :] * stride_buf_kbs + base_offs_kpe
@@ -372,6 +388,8 @@ def _fwd_grouped_kernel_stage1(
                     mask=(offs_n[None, :] < split_kv_end) & (mask_dpe[:, None]),
                     other=0.0,
                 )
+                if SM70_FP8_KV:
+                    kpe = fp8_e4m3fn_to_fp32(kpe).to(tl.float16)
                 qk += tl.dot(qpe, kpe.to(qpe.dtype))
             qk *= sm_scale_withk
 
@@ -393,6 +411,8 @@ def _fwd_grouped_kernel_stage1(
                     mask=(offs_n[:, None] < split_kv_end) & (mask_dv[None, :]),
                     other=0.0,
                 )
+                if SM70_FP8_KV:
+                    v = fp8_e4m3fn_to_fp32(v).to(tl.float16)
 
             n_e_max = tl.maximum(tl.max(qk, 1), e_max)
             re_scale = tl.exp(e_max - n_e_max)
@@ -447,6 +467,7 @@ def _decode_grouped_att_m_fwd(
     xai_temperature_len=-1,
     has_mla=False,
     use_pdl=False,
+    sm70_fp8_kv=False,
 ):
     BLOCK = _BLOCK_GROUPED
     Lk = k_buffer.shape[-1]
@@ -521,6 +542,7 @@ def _decode_grouped_att_m_fwd(
         Lv=Lv,
         HAS_MLA=has_mla,
         USE_PDL=use_pdl,
+        SM70_FP8_KV=sm70_fp8_kv,
         **extra_kargs,
     )
 
@@ -669,6 +691,7 @@ def decode_attention_fwd_normal(
     logit_cap=0.0,
     sinks=None,
     xai_temperature_len=-1,
+    sm70_fp8_kv=False,
 ):
     _decode_att_m_fwd(
         q,
@@ -683,6 +706,7 @@ def decode_attention_fwd_normal(
         sm_scale_withk,
         logit_cap,
         xai_temperature_len,
+        sm70_fp8_kv,
     )
     _decode_softmax_reducev_fwd(
         attn_logits,
@@ -716,6 +740,7 @@ def decode_attention_fwd_grouped(
     xai_temperature_len=-1,
     has_mla=False,
     use_pdl=False,
+    sm70_fp8_kv=False,
 ):
     _decode_grouped_att_m_fwd(
         q,
@@ -732,6 +757,7 @@ def decode_attention_fwd_grouped(
         xai_temperature_len,
         has_mla=has_mla,
         use_pdl=use_pdl,
+        sm70_fp8_kv=sm70_fp8_kv,
     )
     _decode_softmax_reducev_fwd(
         attn_logits,
@@ -772,6 +798,17 @@ def decode_attention_fwd(
     assert q.shape[0] <= kv_indptr.shape[0] - 1
     assert q.shape[0] <= attn_logits.shape[0]
 
+    sm70_fp8_kv = (
+        _is_sm70
+        and k_buffer.dtype == torch.float8_e4m3fn
+        and v_buffer.dtype == torch.float8_e4m3fn
+    )
+    if sm70_fp8_kv:
+        # Triton rejects native E4M3 operands on SM70. Preserve the byte
+        # strides and decode explicitly inside the attention kernels.
+        k_buffer = k_buffer.view(torch.uint8)
+        v_buffer = v_buffer.view(torch.uint8)
+
     kv_group_num = q.shape[1] // v_buffer.shape[1]
 
     if kv_group_num == 1:
@@ -792,6 +829,7 @@ def decode_attention_fwd(
             logit_cap=logit_cap,
             sinks=sinks,
             xai_temperature_len=xai_temperature_len,
+            sm70_fp8_kv=sm70_fp8_kv,
         )
     else:
         # GQA/MQA/MLA
@@ -813,4 +851,5 @@ def decode_attention_fwd(
             xai_temperature_len=xai_temperature_len,
             has_mla=has_mla,
             use_pdl=use_pdl,
+            sm70_fp8_kv=sm70_fp8_kv,
         )
