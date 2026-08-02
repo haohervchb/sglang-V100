@@ -72,7 +72,10 @@ bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
 
 Rerun `scripts/install_v100.sh` only when the installer, dependency pins,
 patches, `sgl-kernel`, or Python dependency metadata change. A normal pull of
-the Laguna Python/model code is not a native rebuild trigger.
+the Laguna or Qwen DFlash Python/model code is not a native rebuild trigger.
+The grouped DFlash target verifier is shipped as Python source and compiled by
+TileLang on first use, so an existing editable host install only needs the pull
+and smoke-test sequence above.
 
 When an installer-managed dependency patch changes, the installer preserves
 the prior patched source beside the replacement as
@@ -96,11 +99,11 @@ The published image and its tags are also available on Docker Hub at
 pulled without a local build.
 
 Published images can lag the source branch. Build `sglang-v100:latest` locally
-with the command below when testing an unpublished change. A normal
-Laguna Python-only update reuses every native layer. A change to the
-Laguna-specific Marlin patch rebuilds Marlin and the later application and
-validation layers, while retaining the cached FlashInfer, native-attention,
-and `sglang-kernel` layers.
+with the command below when testing an unpublished change. A normal Laguna or
+Qwen DFlash Python-only update reuses every native layer and rebuilds only the
+application and validation layers. A change to the Laguna-specific Marlin
+patch rebuilds Marlin and those later layers, while retaining the cached
+FlashInfer, native-attention, and `sglang-kernel` layers.
 
 Model checkpoints are not embedded in the image. The command below bind-mounts
 the host Hugging Face cache, so it reuses checkpoints already downloaded by a
@@ -183,8 +186,9 @@ DOCKER_BUILDKIT=1 docker build --network=host \
 Build parallelism is selected from the CPUs and available memory visible to
 Docker. To impose a manual limit, add `--build-arg MAX_JOBS=16`. Replace the
 published image name in the serving command with `sglang-v100:latest` to use
-the local build. No Laguna-specific build argument or Dockerfile change is
-required.
+the local build. No Laguna-, Qwen-, or DFlash-specific build argument is
+required; TileLang kernels are JIT-compiled into the persistent cache volume
+on first use.
 
 The container validates the GPU stack, verifies the real SM70 Marlin repack,
 and warms the FlashInfer sampler before starting SGLang. If the Docker Compose
@@ -787,6 +791,13 @@ sglang serve \
   --reasoning-parser qwen3 \
   --tool-call-parser qwen3_coder
 ```
+
+No verifier override is required. The recommended command should report
+`DFLASH target verifier: grouped TileLang block verifier.` during startup.
+Do not set `SGLANG_V100_DFLASH_TARGET_XQA` unless intentionally running the
+compatibility A/B path. To use the faster but larger FP16 KV cache, replace
+`--kv-cache-dtype fp8_e4m3` with `--kv-cache-dtype auto`; the remaining serving
+arguments are unchanged.
 
 On four V100-SXM2-32GB GPUs, the cold-cache random benchmark used TP4, one
 live request, a 4,096-token prefill chunk, three 1K/256 requests after one
