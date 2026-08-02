@@ -74,6 +74,21 @@ def _get_native_paged_attention_params(
     return causal, sliding_window_size
 
 
+def _is_dflash_draft_native_shape_supported(
+    layer: "RadixAttention", kv_cache_dtype: torch.dtype = torch.float16
+) -> bool:
+    """Return whether 1Cat's native paged kernel supports this draft shape."""
+    return (
+        layer.head_dim == 128
+        and layer.tp_k_head_num > 0
+        and layer.tp_q_head_num == 4 * layer.tp_k_head_num
+        # The E4M3 DFlash integration is validated only for the TP4 layout.
+        # The kernel is numerically sound with four KV heads in isolation, but
+        # the complete TP2 verify pipeline can otherwise admit corrupt tokens.
+        and (kv_cache_dtype != torch.float8_e4m3fn or layer.tp_k_head_num == 2)
+    )
+
+
 def _load_paged_forward():
     """Lazy-load the paged forward kernel. Prefers the vendored tilelang-fa-v100
     on SM70 (from GooseLLM, tuned for V100); falls back to the ai-bond kernel
@@ -1123,6 +1138,18 @@ class FlashAttnV100Backend(AttentionBackend):
                 -1, self.page_size, v_cache.shape[-2], v_cache.shape[-1]
             )
 
+        if (
+            self.model_runner.is_draft_worker
+            and forward_batch.forward_mode.is_target_verify()
+            and k_cache.dtype == torch.float8_e4m3fn
+            and not _is_dflash_draft_native_shape_supported(layer, k_cache.dtype)
+        ):
+            raise RuntimeError(
+                "V100 DFlash with E4M3 KV is not correctness-validated for "
+                "this tensor-parallel draft layout. Use FP16 KV "
+                "(--kv-cache-dtype auto) for TP2, or use TP4."
+            )
+
         prefill_page_table = None
         if (
             self._uses_fp8_prefill_scratch(forward_batch.forward_mode)
@@ -1308,9 +1335,7 @@ class FlashAttnV100Backend(AttentionBackend):
                 )
                 or (
                     self.model_runner.is_draft_worker
-                    and layer.head_dim == 128
-                    and layer.tp_q_head_num == 4 * layer.tp_k_head_num
-                    and layer.tp_k_head_num == 2
+                    and _is_dflash_draft_native_shape_supported(layer, k_cache.dtype)
                 )
             )
             and (

@@ -1,0 +1,206 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="560" viewBox="0 0 1440 560" role="img" aria-labelledby="title desc">
+<title id="title">Qwen3.6-27B-FP8 DFlash TP2 versus TP4 context scaling on V100</title>
+<desc id="desc">Effective prefill, client-visible decode, and DFlash accepted length from one to twenty-five thousand input tokens.</desc>
+<style>
+            text { font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+                   sans-serif; fill: #172033; }
+            .title { font-size: 24px; font-weight: 700; }
+            .subtitle { font-size: 14px; fill: #596579; }
+            .panel-title { font-size: 17px; font-weight: 650; }
+            .tick { font-size: 12px; fill: #596579; }
+            .axis-label { font-size: 13px; font-weight: 600; fill: #334155; }
+            .axis { stroke: #64748b; stroke-width: 1.2; }
+            .grid { stroke: #dbe2ea; stroke-width: 1; }
+            .legend { font-size: 13px; font-weight: 650; }
+        </style>
+<rect width="1440" height="560" rx="12" fill="#ffffff"/>
+<text x="720" y="34" text-anchor="middle" class="title">Qwen3.6-27B-FP8 DFlash scaling on V100</text>
+<text x="720" y="58" text-anchor="middle" class="subtitle">Single cold trial per point · 256 greedy output tokens · FP16 KV · DFlash block 16</text>
+<line x1="620" y1="80" x2="650" y2="80" stroke="#2563eb" stroke-width="3"/>
+<circle cx="635" cy="80" r="4.2" fill="#2563eb"/>
+<text x="660" y="85" class="legend">TP2 (2× V100 32GB)</text>
+<line x1="810" y1="80" x2="840" y2="80" stroke="#ea580c" stroke-width="3"/>
+<circle cx="825" cy="80" r="4.2" fill="#ea580c"/>
+<text x="850" y="85" class="legend">TP4 (4× V100 32GB)</text>
+<text x="240" y="104" text-anchor="middle" class="panel-title">Effective prefill</text>
+<line x1="82" y1="460.0" x2="442" y2="460.0" class="grid"/>
+<text x="72" y="465.0" text-anchor="end" class="tick">0</text>
+<line x1="82" y1="377.5" x2="442" y2="377.5" class="grid"/>
+<text x="72" y="382.5" text-anchor="end" class="tick">1,000</text>
+<line x1="82" y1="295.0" x2="442" y2="295.0" class="grid"/>
+<text x="72" y="300.0" text-anchor="end" class="tick">2,000</text>
+<line x1="82" y1="212.5" x2="442" y2="212.5" class="grid"/>
+<text x="72" y="217.5" text-anchor="end" class="tick">3,000</text>
+<line x1="82" y1="130.0" x2="442" y2="130.0" class="grid"/>
+<text x="72" y="135.0" text-anchor="end" class="tick">4,000</text>
+<line x1="82.0" y1="460" x2="82.0" y2="466" class="axis"/>
+<text x="82.0" y="485" text-anchor="middle" class="tick">1K</text>
+<line x1="142.0" y1="460" x2="142.0" y2="466" class="axis"/>
+<text x="142.0" y="485" text-anchor="middle" class="tick">5K</text>
+<line x1="202.0" y1="460" x2="202.0" y2="466" class="axis"/>
+<text x="202.0" y="485" text-anchor="middle" class="tick">9K</text>
+<line x1="262.0" y1="460" x2="262.0" y2="466" class="axis"/>
+<text x="262.0" y="485" text-anchor="middle" class="tick">13K</text>
+<line x1="322.0" y1="460" x2="322.0" y2="466" class="axis"/>
+<text x="322.0" y="485" text-anchor="middle" class="tick">17K</text>
+<line x1="382.0" y1="460" x2="382.0" y2="466" class="axis"/>
+<text x="382.0" y="485" text-anchor="middle" class="tick">21K</text>
+<line x1="442.0" y1="460" x2="442.0" y2="466" class="axis"/>
+<text x="442.0" y="485" text-anchor="middle" class="tick">25K</text>
+<line x1="82" y1="130" x2="82" y2="460" class="axis"/>
+<line x1="82" y1="460" x2="442" y2="460" class="axis"/>
+<text x="262.0" y="513" text-anchor="middle" class="axis-label">Input context</text>
+<text x="35" y="295.0" transform="rotate(-90 35 295.0)" text-anchor="middle" class="axis-label">Input tok/s</text>
+<polyline points="82.00,315.23 112.00,316.37 142.00,304.20 172.00,307.58 202.00,304.06 232.00,311.30 262.00,311.70 292.00,313.89 322.00,315.05 352.00,317.24 382.00,315.90 412.00,316.50 442.00,321.35" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="82.00" cy="315.23" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 1K · 1754.81</title></circle>
+<circle cx="112.00" cy="316.37" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 3K · 1740.96</title></circle>
+<circle cx="142.00" cy="304.20" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 5K · 1888.47</title></circle>
+<circle cx="172.00" cy="307.58" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 7K · 1847.55</title></circle>
+<circle cx="202.00" cy="304.06" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 9K · 1890.13</title></circle>
+<circle cx="232.00" cy="311.30" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 11K · 1802.48</title></circle>
+<circle cx="262.00" cy="311.70" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 13K · 1797.64</title></circle>
+<circle cx="292.00" cy="313.89" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 15K · 1771.07</title></circle>
+<circle cx="322.00" cy="315.05" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 17K · 1756.97</title></circle>
+<circle cx="352.00" cy="317.24" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 19K · 1730.37</title></circle>
+<circle cx="382.00" cy="315.90" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 21K · 1746.73</title></circle>
+<circle cx="412.00" cy="316.50" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 23K · 1739.35</title></circle>
+<circle cx="442.00" cy="321.35" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 25K · 1680.66</title></circle>
+<polyline points="82.00,231.19 112.00,172.59 142.00,184.91 172.00,171.77 202.00,182.26 232.00,183.51 262.00,183.38 292.00,185.07 322.00,189.96 352.00,190.91 382.00,191.57 412.00,192.30 442.00,201.98" fill="none" stroke="#ea580c" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="82.00" cy="231.19" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 1K · 2773.50</title></circle>
+<circle cx="112.00" cy="172.59" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 3K · 3483.78</title></circle>
+<circle cx="142.00" cy="184.91" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 5K · 3334.43</title></circle>
+<circle cx="172.00" cy="171.77" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 7K · 3493.70</title></circle>
+<circle cx="202.00" cy="182.26" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 9K · 3366.56</title></circle>
+<circle cx="232.00" cy="183.51" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 11K · 3351.41</title></circle>
+<circle cx="262.00" cy="183.38" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 13K · 3352.92</title></circle>
+<circle cx="292.00" cy="185.07" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 15K · 3332.46</title></circle>
+<circle cx="322.00" cy="189.96" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 17K · 3273.19</title></circle>
+<circle cx="352.00" cy="190.91" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 19K · 3261.68</title></circle>
+<circle cx="382.00" cy="191.57" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 21K · 3253.68</title></circle>
+<circle cx="412.00" cy="192.30" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 23K · 3244.84</title></circle>
+<circle cx="442.00" cy="201.98" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 25K · 3127.47</title></circle>
+<text x="720" y="104" text-anchor="middle" class="panel-title">Client-visible decode</text>
+<line x1="562" y1="460.0" x2="922" y2="460.0" class="grid"/>
+<text x="552" y="465.0" text-anchor="end" class="tick">0</text>
+<line x1="562" y1="405.0" x2="922" y2="405.0" class="grid"/>
+<text x="552" y="410.0" text-anchor="end" class="tick">30</text>
+<line x1="562" y1="350.0" x2="922" y2="350.0" class="grid"/>
+<text x="552" y="355.0" text-anchor="end" class="tick">60</text>
+<line x1="562" y1="295.0" x2="922" y2="295.0" class="grid"/>
+<text x="552" y="300.0" text-anchor="end" class="tick">90</text>
+<line x1="562" y1="240.0" x2="922" y2="240.0" class="grid"/>
+<text x="552" y="245.0" text-anchor="end" class="tick">120</text>
+<line x1="562" y1="185.0" x2="922" y2="185.0" class="grid"/>
+<text x="552" y="190.0" text-anchor="end" class="tick">150</text>
+<line x1="562" y1="130.0" x2="922" y2="130.0" class="grid"/>
+<text x="552" y="135.0" text-anchor="end" class="tick">180</text>
+<line x1="562.0" y1="460" x2="562.0" y2="466" class="axis"/>
+<text x="562.0" y="485" text-anchor="middle" class="tick">1K</text>
+<line x1="622.0" y1="460" x2="622.0" y2="466" class="axis"/>
+<text x="622.0" y="485" text-anchor="middle" class="tick">5K</text>
+<line x1="682.0" y1="460" x2="682.0" y2="466" class="axis"/>
+<text x="682.0" y="485" text-anchor="middle" class="tick">9K</text>
+<line x1="742.0" y1="460" x2="742.0" y2="466" class="axis"/>
+<text x="742.0" y="485" text-anchor="middle" class="tick">13K</text>
+<line x1="802.0" y1="460" x2="802.0" y2="466" class="axis"/>
+<text x="802.0" y="485" text-anchor="middle" class="tick">17K</text>
+<line x1="862.0" y1="460" x2="862.0" y2="466" class="axis"/>
+<text x="862.0" y="485" text-anchor="middle" class="tick">21K</text>
+<line x1="922.0" y1="460" x2="922.0" y2="466" class="axis"/>
+<text x="922.0" y="485" text-anchor="middle" class="tick">25K</text>
+<line x1="562" y1="130" x2="562" y2="460" class="axis"/>
+<line x1="562" y1="460" x2="922" y2="460" class="axis"/>
+<text x="742.0" y="513" text-anchor="middle" class="axis-label">Input context</text>
+<text x="515" y="295.0" transform="rotate(-90 515 295.0)" text-anchor="middle" class="axis-label">Output tok/s</text>
+<polyline points="562.00,247.50 592.00,326.95 622.00,284.22 652.00,329.10 682.00,289.87 712.00,258.09 742.00,336.78 772.00,298.68 802.00,314.48 832.00,243.04 862.00,336.33 892.00,323.21 922.00,294.89" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="562.00" cy="247.50" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 1K · 115.91</title></circle>
+<circle cx="592.00" cy="326.95" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 3K · 72.57</title></circle>
+<circle cx="622.00" cy="284.22" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 5K · 95.88</title></circle>
+<circle cx="652.00" cy="329.10" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 7K · 71.40</title></circle>
+<circle cx="682.00" cy="289.87" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 9K · 92.80</title></circle>
+<circle cx="712.00" cy="258.09" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 11K · 110.14</title></circle>
+<circle cx="742.00" cy="336.78" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 13K · 67.21</title></circle>
+<circle cx="772.00" cy="298.68" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 15K · 87.99</title></circle>
+<circle cx="802.00" cy="314.48" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 17K · 79.37</title></circle>
+<circle cx="832.00" cy="243.04" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 19K · 118.34</title></circle>
+<circle cx="862.00" cy="336.33" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 21K · 67.46</title></circle>
+<circle cx="892.00" cy="323.21" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 23K · 74.61</title></circle>
+<circle cx="922.00" cy="294.89" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 25K · 90.06</title></circle>
+<polyline points="562.00,177.58 592.00,286.12 622.00,226.59 652.00,289.03 682.00,237.19 712.00,192.12 742.00,298.49 772.00,255.82 802.00,266.16 832.00,171.02 862.00,302.90 892.00,274.32 922.00,228.60" fill="none" stroke="#ea580c" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="562.00" cy="177.58" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 1K · 154.05</title></circle>
+<circle cx="592.00" cy="286.12" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 3K · 94.85</title></circle>
+<circle cx="622.00" cy="226.59" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 5K · 127.32</title></circle>
+<circle cx="652.00" cy="289.03" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 7K · 93.26</title></circle>
+<circle cx="682.00" cy="237.19" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 9K · 121.54</title></circle>
+<circle cx="712.00" cy="192.12" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 11K · 146.12</title></circle>
+<circle cx="742.00" cy="298.49" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 13K · 88.10</title></circle>
+<circle cx="772.00" cy="255.82" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 15K · 111.37</title></circle>
+<circle cx="802.00" cy="266.16" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 17K · 105.73</title></circle>
+<circle cx="832.00" cy="171.02" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 19K · 157.62</title></circle>
+<circle cx="862.00" cy="302.90" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 21K · 85.69</title></circle>
+<circle cx="892.00" cy="274.32" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 23K · 101.28</title></circle>
+<circle cx="922.00" cy="228.60" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 25K · 126.22</title></circle>
+<text x="1200" y="104" text-anchor="middle" class="panel-title">DFlash acceptance</text>
+<line x1="1042" y1="460.0" x2="1402" y2="460.0" class="grid"/>
+<text x="1032" y="465.0" text-anchor="end" class="tick">0</text>
+<line x1="1042" y1="412.85714285714283" x2="1402" y2="412.85714285714283" class="grid"/>
+<text x="1032" y="417.85714285714283" text-anchor="end" class="tick">1</text>
+<line x1="1042" y1="365.7142857142857" x2="1402" y2="365.7142857142857" class="grid"/>
+<text x="1032" y="370.7142857142857" text-anchor="end" class="tick">2</text>
+<line x1="1042" y1="318.57142857142856" x2="1402" y2="318.57142857142856" class="grid"/>
+<text x="1032" y="323.57142857142856" text-anchor="end" class="tick">3</text>
+<line x1="1042" y1="271.42857142857144" x2="1402" y2="271.42857142857144" class="grid"/>
+<text x="1032" y="276.42857142857144" text-anchor="end" class="tick">4</text>
+<line x1="1042" y1="224.28571428571428" x2="1402" y2="224.28571428571428" class="grid"/>
+<text x="1032" y="229.28571428571428" text-anchor="end" class="tick">5</text>
+<line x1="1042" y1="177.14285714285717" x2="1402" y2="177.14285714285717" class="grid"/>
+<text x="1032" y="182.14285714285717" text-anchor="end" class="tick">6</text>
+<line x1="1042" y1="130.0" x2="1402" y2="130.0" class="grid"/>
+<text x="1032" y="135.0" text-anchor="end" class="tick">7</text>
+<line x1="1042.0" y1="460" x2="1042.0" y2="466" class="axis"/>
+<text x="1042.0" y="485" text-anchor="middle" class="tick">1K</text>
+<line x1="1102.0" y1="460" x2="1102.0" y2="466" class="axis"/>
+<text x="1102.0" y="485" text-anchor="middle" class="tick">5K</text>
+<line x1="1162.0" y1="460" x2="1162.0" y2="466" class="axis"/>
+<text x="1162.0" y="485" text-anchor="middle" class="tick">9K</text>
+<line x1="1222.0" y1="460" x2="1222.0" y2="466" class="axis"/>
+<text x="1222.0" y="485" text-anchor="middle" class="tick">13K</text>
+<line x1="1282.0" y1="460" x2="1282.0" y2="466" class="axis"/>
+<text x="1282.0" y="485" text-anchor="middle" class="tick">17K</text>
+<line x1="1342.0" y1="460" x2="1342.0" y2="466" class="axis"/>
+<text x="1342.0" y="485" text-anchor="middle" class="tick">21K</text>
+<line x1="1402.0" y1="460" x2="1402.0" y2="466" class="axis"/>
+<text x="1402.0" y="485" text-anchor="middle" class="tick">25K</text>
+<line x1="1042" y1="130" x2="1042" y2="460" class="axis"/>
+<line x1="1042" y1="460" x2="1402" y2="460" class="axis"/>
+<text x="1222.0" y="513" text-anchor="middle" class="axis-label">Input context</text>
+<text x="995" y="295.0" transform="rotate(-90 995 295.0)" text-anchor="middle" class="axis-label">Accepted tokens / verify</text>
+<polyline points="1042.00,208.57 1072.00,294.68 1102.00,236.51 1132.00,292.38 1162.00,240.57 1192.00,197.64 1222.00,299.09 1252.00,248.27 1282.00,268.44 1312.00,172.65 1342.00,294.68 1372.00,274.33 1402.00,232.29" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="1042.00" cy="208.57" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 1K · 5.33</title></circle>
+<circle cx="1072.00" cy="294.68" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 3K · 3.51</title></circle>
+<circle cx="1102.00" cy="236.51" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 5K · 4.74</title></circle>
+<circle cx="1132.00" cy="292.38" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 7K · 3.56</title></circle>
+<circle cx="1162.00" cy="240.57" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 9K · 4.65</title></circle>
+<circle cx="1192.00" cy="197.64" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 11K · 5.57</title></circle>
+<circle cx="1222.00" cy="299.09" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 13K · 3.41</title></circle>
+<circle cx="1252.00" cy="248.27" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 15K · 4.49</title></circle>
+<circle cx="1282.00" cy="268.44" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 17K · 4.06</title></circle>
+<circle cx="1312.00" cy="172.65" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 19K · 6.10</title></circle>
+<circle cx="1342.00" cy="294.68" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 21K · 3.51</title></circle>
+<circle cx="1372.00" cy="274.33" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 23K · 3.94</title></circle>
+<circle cx="1402.00" cy="232.29" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"><title>TP2 · 25K · 4.83</title></circle>
+<polyline points="1042.00,208.57 1072.00,294.68 1102.00,236.51 1132.00,292.38 1162.00,240.57 1192.00,197.64 1222.00,299.09 1252.00,258.86 1282.00,268.44 1312.00,172.65 1342.00,301.20 1372.00,271.43 1402.00,227.91" fill="none" stroke="#ea580c" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="1042.00" cy="208.57" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 1K · 5.33</title></circle>
+<circle cx="1072.00" cy="294.68" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 3K · 3.51</title></circle>
+<circle cx="1102.00" cy="236.51" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 5K · 4.74</title></circle>
+<circle cx="1132.00" cy="292.38" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 7K · 3.56</title></circle>
+<circle cx="1162.00" cy="240.57" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 9K · 4.65</title></circle>
+<circle cx="1192.00" cy="197.64" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 11K · 5.57</title></circle>
+<circle cx="1222.00" cy="299.09" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 13K · 3.41</title></circle>
+<circle cx="1252.00" cy="258.86" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 15K · 4.27</title></circle>
+<circle cx="1282.00" cy="268.44" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 17K · 4.06</title></circle>
+<circle cx="1312.00" cy="172.65" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 19K · 6.10</title></circle>
+<circle cx="1342.00" cy="301.20" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 21K · 3.37</title></circle>
+<circle cx="1372.00" cy="271.43" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 23K · 4.00</title></circle>
+<circle cx="1402.00" cy="227.91" r="4.2" fill="#ea580c" stroke="#ffffff" stroke-width="1.5"><title>TP4 · 25K · 4.92</title></circle>
+</svg>

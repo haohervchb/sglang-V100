@@ -15,6 +15,7 @@ from sglang.srt.layers.attention.flash_attn_v100_backend import (
     FlashAttnV100Backend,
     _dflash_target_xqa_requested,
     _get_native_paged_attention_params,
+    _is_dflash_draft_native_shape_supported,
     _should_skip_triton_prefill,
 )
 from sglang.srt.layers.radix_attention import AttentionType
@@ -629,6 +630,30 @@ def test_v100_native_attention_uses_per_layer_dflash_mask(attn_type, window, exp
     )
 
     assert _get_native_paged_attention_params(layer, True) == expected
+
+
+@pytest.mark.parametrize(
+    ("q_heads", "kv_heads", "head_dim", "kv_dtype", "expected"),
+    [
+        (8, 2, 128, torch.float16, True),  # TP4
+        (16, 4, 128, torch.float16, True),  # TP2
+        (8, 2, 128, torch.float8_e4m3fn, True),  # TP4 E4M3
+        (16, 4, 128, torch.float8_e4m3fn, False),  # TP2 E4M3 guard
+        (16, 2, 128, torch.float16, False),
+        (16, 4, 256, torch.float16, False),
+        (0, 0, 128, torch.float16, False),
+    ],
+)
+def test_v100_native_dflash_draft_shape_support(
+    q_heads, kv_heads, head_dim, kv_dtype, expected
+):
+    layer = SimpleNamespace(
+        tp_q_head_num=q_heads,
+        tp_k_head_num=kv_heads,
+        head_dim=head_dim,
+    )
+
+    assert _is_dflash_draft_native_shape_supported(layer, kv_dtype) is expected
 
 
 def test_v100_native_extend_builds_distinct_swa_page_table():

@@ -840,6 +840,26 @@ each query-head tile decoded the same E4M3 cache bytes independently. The
 corrected 1K-to-25K cold-context sweep is recorded in
 [`benchmark/qwen36_27b_fp8_v100_20260801/results.csv`](benchmark/qwen36_27b_fp8_v100_20260801/results.csv).
 
+The matched TP2-versus-TP4 sweep below uses the same FP8 target, DFlash-16,
+FP16 KV, one cold request per point, and 256 greedy output tokens. TP2 requires
+the compact `SGLANG_SM70_FP8_PREFILL_BACKEND=turbomind` target layout so the
+target and draft fit on two 32GB GPUs. TP4/TP2 geometric-mean speedup across
+the 13 points was 1.84x for effective prefill and 1.32x for client-visible
+decode. The decode saw-tooth follows the prompt-dependent DFlash acceptance
+shown in the third panel; these are single cold trials rather than confidence
+intervals.
+
+![Qwen3.6-27B-FP8 TP2 versus TP4 context scaling](benchmark/qwen36_27b_fp8_tp_scaling_20260802/context_scaling.svg)
+
+All 26 responses passed the exact-token, HTTP, cache-state, and output-quality
+audit, and all 13 prompt hashes matched across GPU counts. The complete table,
+raw trials, command envelope, and reproducible audit are in
+[`benchmark/qwen36_27b_fp8_tp_scaling_20260802`](benchmark/qwen36_27b_fp8_tp_scaling_20260802).
+TP2 DFlash with E4M3 KV is deliberately excluded: end-to-end output was
+corrupt despite individually correct attention kernels, so the backend now
+fails fast for that unvalidated combination. Use `--kv-cache-dtype auto`
+(FP16 KV) for TP2; E4M3 DFlash remains supported for the validated TP4 layout.
+
 Deterministic prose passed on the target-only and DFlash paths. DFlash also
 passed reasoning on/off and a parsed `tool_choice="auto"` call plus tool-result
 round trip, while the FP8-KV and TurboMind kernels passed numerical comparisons
