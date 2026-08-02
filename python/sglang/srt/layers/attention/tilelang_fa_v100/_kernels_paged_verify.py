@@ -23,57 +23,6 @@ VERIFY_SM_TARGET = 80  # V100 SXM2 SM count; one memory-streaming CTA per SM.
 _LOG2_E = 1.4426950408889634
 
 
-def _fp8_e4m3fn_to_fp16(raw):
-    """Decode one raw E4M3FN byte without emitting an SM70 FP8 operand."""
-    raw = T.cast(raw, T.uint16)
-    sign = (raw >> T.uint16(7)) << T.uint16(15)
-    exponent = (raw >> T.uint16(3)) & T.uint16(0x0F)
-    mantissa = raw & T.uint16(0x07)
-
-    # Normal E4M3 maps exactly into FP16 after adjusting the exponent bias
-    # from 7 to 15 and moving the three mantissa bits.
-    normal = (
-        sign | ((exponent + T.uint16(8)) << T.uint16(10)) | (mantissa << T.uint16(7))
-    )
-
-    # E4M3 subnormals are all exactly representable in FP16. Keep an explicit
-    # eight-entry expression so the hot normal path needs no transcendental
-    # operations.
-    subnormal = T.if_then_else(
-        mantissa == T.uint16(0),
-        T.uint16(0x0000),
-        T.if_then_else(
-            mantissa == T.uint16(1),
-            T.uint16(0x1800),
-            T.if_then_else(
-                mantissa == T.uint16(2),
-                T.uint16(0x1C00),
-                T.if_then_else(
-                    mantissa == T.uint16(3),
-                    T.uint16(0x1E00),
-                    T.if_then_else(
-                        mantissa == T.uint16(4),
-                        T.uint16(0x2000),
-                        T.if_then_else(
-                            mantissa == T.uint16(5),
-                            T.uint16(0x2100),
-                            T.if_then_else(
-                                mantissa == T.uint16(6),
-                                T.uint16(0x2200),
-                                T.uint16(0x2300),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
-    bits = sign | T.if_then_else(
-        exponent == T.uint16(0), subnormal, normal & T.uint16(0x7FFF)
-    )
-    return T.reinterpret(bits, T.float16)
-
-
 @tilelang.jit(out_idx=[-2, -1], pass_configs=pass_configs)
 def _paged_verify_partial_kernel(
     batch,
@@ -106,6 +55,7 @@ def _paged_verify_partial_kernel(
         Q: T.Tensor(q_shape, T.float16),
         K_cache: T.Tensor(kv_shape, kv_dtype),
         V_cache: T.Tensor(kv_shape, kv_dtype),
+        FP8_LUT: T.Tensor([256], T.float16),
         block_table: T.Tensor([batch, max_blocks_per_seq], T.int32),
         cache_seqlens: T.Tensor([batch], T.int32),
         query_start_loc: T.Tensor([batch + 1], T.int32),
@@ -178,9 +128,8 @@ def _paged_verify_partial_kernel(
                         if kv_i < split_end:
                             physical_page = block_table[batch_id, logical_page]
                             if fp8_kv:
-                                K_shared[n, d] = _fp8_e4m3fn_to_fp16(
-                                    K_cache[physical_page, page_offset, kv_head, d]
-                                )
+                                raw = K_cache[physical_page, page_offset, kv_head, d]
+                                K_shared[n, d] = FP8_LUT[T.cast(raw, T.int32)]
                             else:
                                 K_shared[n, d] = K_cache[
                                     physical_page, page_offset, kv_head, d
@@ -236,9 +185,8 @@ def _paged_verify_partial_kernel(
                         if kv_i < split_end:
                             physical_page = block_table[batch_id, logical_page]
                             if fp8_kv:
-                                V_shared[n, d] = _fp8_e4m3fn_to_fp16(
-                                    V_cache[physical_page, page_offset, kv_head, d]
-                                )
+                                raw = V_cache[physical_page, page_offset, kv_head, d]
+                                V_shared[n, d] = FP8_LUT[T.cast(raw, T.int32)]
                             else:
                                 V_shared[n, d] = V_cache[
                                     physical_page, page_offset, kv_head, d

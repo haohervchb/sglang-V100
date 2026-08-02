@@ -799,6 +799,30 @@ warmup, and one request for each 25K prefill endpoint:
 | FP8 | FP16 | DFlash-16 | 117.58 tok/s | 7.12 ms | 4.18 | — |
 | FP8 | E4M3 | DFlash-16 | 84.48 tok/s | 10.41 ms | 4.23 | 3,400 tok/s |
 
+For DFlash, the V100 backend now uses its grouped block-16 target verifier by
+default with either FP16 or E4M3 KV. Unlike the independent-row XQA path, the
+grouped kernel scans a long prefix once for the whole speculative block. The
+E4M3 kernel converts cache bytes through a cached 256-entry FP16 lookup table,
+so it retains the compact cache without paying a scalar bit-decoder cost on
+every K/V load. XQA remains available for compatibility or short-context A/B
+runs with `SGLANG_V100_DFLASH_TARGET_XQA=1`.
+
+The controlled long-context sweep below used one exact-length random request,
+256 generated tokens, seed 1, no warmup, and a cache flush before each request.
+Decode rate is `1000 / mean TPOT`; the benchmark's headline output throughput
+also includes prefill/TTFT and therefore is not a decode-rate measurement for
+a single long prompt.
+
+| KV cache | Context | Independent-row XQA | Grouped block-16 | Speedup |
+| --- | ---: | ---: | ---: | ---: |
+| FP16 | 1,024 | 115.4 tok/s | 113.9 tok/s | 0.99x |
+| FP16 | 50,000 | 119.9 tok/s | 200.0 tok/s | 1.67x |
+| FP16 | 75,000 | 90.0 tok/s | 171.8 tok/s | 1.91x |
+| FP16 | 100,000 | 73.8 tok/s | 155.8 tok/s | 2.11x |
+| E4M3 | 1,024 | 96.1 tok/s | 91.9 tok/s | 0.96x |
+| E4M3 | 50,000 | 73.5 tok/s | 160.5 tok/s | 2.18x |
+| E4M3 | 100,000 | 43.3 tok/s | 120.0 tok/s | 2.78x |
+
 E4M3 DFlash added only 1.2% to the 25K target prefill time. Before the
 page-once scratch path, that same workload ran at 1,245 input tok/s because
 each query-head tile decoded the same E4M3 cache bytes independently. The

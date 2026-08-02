@@ -13,6 +13,7 @@ from sglang.srt.distributed.device_communicators.custom_all_reduce_v2 import (
 from sglang.srt.layers.attention import flash_attn_v100_backend
 from sglang.srt.layers.attention.flash_attn_v100_backend import (
     FlashAttnV100Backend,
+    _dflash_target_xqa_requested,
     _get_native_paged_attention_params,
     _should_skip_triton_prefill,
 )
@@ -54,6 +55,26 @@ class _ForwardMode:
 
     def is_draft_extend(self, include_v2=False):
         return self._draft_extend
+
+
+def test_dflash_target_xqa_defaults_to_grouped_verifier(monkeypatch):
+    monkeypatch.delenv("SGLANG_V100_DFLASH_TARGET_XQA", raising=False)
+
+    assert _dflash_target_xqa_requested() is False
+
+
+@pytest.mark.parametrize(("value", "expected"), [("yes", True), ("off", False)])
+def test_dflash_target_xqa_explicit_override(monkeypatch, value, expected):
+    monkeypatch.setenv("SGLANG_V100_DFLASH_TARGET_XQA", value)
+
+    assert _dflash_target_xqa_requested() is expected
+
+
+def test_dflash_target_xqa_rejects_invalid_override(monkeypatch):
+    monkeypatch.setenv("SGLANG_V100_DFLASH_TARGET_XQA", "sometimes")
+
+    with pytest.raises(ValueError, match="must be a boolean value"):
+        _dflash_target_xqa_requested()
 
 
 def test_dflash_normalizes_target_tensors_to_loaded_weight_dtype():
@@ -791,6 +812,7 @@ def test_v100_triton_allocates_prefill_metadata_for_speculation(
     is_speculative, expected_skip_prefill
 ):
     model_runner = SimpleNamespace(
+        kv_cache_dtype=torch.float16,
         spec_algorithm=SimpleNamespace(is_speculative=lambda: is_speculative)
     )
 
@@ -800,7 +822,9 @@ def test_v100_triton_allocates_prefill_metadata_for_speculation(
 @pytest.mark.parametrize("mode", ["target_verify", "draft_extend"])
 def test_v100_speculative_extend_delegates_to_triton(mode):
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
     backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: False,
             is_eagle=lambda: False,
@@ -839,7 +863,9 @@ def test_v100_speculative_extend_delegates_to_triton(mode):
 def test_v100_mtp_linear_verify_builds_native_causal_metadata(monkeypatch):
     monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
     backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: False,
             is_eagle=lambda: True,
@@ -863,7 +889,10 @@ def test_v100_mtp_linear_verify_builds_native_causal_metadata(monkeypatch):
     assert args[1].tolist() == [25, 41]
     assert args[2].tolist() == [8, 8]
     assert args[3] is prefix_lens
-    assert backend._build_extend_metadata.call_args.kwargs == {"causal": True}
+    assert backend._build_extend_metadata.call_args.kwargs == {
+        "causal": True,
+        "build_smallq": True,
+    }
     assert backend.forward_metadata == "native-metadata"
     backend._triton.init_forward_metadata.assert_not_called()
 
@@ -871,7 +900,9 @@ def test_v100_mtp_linear_verify_builds_native_causal_metadata(monkeypatch):
 def test_v100_dflash_verify_builds_native_causal_metadata(monkeypatch):
     monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
     backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: True,
             is_eagle=lambda: False,
@@ -895,7 +926,10 @@ def test_v100_dflash_verify_builds_native_causal_metadata(monkeypatch):
     assert args[1].tolist() == [9016]
     assert args[2].tolist() == [16]
     assert args[3] is prefix_lens
-    assert backend._build_extend_metadata.call_args.kwargs == {"causal": True}
+    assert backend._build_extend_metadata.call_args.kwargs == {
+        "causal": True,
+        "build_smallq": True,
+    }
     assert backend.forward_metadata == "native-metadata"
     backend._triton.init_forward_metadata.assert_not_called()
 
@@ -903,7 +937,9 @@ def test_v100_dflash_verify_builds_native_causal_metadata(monkeypatch):
 def test_v100_dflash_verify_uses_triton_when_tilelang_is_unavailable(monkeypatch):
     monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", False)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
     backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: True,
             is_eagle=lambda: False,
@@ -953,8 +989,13 @@ def test_v100_ai_bond_fallback_uses_supported_full_attention_signature(monkeypat
         lambda: fake_ai_bond_paged,
     )
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
+    backend._fp8_prefill_scratch_enabled = False
+    backend._fp8_verify_k_scratch = None
+    backend._target_xqa_enabled = False
     backend.page_size = 16
     backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: False,
             is_eagle=lambda: False,
@@ -981,6 +1022,8 @@ def test_v100_ai_bond_fallback_uses_supported_full_attention_signature(monkeypat
         tp_k_head_num=1,
         head_dim=2,
         scaling=0.5,
+        k_scale=None,
+        v_scale=None,
         layer_id=0,
     )
     forward_batch = SimpleNamespace(
@@ -1024,8 +1067,13 @@ def test_v100_native_extend_selects_swa_page_table(monkeypatch):
         lambda: fake_tilelang_paged,
     )
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
+    backend._fp8_prefill_scratch_enabled = False
+    backend._fp8_verify_k_scratch = None
+    backend._target_xqa_enabled = False
     backend.page_size = 16
     backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: False,
             is_eagle=lambda: False,
@@ -1053,6 +1101,8 @@ def test_v100_native_extend_selects_swa_page_table(monkeypatch):
         tp_k_head_num=1,
         head_dim=2,
         scaling=0.5,
+        k_scale=None,
+        v_scale=None,
         layer_id=0,
     )
     forward_batch = SimpleNamespace(
@@ -1076,6 +1126,7 @@ def test_v100_native_extend_selects_swa_page_table(monkeypatch):
 
 def test_v100_spec_v2_metadata_delegates_to_triton():
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = False
     backend._triton = Mock()
     forward_batch = SimpleNamespace(forward_mode=ForwardMode.DRAFT_EXTEND_V2)
 

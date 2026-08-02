@@ -181,6 +181,32 @@ def _load_xqa_decode():
     return _xqa_decode, _xqa_e4m3_supported, _wmma_decode
 
 
+def _dflash_target_xqa_requested() -> bool:
+    """Select the SM70 DFlash target verifier.
+
+    XQA's independent decode rows reread the same long prefix for every token
+    in the speculative block.  The grouped TileLang verifier shares that scan
+    for FP16 KV and uses a cached E4M3-to-FP16 lookup for compact KV.
+    """
+    default = "0"
+    value = os.environ.get("SGLANG_V100_DFLASH_TARGET_XQA", default).strip().lower()
+    if value not in (
+        "0",
+        "false",
+        "off",
+        "no",
+        "1",
+        "true",
+        "on",
+        "yes",
+    ):
+        raise ValueError(
+            "SGLANG_V100_DFLASH_TARGET_XQA must be a boolean value, "
+            f"got {value!r}."
+        )
+    return value in ("1", "true", "on", "yes")
+
+
 @dataclass
 class FlashAttnV100ExtendMetadata:
     """Per-forward metadata for the paged prefill (extend) path."""
@@ -265,24 +291,7 @@ class FlashAttnV100Backend(AttentionBackend):
             self._wmma_decode,
         ) = _load_xqa_decode()
         self._paged_decode = _paged_decode
-        target_xqa = (
-            os.environ.get("SGLANG_V100_DFLASH_TARGET_XQA", "1").strip().lower()
-        )
-        if target_xqa not in (
-            "0",
-            "false",
-            "off",
-            "no",
-            "1",
-            "true",
-            "on",
-            "yes",
-        ):
-            raise ValueError(
-                "SGLANG_V100_DFLASH_TARGET_XQA must be a boolean value, "
-                f"got {target_xqa!r}."
-            )
-        target_xqa_requested = target_xqa in ("1", "true", "on", "yes")
+        target_xqa_requested = _dflash_target_xqa_requested()
         self._target_xqa_enabled = (
             target_xqa_requested
             and self._xqa_decode is not None
@@ -304,6 +313,17 @@ class FlashAttnV100Backend(AttentionBackend):
         # FP8 prefill loads it lazily after materializing active pages as FP16.
         if not self._uses_sm70_fp8_kv or model_runner.spec_algorithm.is_speculative():
             _load_paged_forward()
+        if (
+            model_runner.spec_algorithm.is_dflash()
+            and not model_runner.is_draft_worker
+        ):
+            if self._target_xqa_enabled:
+                target_verifier = "independent-row XQA"
+            elif _use_tilelang:
+                target_verifier = "grouped TileLang block verifier"
+            else:
+                target_verifier = "FP16-scratch compatibility verifier"
+            logger.info("DFLASH target verifier: %s.", target_verifier)
 
         # Decode is delegated to the Triton backend (GooseLLM SM70 split-K
         # tuning already lives there). Speculative target verification also
@@ -363,6 +383,7 @@ class FlashAttnV100Backend(AttentionBackend):
         if (
             verify_scratch_enabled
             and not self._target_xqa_enabled
+            and not _use_tilelang
             and self._uses_sm70_fp8_kv
             and model_runner.spec_algorithm.is_dflash()
             and not model_runner.is_draft_worker
@@ -506,7 +527,8 @@ class FlashAttnV100Backend(AttentionBackend):
                 self.model_runner.spec_algorithm.is_dflash()
                 and self.page_size == V100_PAGE_SIZE
                 and (
-                    (
+                    _use_tilelang
+                    or (
                         self._fp8_verify_k_scratch is not None
                         and self._fp8_verify_kv_indptr is not None
                         and self._fp8_verify_logical_indices is not None

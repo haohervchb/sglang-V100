@@ -13,6 +13,18 @@ from ._kernels_paged_verify import VERIFY_Q_BLOCK, get_paged_verify_kernels
 
 warnings.filterwarnings("ignore", message="Field.*duplicates an ancestor field")
 
+_FP8_E4M3FN_LUT = {}
+
+
+def _get_fp8_e4m3fn_lut(device):
+    key = str(device)
+    lut = _FP8_E4M3FN_LUT.get(key)
+    if lut is None:
+        raw = torch.arange(256, dtype=torch.uint8, device=device)
+        lut = raw.view(torch.float8_e4m3fn).to(torch.float16)
+        _FP8_E4M3FN_LUT[key] = lut
+    return lut
+
 
 def paged_forward(
     q,
@@ -81,6 +93,7 @@ def paged_forward(
             q,
             k_cache,
             v_cache,
+            _get_fp8_e4m3fn_lut(q.device),
             block_table,
             seq_lens,
             query_start_loc,
