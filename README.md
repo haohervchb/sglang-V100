@@ -2,7 +2,8 @@
 
 This fork adapts SGLang for four SM70 V100 GPUs. It includes a TileLang
 FlashAttention backend, V100-aware paged KV-cache and decode tuning, custom
-all-reduce support, and Marlin GPTQ/AWQ/compressed-tensors MoE kernels.
+all-reduce support, TurboMind FP16 MoE kernels, and Marlin
+GPTQ/AWQ/compressed-tensors MoE kernels.
 
 The commands below target x86-64 Ubuntu, four 32 GB V100s connected by NVLink,
 and a sufficiently recent NVIDIA driver. They intentionally create a dedicated
@@ -30,9 +31,9 @@ count. Set `MAX_JOBS=16` before the command only if you want to impose a limit.
 
 The installer builds only SM70 `sglang-kernel` targets, applies the exact
 FlashInfer SM70, 1Cat V100 attention, and Marlin SM70 compatibility patches
-kept in this repository, builds the TurboMind W8A16 block-FP8 extension,
-verifies NCCL, and precompiles FlashInfer's sampling module. The last step moves
-its roughly minute-long cold JIT cost from the first chat into
+kept in this repository, builds the unified TurboMind W8A16 block-FP8 and FP16
+MoE extension, verifies NCCL, and precompiles FlashInfer's sampling module. The
+last step moves its roughly minute-long cold JIT cost from the first chat into
 installation/startup.
 
 If only the final validation step fails, do not rerun the installer or rebuild
@@ -60,6 +61,22 @@ conda activate sglang-v100
 bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
 ```
 
+The Qwen3.6-35B-A3B FP16 MoE path adds native code to the unified TurboMind
+extension. Hosts installed before this support landed must rebuild that
+extension once after pulling, then validate it:
+
+```bash
+conda activate sglang-v100
+python -m pip install cuda-tile==1.5.0
+MAX_JOBS=4 python "$HOME/sglang-V100/scripts/build_sm70_turbomind.py"
+bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
+```
+
+The pinned CUDA Tile package satisfies the communication-module import used by
+the bundled FlashInfer source. The build reuses the installer-managed
+`~/1Cat-vLLM` and CUTLASS source trees; it does not rebuild FlashInfer, native
+attention, Marlin, or `sglang-kernel`.
+
 The Laguna SM70 Marlin selector added on 2026-07-28 is a native-kernel change.
 After pulling it onto a host built from an older revision, rebuild only Marlin
 once, then validate:
@@ -85,10 +102,10 @@ the rebuilt environment passes `scripts/smoke_v100.sh`.
 ## Docker: pull and run
 
 The Docker image mirrors the host build: CUDA 12.8, Torch 2.9.1, the patched
-FlashInfer SM70 source, direct-E4M3 V100 XQA, TurboMind W8A16 block-FP8,
-SM70-only `sglang-kernel`, V100 Marlin, and NCCL 2.27.5. It contains the
-complete serving runtime; no repository checkout or host Python environment
-is mounted into the container. Pull the published image with:
+FlashInfer SM70 source, direct-E4M3 V100 XQA, TurboMind W8A16 block-FP8 and
+FP16 MoE, SM70-only `sglang-kernel`, V100 Marlin, and NCCL 2.27.5. It contains
+the complete serving runtime; no repository checkout or host Python
+environment is mounted into the container. Pull the published image with:
 
 ```bash
 docker pull geesegeesegeese/sglang-v100:latest
@@ -103,7 +120,9 @@ with the command below when testing an unpublished change. A normal Laguna or
 Qwen DFlash Python-only update reuses every native layer and rebuilds only the
 application and validation layers. A change to the Laguna-specific Marlin
 patch rebuilds Marlin and those later layers, while retaining the cached
-FlashInfer, native-attention, and `sglang-kernel` layers.
+FlashInfer, native-attention, and `sglang-kernel` layers. A change to the
+TurboMind bindings or FP16 MoE source rebuilds only that private extension and
+the later application layers.
 
 Model checkpoints are not embedded in the image. The command below bind-mounts
 the host Hugging Face cache, so it reuses checkpoints already downloaded by a
@@ -251,6 +270,42 @@ sglang serve \
   --enable-nccl-nvls
 ```
 
+### Qwen3.6-35B-A3B unquantized FP16
+
+This is the full-size official `Qwen/Qwen3.6-35B-A3B` checkpoint, not the AWQ
+conversion below. It uses the native SM70 FP16 routed-MoE path. Leave the
+custom all-reduce algorithm unset: the size-aware policy keeps one-shot
+reductions for decode and selects two-shot reductions for large prefills.
+
+```bash
+NCCL_P2P_LEVEL=NVL \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --model Qwen/Qwen3.6-35B-A3B \
+  --dtype float16 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.70 \
+  --context-length 262144 \
+  --max-running-requests 4 \
+  --chunked-prefill-size 8192 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
+  --enable-nccl-nvls \
+  --enable-multimodal \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
+The FP16 MoE path is enabled automatically when its native extension is
+present. Set `SGLANG_SM70_FP16_MOE=0` only for a diagnostic comparison with
+the generic Triton MoE runner.
+
 ### Qwen3.6-35B-A3B AWQ
 
 ```bash
@@ -380,7 +435,7 @@ draft, add:
 ```bash
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
-  --speculative-dflash-block-size 8 \
+  --speculative-dflash-block-size 16 \
   --mamba-scheduler-strategy extra_buffer
 ```
 
@@ -392,10 +447,10 @@ native SM70 kernel.
 Top-k-1 MTP target verification uses the native TileLang paged-prefill kernel;
 tree verification continues to use Triton's custom-mask path. Ordinary target
 prefill remains on `flash_attn_v100`. Block size 16 is the low-concurrency
-starting point for the 27B and 122B drafts. Block size 8 is the tested default
-for 35B-A3B with four live requests; also try it for the 122B draft when serving
-more concurrent requests. Compare acceptance rate and inter-token latency on
-the actual workload.
+starting point for all three drafts. For 35B-A3B with four simultaneously
+active requests, also compare block size 8; the smaller verifier batch can
+improve latency and graph-memory use. Compare acceptance rate and inter-token
+latency on the actual workload.
 
 For full-attention 16-token verification blocks, the long-context SM70 path
 partitions KV work across up to 80 V100 SMs and processes GQA heads in groups of
@@ -900,11 +955,10 @@ sglang serve \
   --tool-call-parser qwen3_coder
 ```
 
-### Qwen3.6-35B-A3B FP16 with DFlash
+### Qwen3.6-35B-A3B unquantized FP16 with DFlash
 
 ```bash
 NCCL_P2P_LEVEL=NVL \
-SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
 SGLANG_MAMBA_CONV_DTYPE=float16 \
 SGLANG_MAMBA_SSM_DTYPE=float16 \
 SGLANG_ENABLE_SPEC_V2=1 \
@@ -916,24 +970,50 @@ sglang serve \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
-  --mem-fraction-static 0.78 \
+  --mem-fraction-static 0.70 \
   --context-length 262144 \
   --max-running-requests 4 \
-  --chunked-prefill-size 4096 \
+  --chunked-prefill-size 8192 \
   --mamba-scheduler-strategy extra_buffer \
   --cuda-graph-max-bs 4 \
   --cuda-graph-bs 1 2 4 \
   --enable-nccl-nvls \
+  --enable-multimodal \
   --speculative-algorithm DFLASH \
   --speculative-draft-model-path z-lab/Qwen3.6-35B-A3B-DFlash \
-  --speculative-dflash-block-size 8 \
+  --speculative-dflash-block-size 16 \
   --reasoning-parser qwen3 \
   --tool-call-parser qwen3_coder
 ```
 
-The FP16 target is compatible with the same draft, but its unquantized target
-weights make it slower than AWQ on V100. Prefer AWQ for serving throughput and
-use FP16 when retaining the unquantized target weights is more important.
+Do not force `SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage` for this FP16 target. Its
+large prefill reductions are faster through the size-aware two-shot path,
+while decode still selects one-shot automatically. The native SM70 MoE runner
+also installs measured 4,096- and 8,192-token launch shapes for this model.
+
+The following matched, cold-cache, unique-prompt measurements used TP4, one
+live request, 256 greedy output tokens, and the 8,192-token command above.
+Decode is the client-visible `1000 / mean TPOT`; DFlash acceptance is accepted
+tokens per verifier call.
+
+| Context | Target prefill | Target decode | DFlash prefill | DFlash decode | Accept |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,000 | 4,358 tok/s | 104.8 tok/s | 4,240 tok/s | 150.1 tok/s | 3.56 |
+| 9,000 | 10,836 tok/s | 103.6 tok/s | 11,605 tok/s | 131.0 tok/s | 3.51 |
+| 25,000 | 12,422 tok/s | 90.0 tok/s | 12,258 tok/s | 136.4 tok/s | 3.71 |
+
+An additional 90K/128-token DFlash audit produced 7,795 prefill tok/s and
+140.0 decode tok/s with 4.57 accepted tokens; its retained response passed the
+output repetition and coherence checks. The draft checkpoint was trained with
+40K sequences, so that 90K result validates the runtime path rather than
+guaranteeing the same acceptance on every workload beyond the training range.
+
+The same DFlash server passed separated reasoning, an automatically parsed
+tool call plus tool-result round trip, and image-conditioned generation.
+`tool_choice="required"` invokes grammar-constrained decoding, which DFlash
+does not currently support; the API rejects that combination with HTTP 400.
+Use `tool_choice="auto"`, or send grammar-required requests to a target-only
+server.
 
 ### Qwen3.6-35B-A3B AWQ with DFlash
 
@@ -1140,8 +1220,10 @@ DFlash added its 399,184-slot draft KV pool and left about 1.6 GiB on the
 tightest rank.
 The 35B-A3B AWQ block-size-8 configuration allocated 943,472 target/draft KV
 slots and left about 2.3 GiB on the tightest rank after graph capture. The
-unquantized FP16 configuration allocated 370,048 target/draft KV slots and also
-left about 2.3 GiB of runtime-reported headroom on the tightest rank.
+recommended unquantized FP16 block-size-16 configuration at 0.70 allocated
+240,016 target and draft KV slots per rank and left about 4.29 GiB of
+runtime-reported headroom on the tightest rank. Its target-only counterpart
+allocated 258,592 KV slots per rank.
 If the service only needs one or two live requests, using
 `--cuda-graph-max-bs 2 --cuda-graph-bs 1 2` with 0.70 conserves both KV and graph
 memory. Leave space for generated tokens, JIT compilation, and other GPU

@@ -66,6 +66,7 @@ lmdeploy_sources = [
 ]
 sources = [
     str(repo / "python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp"),
+    str(repo / "python/sglang/jit_kernel/csrc/sm70_fp16_moe_gemm.cu"),
     *(str(lmdeploy / path) for path in lmdeploy_sources),
     str(tm_root / "ops/tm_registry_sm70.cu"),
     str(tm_root / "ops/awq_sm70_gemm.cu"),

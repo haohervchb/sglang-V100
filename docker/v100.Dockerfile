@@ -111,11 +111,13 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && python -m pip install --no-deps --no-build-isolation \
       /opt/deps/1cat-vllm/flash-attention-v100
 
-# Build SGLang's private TurboMind W8A16 block-FP8 extension against the same
-# pinned source and CUTLASS revision used for host validation.
+# Build SGLang's unified TurboMind W8A16 block-FP8 and FP16 MoE extension
+# against the pinned source and CUTLASS revision used for host validation.
 COPY scripts/build_sm70_turbomind.py /opt/sglang/scripts/build_sm70_turbomind.py
 COPY python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp \
      /opt/sglang/python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp
+COPY python/sglang/jit_kernel/csrc/sm70_fp16_moe_gemm.cu \
+     /opt/sglang/python/sglang/jit_kernel/csrc/sm70_fp16_moe_gemm.cu
 RUN --mount=type=cache,target=/root/.cache/torch_extensions,sharing=locked \
     export MAX_JOBS="$(v100-safe-jobs)" \
     && export SGLANG_1CAT_VLLM_ROOT=/opt/deps/1cat-vllm \
@@ -162,6 +164,7 @@ RUN --mount=type=bind,source=rust/sglang-grpc,target=/mnt/sglang-grpc,ro \
     && cp -a /mnt/sglang-grpc /opt/sglang/rust/sglang-grpc \
     && cp -a /mnt/proto /opt/sglang/proto \
     && python -m pip install --no-deps --no-build-isolation -e /opt/sglang/python \
+    && python -m pip install cuda-tile==1.5.0 \
     && cp /opt/v100-artifacts/_sm70_marlin_v100_*.abi3.so \
       /opt/sglang/python/sglang/jit_kernel/
 
@@ -204,7 +207,7 @@ def validate_sm70(binary, required_strings):
 validate_sm70(common_ops[0], ["all_reduce", "gptq_gemm", "causal_conv1d_fwd"])
 validate_sm70(marlin[0], ["marlin_gemm"])
 validate_sm70(marlin[1], ["moe_wna16_marlin_gemm"])
-validate_sm70(turbomind, ["fp8_gemm"])
+validate_sm70(turbomind, ["fp8_gemm", "f16_moe_gemm"])
 validate_sm70(native_attention[0], ["decode_paged_xqa_fwd"])
 print("SM70 build artifacts validated")
 PY
@@ -212,7 +215,6 @@ PY
 FROM base AS runtime
 
 ENV NCCL_P2P_LEVEL=NVL \
-    SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
     SGLANG_MAMBA_CONV_DTYPE=float16 \
     SGLANG_MAMBA_SSM_DTYPE=float16 \
     HF_HOME=/root/.cache/huggingface \

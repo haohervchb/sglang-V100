@@ -39,6 +39,7 @@ from sglang.srt.function_call.base_format_detector import get_model_structural_t
 from sglang.srt.layers.quantization.marlin_utils import (
     _sm70_marlin_v100_repack_ops,
 )
+from sglang.srt.layers.quantization.sm70_fp16_moe import _load_sm70_ops
 from sglang.srt.layers.quantization.sm70_turbomind_fp8 import (
     _load_sm70_turbomind_fp8_ops,
 )
@@ -66,6 +67,7 @@ assert gptq_repack is not None, (
 )
 assert awq_repack is not None, "marlin_v100 AWQ repack is missing"
 assert _load_sm70_turbomind_fp8_ops(), "TurboMind SM70 FP8 ops are missing"
+assert _load_sm70_ops(), "TurboMind SM70 FP16 MoE ops are missing"
 
 # Exercise the exact W8A16 block-FP8 operator used by Qwen3.6-27B-FP8.
 torch.manual_seed(7)
@@ -90,6 +92,64 @@ torch.ops.sglang_sm70_turbomind.fp8_gemm(
 )
 expected = activation @ weight.to(torch.float16).T
 assert torch.equal(actual, expected), (actual - expected).abs().max()
+
+# Exercise the routed FP16 expert projection used by Qwen3.6-35B-A3B.  This
+# also verifies that the unified extension contains the weight converter,
+# strided expert pointers, and fused gated-SiLU epilogue.
+num_experts, rows, hidden_size, output_size = 4, 32, 128, 128
+expert_weight = (
+    torch.randn(
+        (num_experts, output_size, hidden_size),
+        device="cuda",
+        dtype=torch.float16,
+    )
+    * 0.01
+)
+prepared_weight, prepared_meta = torch.ops.sglang_sm70_turbomind.f16_prepare(
+    expert_weight.reshape(num_experts * output_size, hidden_size).contiguous()
+)
+prepared_weight = prepared_weight.reshape(
+    num_experts, output_size, hidden_size
+)
+expert_ptrs = torch.ops.sglang_sm70_turbomind.f16_moe_build_ptrs(
+    prepared_weight, int(prepared_meta[0]), num_experts
+)[0]
+expert_input = (
+    torch.randn((rows, hidden_size), device="cuda", dtype=torch.float16) * 0.1
+)
+expert_output = torch.empty(
+    (rows, output_size // 2), device="cuda", dtype=torch.float16
+)
+expert_offsets = torch.arange(
+    0,
+    rows + 1,
+    rows // num_experts,
+    device="cuda",
+    dtype=torch.int32,
+)
+torch.ops.sglang_sm70_turbomind.f16_moe_gemm(
+    expert_output,
+    expert_input,
+    expert_offsets,
+    expert_ptrs,
+    num_experts,
+    hidden_size,
+    output_size,
+    True,
+)
+expert_reference = torch.empty_like(expert_output)
+rows_per_expert = rows // num_experts
+for expert in range(num_experts):
+    begin = expert * rows_per_expert
+    end = begin + rows_per_expert
+    projected = torch.nn.functional.linear(
+        expert_input[begin:end], expert_weight[expert]
+    )
+    expert_reference[begin:end] = (
+        torch.nn.functional.silu(projected[:, 0::2]) * projected[:, 1::2]
+    )
+expert_error = (expert_output - expert_reference).abs().max()
+assert expert_error <= 5e-4, expert_error
 
 # SGLang uses distinct CUDA streams for graph capture and overlap scheduling.
 # TurboMind workspaces must therefore be isolated per stream: a single shared
@@ -197,5 +257,6 @@ print("E4M3 XQA: registered")
 print("SM70 kernel:", sgl_kernel.common_ops.__file__)
 print("SM70 Marlin repack: registered")
 print("SM70 TurboMind FP8: registered")
+print("SM70 TurboMind FP16 MoE: registered")
 print("NCCL:", NCCLLibrary().ncclGetVersion())
 PY
