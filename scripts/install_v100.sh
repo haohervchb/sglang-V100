@@ -98,7 +98,8 @@ python -m pip install \
   --index-url https://download.pytorch.org/whl/cu128
 python -m pip install \
   grpcio==1.81.1 grpcio-health-checking==1.81.1 \
-  grpcio-reflection==1.81.1 protobuf==6.33.6 tilelang==0.1.8
+  grpcio-reflection==1.81.1 protobuf==6.33.6 tilelang==0.1.8 \
+  cuda-tile==1.5.0
 python -m pip install -e "$REPO_ROOT/python"
 
 prepare_patched_repo() {
@@ -181,7 +182,7 @@ prepare_patched_repo \
   CUTLASS https://github.com/NVIDIA/cutlass.git \
   "$ONECAT_CUTLASS_REV" "$ONECAT_CUTLASS_DIR"
 
-log "Building the TurboMind SM70 block-FP8 GEMM backend"
+log "Building the unified TurboMind SM70 block-FP8 and FP16 MoE backend"
 SGLANG_1CAT_VLLM_ROOT="$ONECAT_VLLM_DIR" \
 SGLANG_1CAT_CUTLASS_ROOT="$ONECAT_CUTLASS_DIR" \
   python "$REPO_ROOT/scripts/build_sm70_turbomind.py"

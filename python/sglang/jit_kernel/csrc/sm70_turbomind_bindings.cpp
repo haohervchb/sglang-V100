@@ -10,6 +10,7 @@ std::vector<torch::Tensor> uint4_sm70_prepare(
     torch::Tensor, torch::Tensor, torch::Tensor, int64_t, bool);
 std::vector<torch::Tensor> fp8_sm70_prepare(
     torch::Tensor, torch::Tensor, int64_t, bool);
+std::vector<torch::Tensor> sglang_sm70_f16_prepare(torch::Tensor);
 void fp8_gemm_sm70_out(
     torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
     int64_t, int64_t, int64_t, bool);
@@ -18,6 +19,11 @@ std::vector<torch::Tensor> awq_moe_build_strided_ptrs(
 void awq_moe_gemm_sm70_out(
     torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
     torch::Tensor, int64_t, int64_t, int64_t, int64_t, bool);
+std::vector<torch::Tensor> sm70_f16_moe_build_strided_ptrs(
+    torch::Tensor, int64_t, int64_t);
+void sm70_f16_moe_gemm_sm70_out(
+    torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, int64_t,
+    int64_t, int64_t, bool);
 int64_t moe_permute_sort_workspace_size(int64_t, int64_t);
 
 TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
@@ -33,6 +39,8 @@ TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
       "fp8_prepare(Tensor qweight, Tensor scales, int group_size, "
       "bool interleave) -> Tensor[]");
   ops.impl("fp8_prepare", torch::kCUDA, &fp8_sm70_prepare);
+  ops.def("f16_prepare(Tensor weight) -> Tensor[]");
+  ops.impl("f16_prepare", torch::kCUDA, &sglang_sm70_f16_prepare);
   ops.def(
       "fp8_gemm(Tensor(a!) out, Tensor input, Tensor qweight, Tensor scales, "
       "int group_size, int k_ld, int q_ld, bool gated_silu) -> ()");
@@ -46,6 +54,17 @@ TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
       "Tensor strided_ptrs_w, Tensor strided_ptrs_s, int num_experts, "
       "int k, int n, int group_size, bool gated_silu) -> ()");
   ops.impl("gemm", torch::kCUDA, &awq_moe_gemm_sm70_out);
+  ops.def(
+      "f16_moe_build_ptrs(Tensor weights, int k_ld, int num_experts) "
+      "-> Tensor[]");
+  ops.impl(
+      "f16_moe_build_ptrs", torch::kCUDA,
+      &sm70_f16_moe_build_strided_ptrs);
+  ops.def(
+      "f16_moe_gemm(Tensor(a!) out, Tensor sorted_input, "
+      "Tensor expert_offsets, Tensor strided_ptrs_w, int num_experts, "
+      "int k, int n, bool gated_silu) -> ()");
+  ops.impl("f16_moe_gemm", torch::kCUDA, &sm70_f16_moe_gemm_sm70_out);
   ops.def(
       "moe_permute_with_scratch(Tensor input, Tensor topk_ids, "
       "Tensor token_expert_indices, Tensor? expert_map, int n_expert, "
