@@ -13,6 +13,7 @@
 """Common config utils for mamba2 - NemotronH, FalconH1, Qwen3Next, LFM2, etc."""
 
 import logging
+import os
 from abc import ABC
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -101,6 +102,17 @@ def mamba2_state_dtype(config=None) -> Mamba2StateDType:
             )
         else:
             ssm_dtype = dtype_map[env_ssm_dtype]
+
+    # SM70 has no native BF16 execution. ModelRunner therefore forces model
+    # compute to FP16 by default, and the recurrent cache must follow it:
+    # assigning FP16 GDN convolution states into a BF16 cache is an error.
+    if (
+        torch.cuda.is_available()
+        and torch.cuda.get_device_capability()[0] < 8
+        and os.environ.get("SGLANG_SM70_FORCE_FP16", "1") != "0"
+    ):
+        conv_dtype = torch.float16
+        ssm_dtype = torch.float16
 
     logger.debug(f"Mamba2 state dtype: conv_dtype={conv_dtype}, ssm_dtype={ssm_dtype}")
 

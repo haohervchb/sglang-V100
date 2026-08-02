@@ -7,6 +7,8 @@ import torch
 
 from sglang.srt.layers.quantization.marlin_utils import (
     USE_FP32_REDUCE_DEFAULT,
+    _sm70_marlin_v100_gemm_op,
+    _sm70_marlin_v100_repack_ops,
     marlin_make_workspace,
     marlin_permute_bias,
     marlin_permute_scales,
@@ -76,26 +78,50 @@ def apply_fp8_marlin_linear(
         m=reshaped_x.size(0), n=size_n, k=size_k, device=input.device, dtype=input.dtype
     )
 
-    output = gptq_marlin_gemm(
-        a=reshaped_x,
-        c=None,
-        b_q_weight=weight,
-        b_scales=weight_scale,
-        global_scale=None,
-        b_zeros=None,
-        g_idx=None,
-        perm=None,
-        workspace=workspace,
-        b_q_type=scalar_types.float8_e4m3fn,
-        size_m=reshaped_x.size(0),
-        size_n=size_n,
-        size_k=size_k,
-        use_atomic_add=use_atomic_add,
-        use_fp32_reduce=use_fp32_reduce,
-    )
+    sm70_gemm = _sm70_marlin_v100_gemm_op()
+    if sm70_gemm is not None:
+        output = sm70_gemm(
+            reshaped_x,
+            None,
+            weight,
+            bias,
+            weight_scale,
+            None,
+            None,
+            None,
+            None,
+            None,
+            workspace,
+            scalar_types.float8_e4m3fn.id,
+            reshaped_x.size(0),
+            size_n,
+            size_k,
+            True,
+            use_atomic_add,
+            use_fp32_reduce,
+            False,
+        )
+    else:
+        output = gptq_marlin_gemm(
+            a=reshaped_x,
+            c=None,
+            b_q_weight=weight,
+            b_scales=weight_scale,
+            global_scale=None,
+            b_zeros=None,
+            g_idx=None,
+            perm=None,
+            workspace=workspace,
+            b_q_type=scalar_types.float8_e4m3fn,
+            size_m=reshaped_x.size(0),
+            size_n=size_n,
+            size_k=size_k,
+            use_atomic_add=use_atomic_add,
+            use_fp32_reduce=use_fp32_reduce,
+        )
 
-    if bias is not None:
-        output.add_(bias)
+        if bias is not None:
+            output.add_(bias)
 
     return output.reshape(out_shape)
 
@@ -131,13 +157,23 @@ def prepare_fp8_layer_for_marlin(
     if not size_k_first:
         qweight = qweight.T.contiguous()
 
-    marlin_qweight = gptq_marlin_repack(
-        b_q_weight=qweight,
-        perm=perm,
-        size_k=part_size_k,
-        size_n=part_size_n,
-        num_bits=8,
-    )
+    sm70_gptq_repack, _ = _sm70_marlin_v100_repack_ops()
+    if sm70_gptq_repack is not None:
+        marlin_qweight = sm70_gptq_repack(
+            qweight,
+            perm,
+            part_size_k,
+            part_size_n,
+            8,
+        )
+    else:
+        marlin_qweight = gptq_marlin_repack(
+            b_q_weight=qweight,
+            perm=perm,
+            size_k=part_size_k,
+            size_n=part_size_n,
+            num_bits=8,
+        )
     layer.weight = torch.nn.Parameter(marlin_qweight, requires_grad=False)
 
     # WEIGHT SCALES
@@ -180,9 +216,14 @@ def prepare_fp8_layer_for_marlin(
         # size_n may not divisible by block_size[0]
         scales = scales[:, :part_size_n]
 
-    marlin_scales = marlin_permute_scales(
-        s=scales, size_k=part_size_k, size_n=part_size_n, group_size=group_size
-    )
+    if sm70_gptq_repack is not None:
+        # marlin_v100's SM70 kernels consume logical N-contiguous metadata.
+        # The stock SM80+ Marlin permutation corrupts group-128 FP8 scales.
+        marlin_scales = scales.reshape(-1, part_size_n).contiguous()
+    else:
+        marlin_scales = marlin_permute_scales(
+            s=scales, size_k=part_size_k, size_n=part_size_n, group_size=group_size
+        )
     marlin_scales = fp8_fused_exponent_bias_into_scales(marlin_scales)
     layer.weight_scale = torch.nn.Parameter(marlin_scales, requires_grad=False)
 

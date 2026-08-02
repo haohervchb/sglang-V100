@@ -17,7 +17,6 @@ import tilelang.language as T
 
 from ._kernels_paged import pass_configs
 
-
 VERIFY_Q_BLOCK = 16
 VERIFY_MIN_TOKENS_PER_SPLIT = 1024
 VERIFY_SM_TARGET = 80  # V100 SXM2 SM count; one memory-streaming CTA per SM.
@@ -37,6 +36,7 @@ def _paged_verify_partial_kernel(
     max_splits,
     block_N,
     threads,
+    fp8_kv,
 ):
     nt = T.dynamic("nt")
     group_size = heads // heads_kv
@@ -48,12 +48,14 @@ def _paged_verify_partial_kernel(
     kv_shape = [num_pages, page_block_size, heads_kv, dim]
     partial_o_shape = [batch, max_splits, VERIFY_Q_BLOCK, heads, dim]
     partial_lse_shape = [batch, max_splits, VERIFY_Q_BLOCK, heads]
+    kv_dtype = T.uint8 if fp8_kv else T.float16
 
     @T.prim_func
     def main(
         Q: T.Tensor(q_shape, T.float16),
-        K_cache: T.Tensor(kv_shape, T.float16),
-        V_cache: T.Tensor(kv_shape, T.float16),
+        K_cache: T.Tensor(kv_shape, kv_dtype),
+        V_cache: T.Tensor(kv_shape, kv_dtype),
+        FP8_LUT: T.Tensor([256], T.float16),
         block_table: T.Tensor([batch, max_blocks_per_seq], T.int32),
         cache_seqlens: T.Tensor([batch], T.int32),
         query_start_loc: T.Tensor([batch + 1], T.int32),
@@ -125,9 +127,13 @@ def _paged_verify_partial_kernel(
                         page_offset = kv_i - logical_page * page_block_size
                         if kv_i < split_end:
                             physical_page = block_table[batch_id, logical_page]
-                            K_shared[n, d] = K_cache[
-                                physical_page, page_offset, kv_head, d
-                            ]
+                            if fp8_kv:
+                                raw = K_cache[physical_page, page_offset, kv_head, d]
+                                K_shared[n, d] = FP8_LUT[T.cast(raw, T.int32)]
+                            else:
+                                K_shared[n, d] = K_cache[
+                                    physical_page, page_offset, kv_head, d
+                                ]
 
                     for row, n in T.Parallel(block_M, block_N):
                         q_i = T.floordiv(row, heads_per_cta)
@@ -136,9 +142,7 @@ def _paged_verify_partial_kernel(
                             acc_s[row, n] = T.if_then_else(
                                 (q_i < q_len)
                                 & (kv_i < split_end)
-                                & (
-                                    kv_i <= prefix_kv_lens[batch_id] + q_i
-                                ),
+                                & (kv_i <= prefix_kv_lens[batch_id] + q_i),
                                 0,
                                 -T.infinity(T.float32),
                             )
@@ -163,16 +167,12 @@ def _paged_verify_partial_kernel(
                             m_i[row] == -T.infinity(T.float32), 0, m_i[row]
                         )
                         m_i[row] = T.max(m_i[row], m_prev[row])
-                        scale[row] = T.exp2(
-                            (m_prev[row] - m_i[row]) * scale_log2
-                        )
+                        scale[row] = T.exp2((m_prev[row] - m_i[row]) * scale_log2)
                         l_i[row] *= scale[row]
                     for row, d in T.Parallel(block_M, dim):
                         acc_o[row, d] *= scale[row]
                     for row, n in T.Parallel(block_M, block_N):
-                        acc_s[row, n] = T.exp2(
-                            (acc_s[row, n] - m_i[row]) * scale_log2
-                        )
+                        acc_s[row, n] = T.exp2((acc_s[row, n] - m_i[row]) * scale_log2)
                     T.reduce_sum(acc_s, row_sum, dim=1)
                     for row in T.Parallel(block_M):
                         l_i[row] += row_sum[row]
@@ -184,9 +184,13 @@ def _paged_verify_partial_kernel(
                         page_offset = kv_i - logical_page * page_block_size
                         if kv_i < split_end:
                             physical_page = block_table[batch_id, logical_page]
-                            V_shared[n, d] = V_cache[
-                                physical_page, page_offset, kv_head, d
-                            ]
+                            if fp8_kv:
+                                raw = V_cache[physical_page, page_offset, kv_head, d]
+                                V_shared[n, d] = FP8_LUT[T.cast(raw, T.int32)]
+                            else:
+                                V_shared[n, d] = V_cache[
+                                    physical_page, page_offset, kv_head, d
+                                ]
 
                     for row, n in T.Parallel(block_M, block_N):
                         P_shared[row, n] = T.cast(acc_s[row, n], T.float16)
@@ -210,8 +214,7 @@ def _paged_verify_partial_kernel(
                             kv_head * group_size + q_head_i,
                             d,
                         ] = T.cast(
-                            acc_o[row, d]
-                            / T.if_then_else(l_i[row] == 0, 1, l_i[row]),
+                            acc_o[row, d] / T.if_then_else(l_i[row] == 0, 1, l_i[row]),
                             T.float16,
                         )
                 for row in T.Parallel(block_M):
@@ -266,9 +269,7 @@ def _paged_verify_combine_kernel(
                 max_splits,
                 T.max(
                     1,
-                    T.ceildiv(
-                        cache_seqlens[batch_id], VERIFY_MIN_TOKENS_PER_SPLIT
-                    ),
+                    T.ceildiv(cache_seqlens[batch_id], VERIFY_MIN_TOKENS_PER_SPLIT),
                 ),
             )
             q_start = query_start_loc[batch_id]
@@ -299,9 +300,7 @@ def _paged_verify_combine_kernel(
                                 batch_id, split_i, q_i, head_i, d
                             ].astype(T.float32)
                 for d in T.Parallel(dim):
-                    Output[q_start + q_i, head_i, d] = T.cast(
-                        acc_o[d], T.float16
-                    )
+                    Output[q_start + q_i, head_i, d] = T.cast(acc_o[d], T.float16)
 
     return main
 
@@ -318,15 +317,14 @@ def get_paged_verify_kernels(
     num_pages,
     max_blocks,
     causal,
+    fp8_kv=False,
 ):
     """Compile the grouped partial/combine pair for one CUDA-graph shape."""
     assert heads % heads_kv == 0
     group_size = heads // heads_kv
     heads_per_cta = min(4, group_size)
     gqa_ctas = math.ceil(group_size / heads_per_cta)
-    max_splits = max(
-        1, math.ceil(VERIFY_SM_TARGET / (batch * heads_kv * gqa_ctas))
-    )
+    max_splits = max(1, math.ceil(VERIFY_SM_TARGET / (batch * heads_kv * gqa_ctas)))
     block_n = {128: 64, 256: 32}.get(dim, 64)
     threads = 256
     key = (
@@ -341,6 +339,7 @@ def get_paged_verify_kernels(
         max_splits,
         block_n,
         threads,
+        fp8_kv,
     )
     if key not in _VERIFY_KERNEL_CACHE:
         partial = _paged_verify_partial_kernel(
@@ -355,6 +354,7 @@ def get_paged_verify_kernels(
             max_splits=max_splits,
             block_N=block_n,
             threads=threads,
+            fp8_kv=fp8_kv,
         )
         combine = _paged_verify_combine_kernel(
             batch=batch,

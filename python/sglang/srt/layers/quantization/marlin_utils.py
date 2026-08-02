@@ -129,9 +129,7 @@ def _sm70_marlin_v100_repack_ops():
     candidates = sorted(
         glob.glob(os.path.join(jit_kernel_dir, "_sm70_marlin_v100_dense*.so"))
     )
-    candidates += sorted(
-        glob.glob(os.path.join(here, "_sm70_marlin_v100_dense*.so"))
-    )
+    candidates += sorted(glob.glob(os.path.join(here, "_sm70_marlin_v100_dense*.so")))
     candidates += sorted(glob.glob(os.path.join(home, "marlin_v100", "vllm", "_C*.so")))
     for path in candidates:
         try:
@@ -156,6 +154,34 @@ def _sm70_marlin_v100_repack_ops():
             )
             return _gptq, _awq
     return None, None
+
+
+@lru_cache(maxsize=1)
+def _sm70_marlin_v100_gemm_op():
+    """Return marlin_v100's dense SM70 GEMM op when it is installed.
+
+    SGLang's in-tree Marlin CUDA source intentionally compiles empty kernels
+    below SM80.  The V100 integration therefore has to use the dense
+    ``marlin_v100`` extension for both repacking and execution; using only its
+    repacker still produces zero output when the in-tree GEMM stub is called.
+    Loading the repack ops also loads the shared library that registers
+    ``torch.ops._C.marlin_gemm``.
+    """
+    if not _sm70_marlin_v100_available():
+        return None
+
+    gptq_repack, _ = _sm70_marlin_v100_repack_ops()
+    if gptq_repack is None:
+        return None
+
+    op = getattr(torch.ops._C, "marlin_gemm", None)
+    if op is None:
+        logger.warning(
+            "SM70 (V100): marlin_v100 repack is available, but its dense "
+            "marlin_gemm op was not registered."
+        )
+        return None
+    return op
 
 
 # For binary size and compile time, we don't support the same types for with and

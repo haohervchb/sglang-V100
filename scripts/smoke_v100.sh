@@ -21,7 +21,7 @@ else
   exit 1
 fi
 
-FLASHINFER_DISABLE_VERSION_CHECK=1 CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" \
+CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" \
   "$PYTHON" - <<'PY'
 import glob
 import os
@@ -29,13 +29,18 @@ from pathlib import Path
 
 import torch
 import flashinfer.sampling as flashinfer_sampling
+import flash_attn_v100
 import flash_attn_v100_cuda
 import sgl_kernel
 from flashinfer.sampling import top_k_top_p_sampling_from_probs
+from flash_attn_v100 import flash_attn_interface
 from sglang.srt.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from sglang.srt.function_call.base_format_detector import get_model_structural_tag
 from sglang.srt.layers.quantization.marlin_utils import (
     _sm70_marlin_v100_repack_ops,
+)
+from sglang.srt.layers.quantization.sm70_turbomind_fp8 import (
+    _load_sm70_turbomind_fp8_ops,
 )
 
 expected = os.environ.get("SGLANG_V100_FLASHINFER_DIR")
@@ -51,6 +56,8 @@ assert torch.version.cuda == "12.8", torch.version.cuda
 assert torch.cuda.is_available()
 assert torch.cuda.get_device_capability(0) == (7, 0)
 assert "/sm70/" in sgl_kernel.common_ops.__file__.replace("\\", "/")
+assert flash_attn_v100.flash_attn_decode_paged_xqa_available()
+assert flash_attn_interface.FLASH_ATTN_V100_XQA_E4M3_SUPPORTED is True
 assert NCCLLibrary().ncclGetRawVersion() == 22705
 gptq_repack, awq_repack = _sm70_marlin_v100_repack_ops()
 assert gptq_repack is not None, (
@@ -58,6 +65,86 @@ assert gptq_repack is not None, (
     "produces zero weights"
 )
 assert awq_repack is not None, "marlin_v100 AWQ repack is missing"
+assert _load_sm70_turbomind_fp8_ops(), "TurboMind SM70 FP8 ops are missing"
+
+# Exercise the exact W8A16 block-FP8 operator used by Qwen3.6-27B-FP8.
+torch.manual_seed(7)
+weight = (
+    torch.randn((128, 128), device="cuda", dtype=torch.float16) * 0.1
+).to(torch.float8_e4m3fn)
+scales = torch.ones((1, 1), device="cuda", dtype=torch.float32)
+packed, packed_scales, meta = torch.ops.sglang_sm70_turbomind.fp8_prepare(
+    weight, scales, 128, False
+)
+activation = torch.randn((3, 128), device="cuda", dtype=torch.float16)
+actual = torch.empty((3, 128), device="cuda", dtype=torch.float16)
+torch.ops.sglang_sm70_turbomind.fp8_gemm(
+    actual,
+    activation,
+    packed,
+    packed_scales,
+    128,
+    int(meta[0]),
+    int(meta[1]),
+    False,
+)
+expected = activation @ weight.to(torch.float16).T
+assert torch.equal(actual, expected), (actual - expected).abs().max()
+
+# SGLang uses distinct CUDA streams for graph capture and overlap scheduling.
+# TurboMind workspaces must therefore be isolated per stream: a single shared
+# scratch buffer can pass the check above while corrupting concurrent GEMMs.
+wide_weight = (
+    torch.randn((1024, 1024), device="cuda", dtype=torch.float16) * 0.05
+).to(torch.float8_e4m3fn)
+wide_scales = torch.ones((8, 8), device="cuda", dtype=torch.float32)
+wide_packed, wide_packed_scales, wide_meta = (
+    torch.ops.sglang_sm70_turbomind.fp8_prepare(
+        wide_weight, wide_scales, 128, False
+    )
+)
+wide_k_ld, wide_q_ld = int(wide_meta[0]), int(wide_meta[1])
+wide_inputs = [
+    torch.randn((64, 1024), device="cuda", dtype=torch.float16)
+    for _ in range(2)
+]
+wide_baselines = []
+for wide_input in wide_inputs:
+    wide_output = torch.empty((64, 1024), device="cuda", dtype=torch.float16)
+    torch.ops.sglang_sm70_turbomind.fp8_gemm(
+        wide_output,
+        wide_input,
+        wide_packed,
+        wide_packed_scales,
+        128,
+        wide_k_ld,
+        wide_q_ld,
+        False,
+    )
+    wide_baselines.append(wide_output)
+torch.cuda.synchronize()
+streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+stream_outputs = [
+    [torch.empty((64, 1024), device="cuda", dtype=torch.float16) for _ in range(4)]
+    for _ in streams
+]
+for stream, wide_input, outputs in zip(streams, wide_inputs, stream_outputs):
+    with torch.cuda.stream(stream):
+        for output in outputs:
+            torch.ops.sglang_sm70_turbomind.fp8_gemm(
+                output,
+                wide_input,
+                wide_packed,
+                wide_packed_scales,
+                128,
+                wide_k_ld,
+                wide_q_ld,
+                False,
+            )
+torch.cuda.synchronize()
+for baseline, outputs in zip(wide_baselines, stream_outputs):
+    for output in outputs:
+        assert torch.equal(output, baseline), (output - baseline).abs().max()
 
 # The Docker dependency set pins XGrammar 0.1.32, whose builtin helper uses a
 # different Qwen Coder model key and API than earlier releases.
@@ -106,7 +193,9 @@ torch.cuda.synchronize()
 print("SGLang V100 environment is ready:", torch.__version__)
 print("FlashInfer SM70 sampling:", sampling_path)
 print("Native attention:", flash_attn_v100_cuda.__file__)
+print("E4M3 XQA: registered")
 print("SM70 kernel:", sgl_kernel.common_ops.__file__)
 print("SM70 Marlin repack: registered")
+print("SM70 TurboMind FP8: registered")
 print("NCCL:", NCCLLibrary().ncclGetVersion())
 PY

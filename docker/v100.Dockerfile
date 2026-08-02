@@ -89,29 +89,38 @@ RUN git clone https://github.com/haohervchb/flashinfer.git \
     && git -C /opt/deps/flashinfer-sm70 apply \
       /opt/sglang/patches/flashinfer-sm70.patch
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    python -m pip install --no-deps --no-build-isolation \
+    python -m pip uninstall -y flashinfer-python flashinfer-cubin || true \
+    && python -m pip install --no-deps --no-build-isolation \
       -e /opt/deps/flashinfer-sm70
 
-# Native SM70 attention fallback. Docker has nvcc but no GPU during build, so
-# the final small patch permits the explicit sm_70 cross-compilation.
-COPY patches/flash-attention-v100-sglang.patch \
-     patches/flash-attention-v100-torch291.patch \
-     patches/flash-attention-v100-cross-compile.patch \
-     /opt/sglang/patches/
-RUN git clone https://github.com/ai-bond/flash-attention-v100.git \
-      /opt/deps/flash-attention-v100 \
-    && git -C /opt/deps/flash-attention-v100 checkout --detach \
-      d89800edf608d85744f3ab6188be5fd0736acf39 \
-    && git -C /opt/deps/flash-attention-v100 apply \
-      /opt/sglang/patches/flash-attention-v100-sglang.patch \
-    && git -C /opt/deps/flash-attention-v100 apply \
-      /opt/sglang/patches/flash-attention-v100-torch291.patch \
-    && git -C /opt/deps/flash-attention-v100 apply \
-      /opt/sglang/patches/flash-attention-v100-cross-compile.patch
+# 1Cat carries the proven SM70 attention and TurboMind source paths. Pin the
+# source once and apply SGLang's E4M3-XQA compatibility patch.
+COPY patches/1cat-vllm-sm70-sglang.patch /opt/sglang/patches/
+RUN git clone --filter=blob:none https://github.com/1CatAI/1Cat-vLLM.git \
+      /opt/deps/1cat-vllm \
+    && git -C /opt/deps/1cat-vllm checkout --detach \
+      3ec0c68c6596d6ab31fbdee9fa676254a52c2b7d \
+    && git -C /opt/deps/1cat-vllm apply \
+      /opt/sglang/patches/1cat-vllm-sm70-sglang.patch
+RUN git clone --filter=blob:none https://github.com/NVIDIA/cutlass.git \
+      /opt/deps/cutlass-1cat \
+    && git -C /opt/deps/cutlass-1cat checkout --detach \
+      da5e086dab31d63815acafdac9a9c5893b1c69e2
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    export MAX_JOBS="$(v100-safe-jobs)" SGLANG_V100_CROSS_COMPILE=1 \
+    export MAX_JOBS="$(v100-safe-jobs)" \
     && python -m pip install --no-deps --no-build-isolation \
-      /opt/deps/flash-attention-v100
+      /opt/deps/1cat-vllm/flash-attention-v100
+
+# Build SGLang's private TurboMind W8A16 block-FP8 extension against the same
+# pinned source and CUTLASS revision used for host validation.
+COPY scripts/build_sm70_turbomind.py /opt/sglang/scripts/build_sm70_turbomind.py
+COPY python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp \
+     /opt/sglang/python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp
+RUN --mount=type=cache,target=/root/.cache/torch_extensions,sharing=locked \
+    export MAX_JOBS="$(v100-safe-jobs)" \
+    && export SGLANG_1CAT_VLLM_ROOT=/opt/deps/1cat-vllm \
+    && export SGLANG_1CAT_CUTLASS_ROOT=/opt/deps/cutlass-1cat \
+    && python /opt/sglang/scripts/build_sm70_turbomind.py
 
 # Only this source tree invalidates the sglang-kernel layer. The context ignores
 # all local .so/build outputs, preventing the stale-binary bug from the host.
@@ -134,7 +143,8 @@ RUN git clone --depth 1 --branch v4.2.1 \
 COPY scripts/setup_v100_marlin.sh /opt/sglang/scripts/setup_v100_marlin.sh
 COPY patches/marlin-v100-qwen-sm70-tuning.patch \
       /opt/sglang/patches/marlin-v100-qwen-sm70-tuning.patch
-RUN export CUTLASS_DIR=/opt/cutlass \
+RUN --mount=type=cache,target=/opt/deps/marlin-v100,sharing=locked \
+    export CUTLASS_DIR=/opt/cutlass \
     && export MARLIN_V100_REPO=/opt/deps/marlin-v100 \
     && export MARLIN_V100_REF=6d72a49939701d26b15b617a4cd2423174adb2d1 \
     && export MARLIN_V100_INSTALL_DIR=/opt/v100-artifacts \
@@ -170,11 +180,14 @@ marlin = [
     marlin_dir / "_sm70_marlin_v100_dense.abi3.so",
     marlin_dir / "_sm70_marlin_v100_moe.abi3.so",
 ]
+turbomind = marlin_dir / "_sm70_turbomind_v100.so"
 native_attention = list(site.glob("flash_attn_v100_cuda*.so"))
 grpc_core = list(Path("/opt/sglang/python/sglang/srt/grpc").glob("_core*.so"))
 assert len(native_attention) == 1, native_attention
 assert len(grpc_core) == 1, grpc_core
 assert Path("/opt/deps/flashinfer-sm70/flashinfer/sampling.py").is_file()
+from flash_attn_v100 import flash_attn_interface
+assert flash_attn_interface.FLASH_ATTN_V100_XQA_E4M3_SUPPORTED is True
 
 def validate_sm70(binary, required_strings):
     binary = Path(binary)
@@ -191,13 +204,14 @@ def validate_sm70(binary, required_strings):
 validate_sm70(common_ops[0], ["all_reduce", "gptq_gemm", "causal_conv1d_fwd"])
 validate_sm70(marlin[0], ["marlin_gemm"])
 validate_sm70(marlin[1], ["moe_wna16_marlin_gemm"])
+validate_sm70(turbomind, ["fp8_gemm"])
+validate_sm70(native_attention[0], ["decode_paged_xqa_fwd"])
 print("SM70 build artifacts validated")
 PY
 
 FROM base AS runtime
 
-ENV FLASHINFER_DISABLE_VERSION_CHECK=1 \
-    NCCL_P2P_LEVEL=NVL \
+ENV NCCL_P2P_LEVEL=NVL \
     SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
     SGLANG_MAMBA_CONV_DTYPE=float16 \
     SGLANG_MAMBA_SSM_DTYPE=float16 \

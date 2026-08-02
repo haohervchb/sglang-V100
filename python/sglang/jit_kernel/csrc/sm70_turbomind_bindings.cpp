@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: Apache-2.0
+// Private bindings for the LMDeploy TurboMind SM70 kernels carried by 1Cat-vLLM.
+
+#include <torch/all.h>
+#include <torch/library.h>
+
+std::vector<torch::Tensor> awq_sm70_prepare(
+    torch::Tensor, torch::Tensor, torch::Tensor, int64_t, bool);
+std::vector<torch::Tensor> uint4_sm70_prepare(
+    torch::Tensor, torch::Tensor, torch::Tensor, int64_t, bool);
+std::vector<torch::Tensor> fp8_sm70_prepare(
+    torch::Tensor, torch::Tensor, int64_t, bool);
+void fp8_gemm_sm70_out(
+    torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
+    int64_t, int64_t, int64_t, bool);
+std::vector<torch::Tensor> awq_moe_build_strided_ptrs(
+    torch::Tensor, torch::Tensor, int64_t, int64_t, int64_t);
+void awq_moe_gemm_sm70_out(
+    torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
+    torch::Tensor, int64_t, int64_t, int64_t, int64_t, bool);
+int64_t moe_permute_sort_workspace_size(int64_t, int64_t);
+
+TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
+  ops.def(
+      "awq_prepare(Tensor qweight, Tensor scales, Tensor qzeros, "
+      "int group_size, bool interleave) -> Tensor[]");
+  ops.impl("awq_prepare", torch::kCUDA, &awq_sm70_prepare);
+  ops.def(
+      "uint4_prepare(Tensor qweight, Tensor scales, Tensor qzeros, "
+      "int group_size, bool interleave) -> Tensor[]");
+  ops.impl("uint4_prepare", torch::kCUDA, &uint4_sm70_prepare);
+  ops.def(
+      "fp8_prepare(Tensor qweight, Tensor scales, int group_size, "
+      "bool interleave) -> Tensor[]");
+  ops.impl("fp8_prepare", torch::kCUDA, &fp8_sm70_prepare);
+  ops.def(
+      "fp8_gemm(Tensor(a!) out, Tensor input, Tensor qweight, Tensor scales, "
+      "int group_size, int k_ld, int q_ld, bool gated_silu) -> ()");
+  ops.impl("fp8_gemm", torch::kCUDA, &fp8_gemm_sm70_out);
+  ops.def(
+      "build_ptrs(Tensor weights, Tensor scales, int k_ld, int q_ld, "
+      "int num_experts) -> Tensor[]");
+  ops.impl("build_ptrs", torch::kCUDA, &awq_moe_build_strided_ptrs);
+  ops.def(
+      "gemm(Tensor(a!) out, Tensor sorted_input, Tensor expert_offsets, "
+      "Tensor strided_ptrs_w, Tensor strided_ptrs_s, int num_experts, "
+      "int k, int n, int group_size, bool gated_silu) -> ()");
+  ops.impl("gemm", torch::kCUDA, &awq_moe_gemm_sm70_out);
+  ops.def(
+      "moe_permute_with_scratch(Tensor input, Tensor topk_ids, "
+      "Tensor token_expert_indices, Tensor? expert_map, int n_expert, "
+      "int n_local_expert, int topk, Tensor(a!) permuted_input, "
+      "Tensor(b!) expert_first_token_offset, Tensor(c!) inv_permuted_idx, "
+      "Tensor(d!) permuted_idx, Tensor(e!) sort_workspace, "
+      "Tensor(f!) permuted_experts_id, Tensor(g!) sorted_row_idx, "
+      "Tensor(h!) topk_ids_for_sort) -> ()");
+  ops.def(
+      "moe_unpermute(Tensor permuted_hidden_states, Tensor topk_weights, "
+      "Tensor inv_permuted_idx, Tensor? expert_first_token_offset, "
+      "int topk, Tensor(a!) hidden_states) -> ()");
+  ops.def(
+      "moe_permute_sort_workspace_size(int num_expanded_rows, "
+      "int n_expert) -> int");
+  ops.impl(
+      "moe_permute_sort_workspace_size",
+      &moe_permute_sort_workspace_size);
+}

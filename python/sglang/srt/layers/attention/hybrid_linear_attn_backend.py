@@ -150,7 +150,16 @@ class MambaAttnBackendBase(AttentionBackend):
 
     def _execute_deferred_mamba_cow_and_clear(self, forward_batch: ForwardBatch):
         """Run deferred clear/COW ops on the forward stream to avoid races."""
-        if not forward_batch.forward_mode.is_extend() or self.is_draft_worker:
+        # TARGET_VERIFY is represented as an extend-like mode for attention,
+        # but it reuses the persistent state initialized by the request's
+        # prefill. ScheduleBatch retains the deferred allocation-time clear/COW
+        # tensors after ForwardBatch consumes them, so replaying those tensors
+        # at verify time would clear the live recurrent state a second time.
+        if (
+            not forward_batch.forward_mode.is_extend()
+            or forward_batch.forward_mode.is_target_verify()
+            or self.is_draft_worker
+        ):
             return
         if (
             forward_batch.mamba_clear_indices is not None

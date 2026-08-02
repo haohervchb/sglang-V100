@@ -196,8 +196,13 @@ class Qwen2MoeMLP(nn.Module):
         should_allreduce_fusion: bool = False,
         use_reduce_scatter: bool = False,
     ):
-        gate_up, _ = self.gate_up_proj(x)
-        x = self.act_fn(gate_up)
+        fused_act = getattr(self.gate_up_proj, "forward_fused_silu_and_mul", None)
+        fused_x = fused_act(x) if fused_act is not None else None
+        if fused_x is None:
+            gate_up, _ = self.gate_up_proj(x)
+            x = self.act_fn(gate_up)
+        else:
+            x = fused_x
         x, _ = self.down_proj(
             x, skip_all_reduce=should_allreduce_fusion or use_reduce_scatter
         )
