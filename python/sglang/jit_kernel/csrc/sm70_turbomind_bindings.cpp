@@ -10,6 +10,11 @@ std::vector<torch::Tensor> uint4_sm70_prepare(
     torch::Tensor, torch::Tensor, torch::Tensor, int64_t, bool);
 std::vector<torch::Tensor> fp8_sm70_prepare(
     torch::Tensor, torch::Tensor, int64_t, bool);
+torch::Tensor awq_gemm_sm70(
+    torch::Tensor, torch::Tensor, torch::Tensor, int64_t, int64_t, int64_t);
+void awq_gemm_sm70_out(
+    torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
+    int64_t, int64_t, int64_t, bool);
 std::vector<torch::Tensor> sglang_sm70_f16_prepare(torch::Tensor);
 void fp8_gemm_sm70_out(
     torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
@@ -45,6 +50,15 @@ TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
       "fp8_gemm(Tensor(a!) out, Tensor input, Tensor qweight, Tensor scales, "
       "int group_size, int k_ld, int q_ld, bool gated_silu) -> ()");
   ops.impl("fp8_gemm", torch::kCUDA, &fp8_gemm_sm70_out);
+  ops.def(
+      "awq_gemm(Tensor input, Tensor qweight, Tensor scales, int group_size, "
+      "int k_ld, int q_ld) -> Tensor");
+  ops.impl("awq_gemm", torch::kCUDA, &awq_gemm_sm70);
+  ops.def(
+      "awq_gemm_out(Tensor(a!) out, Tensor input, Tensor qweight, "
+      "Tensor scales, int group_size, int k_ld, int q_ld, "
+      "bool gated_silu) -> ()");
+  ops.impl("awq_gemm_out", torch::kCUDA, &awq_gemm_sm70_out);
   ops.def(
       "build_ptrs(Tensor weights, Tensor scales, int k_ld, int q_ld, "
       "int num_experts) -> Tensor[]");

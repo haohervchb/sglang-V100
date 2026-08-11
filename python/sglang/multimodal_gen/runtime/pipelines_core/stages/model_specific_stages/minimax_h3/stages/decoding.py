@@ -5,7 +5,6 @@ import functools
 from collections.abc import Mapping
 
 import torch
-
 from sglang.multimodal_gen.runtime.disaggregation.roles import RoleType
 from sglang.multimodal_gen.runtime.distributed import (
     get_world_group,
@@ -238,7 +237,12 @@ class MiniMaxH3DecodingStage(DecodingStage):
             server_args, "audio_vae", precision_attr="audio_vae_precision"
         )
         uses = [
-            ComponentUse(stage_name, "video_vae", target_dtype=video_vae_dtype),
+            ComponentUse(
+                stage_name,
+                "video_vae",
+                target_dtype=video_vae_dtype,
+                memory_intensive=True,
+            ),
         ]
         uses.append(ComponentUse(stage_name, "audio_vae", target_dtype=audio_vae_dtype))
         return uses
@@ -308,8 +312,14 @@ class MiniMaxH3DecodingStage(DecodingStage):
                 "sample_rate": int(audio_vae.sample_rate),
             }
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def forward(self, batch: Req, server_args: ServerArgs) -> OutputBatch:
+        # Resident W4 DiTs leave a large pool of reusable GEMM/attention
+        # allocations behind. Release inactive allocator blocks before loading
+        # the tiled video VAE; otherwise a 15-second 960x544 decode can be
+        # fragmented out of memory despite ample live-allocation headroom.
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         _minimax_h3_decoder_task(batch)
         visual_latent = _required_tensor(batch.latents, "batch.latents")
         audio_latent = _required_tensor(batch.audio_latents, "batch.audio_latents")

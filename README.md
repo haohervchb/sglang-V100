@@ -270,6 +270,46 @@ activations, VAE state, and temporary dequantization buffers do not receive a
 4x32-GiB V100 hosts: only the component active in the current pipeline phase is
 resident on each GPU. Remove them one at a time only after measuring headroom.
 
+An experimental fused W4A16 path can instead keep the DiT resident. Build the
+private SM70 TurboMind extension once in the serving environment, then replace
+W8A16 with `v100_w4a16_awq` and explicitly disable the video-pipeline default
+for DiT CPU offload:
+
+```bash
+conda run -n sglang-v100 python scripts/build_sm70_turbomind.py
+
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+NCCL_P2P_LEVEL=NVL \
+sglang serve \
+  --model-path MiniMaxAI/MiniMax-H3 \
+  --model-variant fl2va \
+  --num-gpus 4 \
+  --tp-size 4 \
+  --sp-degree 1 \
+  --ulysses-degree 1 \
+  --ring-degree 1 \
+  --performance-mode speed \
+  --quantization v100_w4a16_awq \
+  --attention-backend tilelang_fa_v100 \
+  --dit-cpu-offload false \
+  --text-encoder-cpu-offload \
+  --vae-cpu-offload \
+  --enable-torch-compile false \
+  --warmup false \
+  --server-warmup false \
+  --host 0.0.0.0 \
+  --port 30010
+```
+
+`v100_w4a16_awq` quantizes each loaded TP-local FP16 matrix to asymmetric
+UINT4 with group size 128, stores it in the standard AWQ checkpoint layout,
+then converts it to TurboMind's fused SM70 layout. This online conversion is
+round-to-nearest group quantization, not AWQ's activation-calibrated scale
+search. Use an offline calibrated checkpoint when production quality must
+match true AWQ. On H3 the resident quantized transformer is about 4.11 GiB per
+rank, but V100 has no native INT4 Tensor Cores: W4 primarily buys residency and
+VRAM, and may tie or slightly trail W8A16 denoising throughput.
+
 Each released checkpoint partition is about 134 GiB on disk. Selecting
 `--model-variant fl2va` downloads/loads `FL2VA` only; it does not also fetch the
 separate `Ref2VA` partition. Budget disk space separately from the lower online

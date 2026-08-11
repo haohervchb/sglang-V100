@@ -209,6 +209,18 @@ class _NoOpResidencyStrategy:
         pass
 
 
+class _RecordingResidencyStrategy(_NoOpResidencyStrategy):
+    def __init__(self, component_name: str, events: list[str]) -> None:
+        self.component_name = component_name
+        self.events = events
+
+    def finish_request(self, module, use, state, *, preferred: bool) -> None:
+        self.events.append(f"finish:{self.component_name}")
+
+    def prepare_after_request(self, module, use, state) -> None:
+        self.events.append(f"prepare:{self.component_name}")
+
+
 def _test_manager(
     modules: dict[str, torch.nn.Module],
     *,
@@ -228,6 +240,36 @@ def _test_manager(
 
 
 class TestComponentResidencyNvtxHooks(unittest.TestCase):
+    def test_finish_request_releases_components_before_request_prefetch(self) -> None:
+        modules = {
+            "transformer": torch.nn.Linear(2, 2),
+            "video_vae": torch.nn.Linear(2, 2),
+        }
+        manager = _test_manager(modules)
+        transformer_use = ComponentUse(
+            "DenoisingStage",
+            "transformer",
+            preferred_ready_after_request=True,
+        )
+        vae_use = ComponentUse("DecodingStage", "video_vae", memory_intensive=True)
+        manager._stage_uses_by_index = [(transformer_use,), (vae_use,)]
+        # Preserve the real H3 visitation order that exposed the transient OOM.
+        manager._uses_seen = {
+            "transformer": transformer_use,
+            "video_vae": vae_use,
+        }
+        events: list[str] = []
+        strategies = {
+            name: _RecordingResidencyStrategy(name, events) for name in modules
+        }
+        manager.strategy_for = lambda component_name, _module: strategies[
+            component_name
+        ]
+
+        manager.finish_request()
+
+        self.assertEqual(events, ["finish:video_vae", "prepare:transformer"])
+
     def test_disabled_flag_is_noop(self) -> None:
         module = torch.nn.Linear(2, 2)
         manager = _test_manager({"linear": module}, enable_flag=False)
