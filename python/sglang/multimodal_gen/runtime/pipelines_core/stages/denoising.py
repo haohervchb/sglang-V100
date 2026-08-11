@@ -180,11 +180,16 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
         self._cached_num_steps = None
         self._torch_compiled_module_ids: set[int] = set()
 
-        hidden_size = self.server_args.pipeline_config.dit_config.hidden_size
+        dit_config = self.server_args.pipeline_config.dit_config
+        hidden_size = dit_config.hidden_size
         num_attention_heads = (
-            self.server_args.pipeline_config.dit_config.num_attention_heads
+            dit_config.num_attention_heads
         )
-        attn_head_size = hidden_size // num_attention_heads
+        attn_head_size = getattr(
+            dit_config,
+            "attention_head_dim",
+            hidden_size // num_attention_heads,
+        )
 
         # torch compile
         for transformer in filter(None, [self.transformer, self.transformer_2]):

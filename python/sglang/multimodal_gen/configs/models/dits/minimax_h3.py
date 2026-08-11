@@ -19,6 +19,7 @@ class MiniMaxH3DiTArchConfig(DiTArchConfig):
         default_factory=lambda: {
             AttentionBackendEnum.FA,
             AttentionBackendEnum.AITER,
+            AttentionBackendEnum.TILELANG_FA_V100,
             AttentionBackendEnum.TORCH_SDPA,
         }
     )

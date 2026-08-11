@@ -230,8 +230,8 @@ MiniMax-H3 below uses port 30010. Stop one server before starting another.
 
 MiniMax-H3 uses SGLang's diffusion server and the asynchronous OpenAI-compatible
 video API. This fork runs the DiT and Qwen3-VL text encoder with TP4, uses FP16
-for Volta, selects portable Torch SDPA attention, and can store each rank's
-linear-weight shards as per-channel INT8:
+for Volta, selects a dense TileLang FlashAttention kernel for the DiT, and can
+store each rank's linear-weight shards as per-channel INT8:
 
 ```bash
 NCCL_P2P_LEVEL=NVL \
@@ -245,7 +245,7 @@ sglang serve \
   --ring-degree 1 \
   --performance-mode speed \
   --quantization v100_w8a16 \
-  --attention-backend torch_sdpa \
+  --attention-backend tilelang_fa_v100 \
   --dit-cpu-offload \
   --text-encoder-cpu-offload \
   --vae-cpu-offload \
@@ -253,6 +253,12 @@ sglang serve \
   --host 0.0.0.0 \
   --port 30010
 ```
+
+`tilelang_fa_v100` is specialized for MiniMax-H3's packed, non-causal FP16
+attention with head dimension 128 on compute capability 7.0. Components that
+do not advertise this backend, including the text encoder, retain their normal
+backend selection. Use `--attention-backend torch_sdpa` as the portable
+fallback.
 
 `v100_w8a16` is an online storage format, not a native INT8 GEMM. Checkpoint
 weights load and TP-shard in FP16, then each rank stores its local linear
