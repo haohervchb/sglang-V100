@@ -11,6 +11,7 @@ import torch
 from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3 import (
     material_io,
     reference_encoding,
+    video_adapter,
 )
 
 
@@ -45,6 +46,52 @@ def test_ffprobe_falls_back_when_stream_side_data_is_unknown(monkeypatch):
     assert payload["format"]["format_name"] == "mp3"
     assert material_io._ffprobe_entries is not None
     assert "stream_side_data" not in material_io._ffprobe_entries
+
+
+def test_final_output_probe_falls_back_to_pyav(monkeypatch):
+    def run(*_args, **_kwargs):
+        raise FileNotFoundError("ffprobe")
+
+    duration = 107 / 24
+    payload = {
+        "streams": [
+            {
+                "codec_type": "video",
+                "codec_name": "h264",
+                "pix_fmt": "yuv420p",
+                "width": 1344,
+                "height": 768,
+                "avg_frame_rate": "24",
+                "nb_frames": 107,
+                "duration": str(duration),
+            },
+            {
+                "codec_type": "audio",
+                "codec_name": "aac",
+                "sample_rate": 32000,
+                "channels": 2,
+                "duration": str(duration),
+            },
+        ],
+        "format": {
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+            "duration": str(duration),
+        },
+    }
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(
+        video_adapter,
+        "_probe_minimax_h3_output_with_pyav",
+        lambda *_args, **_kwargs: payload,
+    )
+
+    fields = video_adapter._probe_minimax_h3_output_fields(
+        "/output/result.mp4",
+        expected_frame_count=107,
+        expected_size=(1344, 768),
+    )
+
+    assert fields == {"size": "1344x768", "seconds": "4.458333"}
 
 
 def test_video_transform_runs_once_and_qwen_samples_shared_rgb(monkeypatch):
