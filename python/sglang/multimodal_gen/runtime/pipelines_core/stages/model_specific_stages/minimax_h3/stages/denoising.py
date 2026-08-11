@@ -576,11 +576,7 @@ class MiniMaxH3DenoisingStage(DenoisingStage):
             initial_video, initial_audio = _expand_initial_rows(ctx, positive)
             with (
                 maybe_nvtx_range("denoising_loop", self.current_use_nvtx),
-                self.progress_bar(
-                    total=len(sigmas_video) - 1,
-                    batch=batch,
-                    desc="minimax_h3 denoise",
-                ) as progress_bar,
+                self.progress_bar(total=len(sigmas_video) - 1) as progress_bar,
             ):
 
                 def on_step(_step, _video_rows, _audio_rows):
