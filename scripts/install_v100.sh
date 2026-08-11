@@ -100,7 +100,7 @@ python -m pip install \
   grpcio==1.81.1 grpcio-health-checking==1.81.1 \
   grpcio-reflection==1.81.1 protobuf==6.33.6 tilelang==0.1.8 \
   cuda-tile==1.5.0
-python -m pip install -e "$REPO_ROOT/python"
+python -m pip install -e "$REPO_ROOT/python[diffusion-v100]"
 
 prepare_patched_repo() {
   local name=$1 url=$2 rev=$3 destination=$4

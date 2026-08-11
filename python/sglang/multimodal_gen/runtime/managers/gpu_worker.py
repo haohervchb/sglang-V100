@@ -91,6 +91,14 @@ class _ExpandedOutputParts:
     trajectory_decoded_parts: list[list[torch.Tensor]] | None = None
 
 
+def _worker_cpu_intra_op_threads(num_gpus: int) -> int | None:
+    """Return a bounded CPU thread budget for each co-located GPU worker."""
+    if "OMP_NUM_THREADS" in os.environ:
+        return None
+    cpu_count = os.cpu_count() or 1
+    return max(1, min(16, cpu_count // max(1, num_gpus)))
+
+
 class GPUWorker:
     """
     A worker that executes the model on a single GPU.
@@ -122,6 +130,9 @@ class GPUWorker:
     def init_device_and_model(self) -> None:
         """Initialize the device and load the model."""
         torch.get_device_module().set_device(self.local_rank)
+        intra_op_threads = _worker_cpu_intra_op_threads(self.server_args.num_gpus)
+        if intra_op_threads is not None:
+            torch.set_num_threads(intra_op_threads)
         # Set environment variables for distributed initialization
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(self.master_port)

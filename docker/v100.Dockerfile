@@ -54,7 +54,12 @@ import tomllib
 from packaging.requirements import Requirement
 
 with open("/tmp/sglang-pyproject.toml", "rb") as file:
-    dependencies = tomllib.load(file)["project"]["dependencies"]
+    project = tomllib.load(file)["project"]
+
+dependencies = [
+    *project["dependencies"],
+    *project["optional-dependencies"]["diffusion-v100"],
+]
 
 replaced = {
     "flashinfer-python",

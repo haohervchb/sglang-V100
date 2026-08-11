@@ -111,6 +111,14 @@ class ComponentLoader(ABC):
     ) -> dict[str, Any]:
         return {}
 
+    def should_raise_customized_load_error(
+        self, server_args: ServerArgs, component_name: str
+    ) -> bool:
+        native_only_components = getattr(
+            server_args.pipeline_config, "native_only_components", ()
+        )
+        return component_name in native_only_components
+
     @staticmethod
     def _is_component_set_as_layerwise_load(
         server_args: ServerArgs, component_name: str
@@ -218,6 +226,8 @@ class ComponentLoader(ABC):
                 )
             source = "sgl-diffusion"
         except Exception as e:
+            if self.should_raise_customized_load_error(server_args, component_name):
+                raise
             if "Unsupported model architecture" in str(e):
                 logger.info(
                     f"Component: {component_name} doesn't have a customized version yet, using native version"

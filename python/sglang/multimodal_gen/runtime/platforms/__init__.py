@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Adapted from vllm: https://github.com/vllm-project/vllm/blob/v0.7.3/vllm/platforms/__init__.py
 
+import os
 import traceback
-from typing import TYPE_CHECKING
 
 # imported by other files, do not remove
 from sglang.multimodal_gen.runtime.platforms.interface import (  # noqa: F401
@@ -41,8 +41,6 @@ def cuda_platform_plugin() -> str | None:
             raise e
 
         # CUDA is supported on Jetson, but NVML may not be.
-        import os
-
         def cuda_is_jetson() -> bool:
             return os.path.isfile("/etc/nv_tegra_release") or os.path.exists(
                 "/sys/class/tegra-firmware"
@@ -50,6 +48,27 @@ def cuda_platform_plugin() -> str | None:
 
         if cuda_is_jetson():
             is_cuda = True
+        else:
+            # NVML is NVIDIA-specific. CUDA-compatible stacks (e.g. Iluvatar
+            # CoreX) expose devices through torch's CUDA API without shipping
+            # libnvidia-ml. Only fall back when NVML itself is unavailable;
+            # a successful NVML init that reports zero devices must keep the
+            # CPU-build-on-GPU-machine edge case above.
+            try:
+                import torch
+
+                # ROCm also exposes devices through torch.cuda, so keep this
+                # non-NVML fallback limited to non-HIP runtimes.
+                is_cuda = (
+                    getattr(torch.version, "hip", None) is None
+                    and torch.cuda.is_available()
+                    and torch.cuda.device_count() > 0
+                )
+                if is_cuda:
+                    logger.debug("CUDA detected via torch (NVML unavailable)")
+            except Exception as exc:
+                logger.debug("torch CUDA detection failed: %s", exc)
+
     if is_cuda:
         logger.debug("CUDA is available")
 

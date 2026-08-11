@@ -119,6 +119,8 @@ class Backend(str, Enum):
 class ServerArgs(DisaggArgsMixin):
     # Model and path configuration (for convenience)
     model_path: str
+    model_subfolder: str | None = None
+    model_variant: str | None = None
 
     # explicit model ID override (e.g. "Qwen-Image")
     model_id: str | None = None
@@ -363,6 +365,7 @@ class ServerArgs(DisaggArgsMixin):
             self._validate_parallelism()
         self._validate_cfg_parallel()
         self._validate_batching()
+        self.pipeline_config.validate_server_args(self)
 
     def _adjust_save_paths(self):
         """Normalize empty-string save paths to None (disabled)."""
@@ -1009,6 +1012,24 @@ class ServerArgs(DisaggArgsMixin):
             "--model-path",
             type=str,
             help="The path of the model weights. This can be a local folder or a Hugging Face repo ID.",
+        )
+        parser.add_argument(
+            "--model-subfolder",
+            type=str,
+            default=ServerArgs.model_subfolder,
+            help=(
+                "Advanced override for a model partition subfolder. Prefer "
+                "--model-variant for models with semantic partition names."
+            ),
+        )
+        parser.add_argument(
+            "--model-variant",
+            type=str,
+            default=ServerArgs.model_variant,
+            help=(
+                "Semantic checkpoint partition to serve, for example fl2va "
+                "or ref2va for MiniMax-H3."
+            ),
         )
         parser.add_argument(
             "--model-id",

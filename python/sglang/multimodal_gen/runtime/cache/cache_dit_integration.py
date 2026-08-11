@@ -9,19 +9,9 @@ on transformer modules in SGLang's modular pipeline architecture.
 from dataclasses import dataclass
 from typing import List, Optional
 
+import cache_dit
 import torch
 import torch.distributed as dist
-
-from sglang.multimodal_gen.runtime.distributed.parallel_state import (
-    get_ring_parallel_world_size,
-    get_tp_world_size,
-    get_ulysses_parallel_world_size,
-)
-from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
-
-logger = init_logger(__name__)
-
-import cache_dit
 from cache_dit import (
     BlockAdapter,
     DBCacheConfig,
@@ -32,10 +22,30 @@ from cache_dit import (
 )
 from cache_dit.caching.block_adapters import BlockAdapterRegister
 from cache_dit.parallelism import ParallelismBackend, ParallelismConfig
+from sglang.multimodal_gen.runtime.distributed.parallel_state import (
+    get_dit_group,
+    get_ring_parallel_world_size,
+    get_tp_world_size,
+    get_ulysses_parallel_world_size,
+)
+from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
 
-from sglang.multimodal_gen.runtime.distributed.parallel_state import get_dit_group
-
+logger = init_logger(__name__)
 _original_similarity = None
+
+
+def disable_cache_on_transformer(transformer: torch.nn.Module) -> torch.nn.Module:
+    """Remove Cache-DiT hooks so subsequent requests use the native forward."""
+
+    logger.info("Disabling cache-dit on %s", type(transformer).__name__)
+    target = getattr(transformer, "_sglang_cache_dit_adapter", transformer)
+    cache_dit.disable_cache(target)
+    if target is not transformer:
+        del transformer._sglang_cache_dit_adapter
+    for name in ("_is_parallelized", "_parallelism_config"):
+        if hasattr(transformer, name):
+            delattr(transformer, name)
+    return transformer
 
 
 def _patch_cache_dit_similarity():

@@ -29,6 +29,9 @@ from sglang.multimodal_gen.configs.pipeline_configs.hunyuan3d import (
     Hunyuan3D2PipelineConfig,
 )
 from sglang.multimodal_gen.configs.pipeline_configs.ltx_2 import LTX2PipelineConfig
+from sglang.multimodal_gen.configs.pipeline_configs.minimax_h3 import (
+    MiniMaxH3PipelineConfig,
+)
 from sglang.multimodal_gen.configs.pipeline_configs.mova import MOVAPipelineConfig
 from sglang.multimodal_gen.configs.pipeline_configs.sana import SanaPipelineConfig
 from sglang.multimodal_gen.configs.pipeline_configs.stablediffusion3 import (
@@ -68,4 +71,5 @@ __all__ = [
     "SelfForcingWanT2V480PConfig",
     "ZImagePipelineConfig",
     "LTX2PipelineConfig",
+    "MiniMaxH3PipelineConfig",
 ]

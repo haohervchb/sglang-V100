@@ -223,8 +223,121 @@ Laguna. Use the explicit Laguna `docker run` command below after building.
 
 ## Serve models
 
-Run `conda activate sglang-v100` first. Each example listens on port 8082 and
-uses all four visible GPUs. Stop one server before starting another.
+Run `conda activate sglang-v100` first. The LLM examples listen on port 8082;
+MiniMax-H3 below uses port 30010. Stop one server before starting another.
+
+### MiniMax-H3 video and audio on four V100s
+
+MiniMax-H3 uses SGLang's diffusion server and the asynchronous OpenAI-compatible
+video API. This fork runs the DiT and Qwen3-VL text encoder with TP4, uses FP16
+for Volta, selects portable Torch SDPA attention, and can store each rank's
+linear-weight shards as per-channel INT8:
+
+```bash
+NCCL_P2P_LEVEL=NVL \
+sglang serve \
+  --model-path MiniMaxAI/MiniMax-H3 \
+  --model-variant fl2va \
+  --num-gpus 4 \
+  --tp-size 4 \
+  --sp-degree 1 \
+  --ulysses-degree 1 \
+  --ring-degree 1 \
+  --performance-mode speed \
+  --quantization v100_w8a16 \
+  --attention-backend torch_sdpa \
+  --dit-cpu-offload \
+  --text-encoder-cpu-offload \
+  --vae-cpu-offload \
+  --enable-torch-compile false \
+  --host 0.0.0.0 \
+  --port 30010
+```
+
+`v100_w8a16` is an online storage format, not a native INT8 GEMM. Checkpoint
+weights load and TP-shard in FP16, then each rank stores its local linear
+matrices in INT8 with FP16 row scales. A layer is dequantized to FP16 only for
+its GEMM so cuBLAS can use V100 Tensor Cores. Large linear weights therefore
+use approximately half their FP16 steady-state VRAM, while non-linear weights,
+activations, VAE state, and temporary dequantization buffers do not receive a
+2× reduction. The three offload flags are the conservative starting point for
+4x32-GiB V100 hosts: only the component active in the current pipeline phase is
+resident on each GPU. Remove them one at a time only after measuring headroom.
+
+Each released checkpoint partition is about 134 GiB on disk. Selecting
+`--model-variant fl2va` downloads/loads `FL2VA` only; it does not also fetch the
+separate `Ref2VA` partition. Budget disk space separately from the lower online
+W8A16 runtime footprint.
+
+The `fl2va` partition serves both text-to-video-and-audio (`t2va`) and
+first/last-frame conditioning (`fl2va`). Submit a text-only job, poll it, and
+download the synchronized MP4 with:
+
+```bash
+video_id=$(
+  curl -sS -X POST http://127.0.0.1:30010/v1/videos \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "model": "MiniMaxAI/MiniMax-H3",
+      "prompt": "A tiger walks slowly through morning fog while birds and leaves are heard around it.",
+      "task": "t2va",
+      "conditions": [],
+      "target": {
+        "short_edge": 768,
+        "aspect_ratio": "16:9",
+        "duration_seconds": 5.0
+      },
+      "num_inference_steps": 50,
+      "flow_shift": 12.0,
+      "audio_flow_shift": 3.0,
+      "seed": 1101
+    }' | jq -r '.id'
+)
+
+while true; do
+  status=$(curl -sS "http://127.0.0.1:30010/v1/videos/$video_id" | jq -r '.status')
+  [ "$status" = completed ] && break
+  [ "$status" = failed ] && exit 1
+  sleep 1
+done
+
+curl -sS -L "http://127.0.0.1:30010/v1/videos/$video_id/content" \
+  -o minimax-h3-t2va.mp4
+```
+
+For the ComfyUI equivalent of first-frame or first-and-last-frame workflows,
+keep the same server and change the request to `task: "fl2va"`. Put the input
+files somewhere visible to every server rank and pass them as conditions:
+
+```json
+{
+  "prompt": "Continue this scene with calm natural motion and synchronized ambient sound.",
+  "task": "fl2va",
+  "conditions": [
+    {
+      "type": "image",
+      "uri": "file:///data/minimax-h3/first-frame.png",
+      "role": "keyframe",
+      "frame_index": 0
+    }
+  ],
+  "target": {
+    "short_edge": 768,
+    "aspect_ratio": "auto",
+    "duration_seconds": 5.0
+  },
+  "num_inference_steps": 50,
+  "flow_shift": 12.0,
+  "audio_flow_shift": 3.0,
+  "seed": 2101
+}
+```
+
+Use `frame_index: -1` for a last frame or include both `0` and `-1`. Reference
+image/audio/video and video-to-video workflows require a second server launched
+with `--model-variant ref2va`; they use `task: "ref2va"` and reference-role
+conditions. The two variants are different released checkpoint partitions and
+cannot be switched per request without restarting or running a second server.
 
 ### Qwen3.5-122B-A10B GPTQ Int4
 
