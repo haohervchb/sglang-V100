@@ -28,6 +28,30 @@ logger = init_logger(__name__)
 VAE_CHANNELS_LAST_3D_ENV = "SGLANG_DIFFUSION_VAE_CHANNELS_LAST_3D"
 
 
+def _resolve_stream_state_key(name: str, state: dict[str, torch.Tensor]) -> str | None:
+    """Resolve checkpoint aliases without materializing a second state dict.
+
+    PyTorch's legacy ``torch.nn.utils.weight_norm`` serialized ``weight_g`` and
+    ``weight_v``.  The parametrization API used by current native VAEs exposes
+    the same tensors as ``parametrizations.weight.original0`` and
+    ``parametrizations.weight.original1``.  MiniMax H3 ships the legacy names,
+    so translate them while retaining strict shape/missing-key validation.
+    """
+    if name in state:
+        return name
+
+    suffix_aliases = {
+        "weight_g": "parametrizations.weight.original0",
+        "weight_v": "parametrizations.weight.original1",
+    }
+    for suffix, replacement in suffix_aliases.items():
+        if name.endswith(suffix):
+            candidate = f"{name[: -len(suffix)]}{replacement}"
+            if candidate in state:
+                return candidate
+    return None
+
+
 def _backfill_ltx2_audio_vae_latent_stats(
     loaded: dict[str, torch.Tensor], component_name: str
 ) -> None:
@@ -54,21 +78,22 @@ def _stream_safetensors_into_module(
     for path in safetensors_list:
         with safe_open(path, framework="pt", device="cpu") as handle:
             for name in handle.keys():
-                if name not in state:
+                state_name = _resolve_stream_state_key(name, state)
+                if state_name is None:
                     raise RuntimeError(
                         f"Unexpected checkpoint key {name!r} while loading {path}"
                     )
-                if name in loaded:
+                if state_name in loaded:
                     raise RuntimeError(f"Duplicate checkpoint key {name!r}")
                 source = handle.get_tensor(name)
-                target = state[name]
+                target = state[state_name]
                 if source.shape != target.shape:
                     raise RuntimeError(
                         f"Shape mismatch for {name!r}: checkpoint "
                         f"{tuple(source.shape)} != model {tuple(target.shape)}"
                     )
                 target.copy_(source.to(device=target.device, dtype=target.dtype))
-                loaded.add(name)
+                loaded.add(state_name)
 
     missing = expected - loaded
     if missing:
