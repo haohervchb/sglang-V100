@@ -4,6 +4,7 @@
 from unittest import mock
 
 import pytest
+import torch
 
 from sglang.multimodal_gen.configs.models.vaes.minimax_h3_video import (
     MiniMaxH3VideoVAEConfig,
@@ -11,6 +12,9 @@ from sglang.multimodal_gen.configs.models.vaes.minimax_h3_video import (
 from sglang.multimodal_gen.runtime.models.vaes.minimax_h3 import MiniMaxH3VideoVAE
 from sglang.multimodal_gen.runtime.models.vaes.minimax_h3_video_vae import (
     AutoencoderKLLegacy,
+)
+from sglang.multimodal_gen.runtime.models.vaes.minimax_h3_video_vae.conv import (
+    BaseConv3d,
 )
 
 
@@ -20,6 +24,17 @@ def _init_kwargs(config: MiniMaxH3VideoVAEConfig):
     ) as init:
         model = MiniMaxH3VideoVAE(config)
     return model, init.call_args.kwargs
+
+
+def test_pointwise_conv3d_linear_fallback_matches_reference():
+    torch.manual_seed(7)
+    conv = BaseConv3d(4, 6, kernel_size=1)
+    inputs = torch.randn(2, 4, 3, 5, 7)
+
+    expected = torch.nn.functional.conv3d(inputs, conv.weight, conv.bias)
+    actual = conv(inputs)
+
+    torch.testing.assert_close(actual, expected)
 
 
 @pytest.mark.parametrize(

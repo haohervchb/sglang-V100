@@ -21,6 +21,7 @@ from sglang.multimodal_gen.runtime.distributed import (
     model_parallel_is_initialized,
 )
 
+from .conv import BaseConv3d
 from .processor import (
     VAEProcessor,
     get_denormalize_transform,
@@ -1253,8 +1254,8 @@ class AutoencoderKLLegacy(AutoencoderKL):
         self.encoder = EncoderFCN3D(**encoder_config)
 
         # init pointwise quant/post_quant conv
-        self.quant_conv = nn.Conv3d(z_channels * 2, 2 * embed_dim, 1)
-        self.post_quant_conv = nn.Conv3d(embed_dim, z_channels, 1)
+        self.quant_conv = BaseConv3d(z_channels * 2, 2 * embed_dim, 1)
+        self.post_quant_conv = BaseConv3d(embed_dim, z_channels, 1)
 
         self.use_vit_decoder = use_vit_decoder
 

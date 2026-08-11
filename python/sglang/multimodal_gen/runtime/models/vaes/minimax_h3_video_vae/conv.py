@@ -69,6 +69,24 @@ class BaseConv3d(nn.Conv3d):
         return x
 
     def forward(self, x):
+        if (
+            self.kernel_size == (1, 1, 1)
+            and self.stride == (1, 1, 1)
+            and self.padding == (0, 0, 0)
+            and self.dilation == (1, 1, 1)
+            and self.groups == 1
+        ):
+            # cuDNN's v8 frontend cannot select an FP16 Conv3D engine for
+            # some large H3 tiles on SM70. A 1x1x1 convolution is exactly a
+            # linear projection over the channel-last view, which dispatches
+            # through Volta-supported cuBLAS instead.
+            output = F.linear(
+                x.permute(0, 2, 3, 4, 1),
+                self.weight[:, :, 0, 0, 0],
+                self.bias,
+            )
+            return output.permute(0, 4, 1, 2, 3).contiguous()
+
         if sum(self.padding) == 0:
             return super().forward(x)
 
