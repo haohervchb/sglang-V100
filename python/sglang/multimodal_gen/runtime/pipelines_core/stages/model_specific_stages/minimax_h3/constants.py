@@ -23,6 +23,10 @@ MINIMAX_H3_PREPARED_REFERENCE_VIDEO_EXTRA_KEY = "minimax_h3_prepared_reference_v
 MINIMAX_H3_SUPPORTED_FPS = 24
 MINIMAX_H3_MIN_DURATION_SECONDS = 4.0
 MINIMAX_H3_MAX_DURATION_SECONDS = 15.0
+# The released 768px profile remains the quality default.  The 544px profile
+# is a lower-resolution V100 benchmark canvas; 16:9 resolves to 960x544 after
+# the model's required 32px grid alignment.
+MINIMAX_H3_SUPPORTED_SHORT_EDGES = (544, 768)
 
 # The distilled checkpoint has exactly one positive denoise branch.
 MINIMAX_H3_DEFAULT_BRANCHES: tuple = ({"name": "cond_1"},)

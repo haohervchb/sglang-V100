@@ -7,9 +7,9 @@ Stages never branch on task names; skips must be explicit in the plan.
 
 Scope notes (adapt_shape_v1):
 - all target and material-derived ratios use the single adaptive spatial
-  resolver exported by this module. It starts from a 768px nominal short edge,
-  applies the 768x1344 soft area cap, then rounds both axes independently to
-  the nearest 32px grid.
+  resolver exported by this module. It starts from the requested supported
+  nominal short edge, applies the 768x1344 soft area cap, then rounds both axes
+  independently to the nearest 32px grid.
 - ``auto`` uses the task profile: t2va/ref2va resolve to the 16:9 policy
   default, while fl2va defers geometry until material probe facts are
   available. Consumers must fail fast if required evidence is missing.
@@ -27,6 +27,7 @@ import msgspec
 
 from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3.constants import (
     MINIMAX_H3_SUPPORTED_FPS,
+    MINIMAX_H3_SUPPORTED_SHORT_EDGES,
 )
 from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3.task_profiles import (
     MINIMAX_H3_FL2VA_KEYFRAME_SIGNATURES,
@@ -100,10 +101,14 @@ def _validate_base_short_edge(value: Any) -> int:
     try:
         short_edge = int(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError("target.short_edge must be 768") from exc
-    if short_edge != MINIMAX_H3_BASE_SHORT_EDGE or value != short_edge:
         raise ValueError(
-            f"target.short_edge must be 768 for MiniMax H3 shape policy v2, got {value!r}"
+            f"target.short_edge must be one of {list(MINIMAX_H3_SUPPORTED_SHORT_EDGES)}"
+        ) from exc
+    if short_edge not in MINIMAX_H3_SUPPORTED_SHORT_EDGES or value != short_edge:
+        raise ValueError(
+            "target.short_edge must be one of "
+            f"{list(MINIMAX_H3_SUPPORTED_SHORT_EDGES)} for MiniMax H3 shape "
+            f"policy v2, got {value!r}"
         )
     return short_edge
 

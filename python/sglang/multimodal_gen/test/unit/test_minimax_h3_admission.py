@@ -170,6 +170,42 @@ def test_duration_admission_accepts_released_4_to_15_second_range():
             )
 
 
+def test_v100_benchmark_profile_resolves_exact_960x544_canvas():
+    canonical = minimax_h3_validate_canonical_request(
+        task="t2va",
+        prompt="V100 benchmark",
+        conditions=[],
+        target={
+            "short_edge": 544,
+            "aspect_ratio": "16:9",
+            "duration_seconds": 15.0,
+        },
+        seed=0,
+    )
+
+    plan = minimax_h3_resolve_plan(canonical)
+
+    assert plan.shape["width"] == 960
+    assert plan.shape["height"] == 544
+    assert plan.shape["frame_count"] == 362
+    assert plan.shape["video_latent_t"] == 107
+
+
+def test_short_edge_outside_supported_profiles_is_rejected():
+    with pytest.raises(ValueError, match=r"\[544, 768\]"):
+        minimax_h3_validate_canonical_request(
+            task="t2va",
+            prompt="unsupported canvas",
+            conditions=[],
+            target={
+                "short_edge": 512,
+                "aspect_ratio": "16:9",
+                "duration_seconds": 15.0,
+            },
+            seed=0,
+        )
+
+
 def test_video_adapter_lowers_only_native_fields_and_rejects_cfg():
     request = VideoGenerationsRequest(
         prompt="contract",
@@ -262,9 +298,7 @@ def test_quality_admission_fails_closed_outside_validated_request():
     config = MiniMaxH3PipelineConfig()
     server_args = _quality_server_args()
     server_args.pipeline_config = config
-    stage = MiniMaxH3PartitionAdmissionStage.__new__(
-        MiniMaxH3PartitionAdmissionStage
-    )
+    stage = MiniMaxH3PartitionAdmissionStage.__new__(MiniMaxH3PartitionAdmissionStage)
     stage.metadata = metadata
 
     with (

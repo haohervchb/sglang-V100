@@ -269,6 +269,10 @@ Each released checkpoint partition is about 134 GiB on disk. Selecting
 separate `Ref2VA` partition. Budget disk space separately from the lower online
 W8A16 runtime footprint.
 
+The native quality profile uses `target.short_edge: 768`. This V100 port also
+accepts `target.short_edge: 544` as a lower-resolution benchmark profile; with
+`target.aspect_ratio: "16:9"` it resolves to exactly 960x544 on H3's 32px grid.
+
 The `fl2va` partition serves both text-to-video-and-audio (`t2va`) and
 first/last-frame conditioning (`fl2va`). Submit a text-only job, poll it, and
 download the synchronized MP4 with:
