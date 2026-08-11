@@ -649,7 +649,10 @@ class MiniMaxH3DenoisingStage(DenoisingStage):
             attn_metadata=None,
             forward_batch=batch,
         ):
-            runner = self._maybe_get_bcg_runner(model)
+            get_bcg_runner = getattr(self, "_maybe_get_bcg_runner", None)
+            if get_bcg_runner is None:
+                return model(**call_kwargs)
+            runner = get_bcg_runner(model)
             if runner is None:
                 return model(**call_kwargs)
             return self._bcg_run(runner, call_kwargs, model)

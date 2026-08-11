@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Numerical contract for request-static H3 denoise metadata."""
 
+from contextlib import nullcontext
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import torch
@@ -20,6 +22,9 @@ from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.m
 from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3.packed_sequence import (
     minimax_h3_packed_sequence,
     minimax_h3_packed_sequence_ref2va_blocks,
+)
+from sglang.multimodal_gen.runtime.pipelines_core.stages.model_specific_stages.minimax_h3.stages.denoising import (
+    MiniMaxH3DenoisingStage,
 )
 
 
@@ -144,6 +149,28 @@ def test_inplace_target_update_matches_scheduler_math():
             denoised_scratch=torch.empty_like(actual),
         )
         torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+
+def test_forward_dit_falls_back_when_fork_has_no_bcg_runner():
+    stage = object.__new__(MiniMaxH3DenoisingStage)
+    expected = (torch.tensor([1.0]), torch.tensor([2.0]))
+
+    def model(**kwargs):
+        assert kwargs == {"packed": "rows"}
+        return expected
+
+    with patch(
+        "sglang.multimodal_gen.runtime.managers.forward_context.set_forward_context",
+        return_value=nullcontext(),
+    ):
+        actual = stage._forward_dit(
+            model,
+            {"packed": "rows"},
+            0,
+            batch=SimpleNamespace(),
+        )
+
+    assert actual is expected
 
 
 def test_local_text_layout_is_a_contiguous_prefix_per_ulysses_rank():
