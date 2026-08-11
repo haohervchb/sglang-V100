@@ -236,9 +236,13 @@ def _modulate_scale_shift(
 ) -> torch.Tensor:
     """Apply indexed affine modulation."""
     # Apply per-index affine modulation: x * (1 + scale[idx]) + shift[idx].
-    return (
-        x * (1.0 + scale.index_select(0, indices)) + shift.index_select(0, indices)
-    ).to(dtype)
+    selected_scale = scale.index_select(0, indices)
+    selected_shift = shift.index_select(0, indices)
+    if dtype == torch.float16:
+        value = x.float() * (1.0 + selected_scale.float()) + selected_shift.float()
+        fp16_max = torch.finfo(torch.float16).max
+        return value.clamp_(-fp16_max, fp16_max).to(dtype)
+    return (x * (1.0 + selected_scale) + selected_shift).to(dtype)
 
 
 def _modulate_gate(
@@ -251,13 +255,30 @@ def _modulate_gate(
 ) -> torch.Tensor:
     """Apply indexed gated residual."""
     # Apply the per-index gated residual: x + gate[idx] * other.
-    return (x + gate.index_select(0, indices) * other).to(dtype)
+    selected_gate = gate.index_select(0, indices)
+    if dtype == torch.float16:
+        value = x.float() + selected_gate.float() * other.float()
+        fp16_max = torch.finfo(torch.float16).max
+        return value.clamp_(-fp16_max, fp16_max).to(dtype)
+    return (x + selected_gate * other).to(dtype)
 
 
 def _silu_mul(hidden: torch.Tensor, *, reuse_input: bool) -> torch.Tensor:
     del reuse_input  # Kept in the contract for graph/quantization parity.
     gate, up = hidden.chunk(2, dim=-1)
+    if hidden.dtype == torch.float16:
+        value = nn.functional.silu(gate.float()) * up.float()
+        fp16_max = torch.finfo(torch.float16).max
+        return value.clamp_(-fp16_max, fp16_max).to(hidden.dtype)
     return nn.functional.silu(gate) * up
+
+
+def _residual_add(x: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+    """Add reduced-precision residuals without introducing FP16 infinities."""
+    if x.dtype == torch.float16:
+        fp16_max = torch.finfo(torch.float16).max
+        return (x.float() + residual.float()).clamp_(-fp16_max, fp16_max).to(x.dtype)
+    return x + residual
 
 
 def _apply_qk_norm(
@@ -791,14 +812,17 @@ class MiniMaxH3TokenRefinerBlock(nn.Module):
         cu_seqlens_host: tuple[int, ...] | None = None,
         max_seqlen: int,
     ) -> torch.Tensor:
-        x = x + self.attn(
-            self.norm1(x),
-            rope_cache=None,
-            cu_seqlens=cu_seqlens,
-            cu_seqlens_host=cu_seqlens_host,
-            max_seqlen=max_seqlen,
+        x = _residual_add(
+            x,
+            self.attn(
+                self.norm1(x),
+                rope_cache=None,
+                cu_seqlens=cu_seqlens,
+                cu_seqlens_host=cu_seqlens_host,
+                max_seqlen=max_seqlen,
+            ),
         )
-        x = x + self.mlp(self.norm2(x))
+        x = _residual_add(x, self.mlp(self.norm2(x)))
         return x
 
 

@@ -139,7 +139,25 @@ class V100W8A16LinearMethod(LinearMethodBase):
         dequant_weight.mul_(layer.weight_scale.unsqueeze(1))
         if bias is not None and bias.dtype != torch.float16:
             bias = bias.to(torch.float16)
-        return F.linear(x, dequant_weight, bias)
+        if not x.is_cuda:
+            return F.linear(x, dequant_weight, bias)
+
+        # H3 was trained and released in BF16. On Volta, a finite BF16 linear
+        # result can exceed FP16's range even though cuBLAS accumulates the
+        # products in FP32. Request an FP32 output explicitly, then saturate at
+        # the reduced-precision boundary so one overflow cannot poison global
+        # packed attention with NaNs.
+        input_shape = x.shape
+        x_2d = x.reshape(-1, input_shape[-1])
+        out = torch.mm(x_2d, dequant_weight.t(), out_dtype=torch.float32)
+        if bias is not None:
+            out.add_(bias.float())
+        fp16_max = torch.finfo(torch.float16).max
+        return (
+            out.clamp_(-fp16_max, fp16_max)
+            .to(torch.float16)
+            .view(*input_shape[:-1], dequant_weight.shape[0])
+        )
 
 
 __all__ = ["V100W8A16Config", "V100W8A16LinearMethod"]

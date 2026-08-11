@@ -27,7 +27,11 @@ from sglang.multimodal_gen.runtime.models.dits.minimax_h3 import (
     MINIMAX_H3_FP32_PARAM_NAMES,
     MiniMaxH3DiTModel,
     _copy_grouped_qkv_tp_shard,
+    _modulate_gate,
+    _modulate_scale_shift,
     _reorder_grouped_qkv_to_qkv,
+    _residual_add,
+    _silu_mul,
 )
 from sglang.multimodal_gen.test.single_test_file.component_accuracy.utils import (
     ensure_distributed_env_defaults,
@@ -39,6 +43,34 @@ def _ensure_single_process_parallel_runtime() -> None:
         return
     ensure_distributed_env_defaults()
     maybe_init_distributed_environment_and_model_parallel(tp_size=1, sp_size=1)
+
+
+def test_fp16_boundaries_saturate_instead_of_overflowing():
+    indices = torch.tensor([0])
+    x = torch.full((1, 2), 40_000.0, dtype=torch.float16)
+    zeros = torch.zeros((1, 2), dtype=torch.float16)
+    scale = torch.full((1, 2), 2.0, dtype=torch.float16)
+    gate = torch.full((1, 2), 2.0, dtype=torch.float16)
+
+    outputs = (
+        _modulate_scale_shift(
+            x,
+            zeros,
+            scale,
+            indices,
+            dtype=torch.float16,
+        ),
+        _modulate_gate(x, gate, x, indices, dtype=torch.float16),
+        _silu_mul(
+            torch.full((1, 4), 1_000.0, dtype=torch.float16),
+            reuse_input=False,
+        ),
+        _residual_add(x, x),
+    )
+
+    for output in outputs:
+        assert torch.isfinite(output).all()
+        assert output.abs().max() == torch.finfo(torch.float16).max
 
 
 def test_native_weight_names_and_grouped_qkv_reorder():
