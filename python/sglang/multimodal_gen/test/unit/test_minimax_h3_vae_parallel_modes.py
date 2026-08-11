@@ -10,6 +10,9 @@ from sglang.multimodal_gen.configs.models.vaes.minimax_h3_video import (
     MiniMaxH3VideoVAEConfig,
 )
 from sglang.multimodal_gen.runtime.models.vaes.minimax_h3 import MiniMaxH3VideoVAE
+from sglang.multimodal_gen.runtime.models.vaes.minimax_h3_audio_vae.audio_vae import (
+    PointwiseConv1d,
+)
 from sglang.multimodal_gen.runtime.models.vaes.minimax_h3_video_vae import (
     AutoencoderKLLegacy,
 )
@@ -32,6 +35,17 @@ def test_pointwise_conv3d_linear_fallback_matches_reference():
     inputs = torch.randn(2, 4, 3, 5, 7)
 
     expected = torch.nn.functional.conv3d(inputs, conv.weight, conv.bias)
+    actual = conv(inputs)
+
+    torch.testing.assert_close(actual, expected)
+
+
+def test_pointwise_conv1d_linear_fallback_matches_reference():
+    torch.manual_seed(11)
+    conv = PointwiseConv1d(4, 6, kernel_size=1)
+    inputs = torch.randn(2, 4, 17)
+
+    expected = torch.nn.functional.conv1d(inputs, conv.weight, conv.bias)
     actual = conv(inputs)
 
     torch.testing.assert_close(actual, expected)

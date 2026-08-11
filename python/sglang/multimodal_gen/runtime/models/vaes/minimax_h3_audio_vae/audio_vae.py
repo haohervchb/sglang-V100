@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # DAC-lineage audio VAE: waveform encoder + BigVGAN decoder (inference-only bundle).
 import math
+from contextlib import nullcontext
 from typing import List
 
 import numpy as np
@@ -27,6 +28,22 @@ class GeGluMlp(nn.Module):
         x = self.act(self.w0(x)).mul_(self.w1(x))
         x = self.w2(x)
         return x
+
+
+class PointwiseConv1d(nn.Conv1d):
+    """Route 1x1 Conv1D through cuBLAS on Volta."""
+
+    def forward(self, x):
+        if (
+            self.kernel_size == (1,)
+            and self.stride == (1,)
+            and self.padding == (0,)
+            and self.dilation == (1,)
+            and self.groups == 1
+        ):
+            output = F.linear(x.transpose(1, 2), self.weight[:, :, 0], self.bias)
+            return output.transpose(1, 2).contiguous()
+        return super().forward(x)
 
 
 class CausalAttention(nn.Module):
@@ -104,7 +121,7 @@ class AttnProjection(nn.Module):
 
 
 def WNConv1d(*args, **kwargs):
-    return weight_norm(nn.Conv1d(*args, **kwargs))
+    return weight_norm(PointwiseConv1d(*args, **kwargs))
 
 
 @torch.jit.script
@@ -232,10 +249,10 @@ class DacAudioVAE(nn.Module):
             # smallest power of two >= vae_latent_channels
             self.attn_proj_dim = 2 ** int(np.ceil(np.log2(vae_latent_channels)))
 
-        self.mean_proj = nn.Conv1d(self.attn_proj_dim, vae_latent_channels, 1)
-        self.logs_proj = nn.Conv1d(self.attn_proj_dim, vae_latent_channels, 1)
+        self.mean_proj = PointwiseConv1d(self.attn_proj_dim, vae_latent_channels, 1)
+        self.logs_proj = PointwiseConv1d(self.attn_proj_dim, vae_latent_channels, 1)
 
-        self.dec_in_proj = nn.Conv1d(vae_latent_channels, latent_dim, 1)
+        self.dec_in_proj = PointwiseConv1d(vae_latent_channels, latent_dim, 1)
 
         if self.decoder_type == "bigvgan":
             if sample_rate == 16000:
@@ -303,5 +320,14 @@ class DacAudioVAE(nn.Module):
         Tensor[B x 1 x length]
             Decoded audio data.
         """
-        z = self.dec_in_proj(z)
-        return self.decoder(z)
+        use_native_convolution = z.is_cuda and torch.cuda.get_device_capability(
+            z.device
+        ) == (7, 0)
+        conv_context = (
+            torch.backends.cudnn.flags(enabled=False)
+            if use_native_convolution
+            else nullcontext()
+        )
+        with conv_context:
+            z = self.dec_in_proj(z)
+            return self.decoder(z)
