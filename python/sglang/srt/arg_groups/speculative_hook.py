@@ -105,10 +105,10 @@ def handle_speculative_decoding(server_args: "ServerArgs") -> None:
                 f"--speculative-draft-window-size must be positive, got {window_size}."
             )
         server_args.speculative_draft_window_size = window_size
-        if server_args.speculative_algorithm not in ("EAGLE3", "DFLASH"):
+        if server_args.speculative_algorithm not in ("EAGLE3", "DFLASH", "DSPARK"):
             logger.warning(
                 "--speculative-draft-window-size has no effect with "
-                "speculative_algorithm=%s (honored by Llama EAGLE-3 and DFLASH only).",
+                "speculative_algorithm=%s (honored by Llama EAGLE-3, DFLASH, and DSPARK only).",
                 server_args.speculative_algorithm,
             )
 
@@ -130,6 +130,8 @@ def handle_speculative_decoding(server_args: "ServerArgs") -> None:
 
     if server_args.speculative_algorithm == "DFLASH":
         _handle_dflash(server_args)
+    elif server_args.speculative_algorithm == "DSPARK":
+        _handle_dspark(server_args)
     elif server_args.speculative_algorithm == "FROZEN_KV_MTP":
         _handle_frozen_kv_mtp(server_args)
     elif server_args.speculative_algorithm in ("EAGLE", "EAGLE3", "STANDALONE"):
@@ -314,6 +316,97 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
         logger.warning(
             "Mixed chunked prefill is disabled because of using dflash speculative decoding."
         )
+
+
+def _handle_dspark(server_args: "ServerArgs") -> None:
+    """Normalize the fixed-width DSpark contract used by the SM70 worker.
+
+    DSpark's checkpoint ``block_size`` is gamma (the number of proposed
+    tokens), while SGLang's shared speculative accounting uses the target
+    verification width.  The latter is therefore gamma + 1 for the anchor.
+    """
+    if server_args.enable_dp_attention:
+        raise ValueError("DSPARK speculative decoding does not support dp attention yet.")
+    if server_args.pp_size != 1:
+        raise ValueError("DSPARK speculative decoding only supports pp_size == 1.")
+    if server_args.speculative_draft_model_path is None:
+        raise ValueError(
+            "DSPARK speculative decoding requires --speculative-draft-model-path."
+        )
+
+    draft_hf_config = None
+    try:
+        from sglang.srt.utils.hf_transformers_utils import get_config
+
+        draft_hf_config = get_config(
+            server_args.speculative_draft_model_path,
+            trust_remote_code=server_args.trust_remote_code,
+            revision=server_args.speculative_draft_model_revision,
+            model_override_args=json.loads(server_args.json_model_override_args),
+        )
+    except Exception as e:
+        logger.warning("Failed to inspect the DSPARK draft config: %s", e)
+
+    if draft_hf_config is not None:
+        architectures = getattr(draft_hf_config, "architectures", None) or []
+        if "DSparkDraftModel" not in architectures:
+            raise ValueError(
+                "DSPARK requires a DSparkDraftModel checkpoint, but got "
+                f"architectures={architectures}."
+            )
+        if (
+            getattr(draft_hf_config, "quantization_config", None) is None
+            and server_args.speculative_draft_model_quantization is not None
+        ):
+            logger.info(
+                "The DSPARK draft is unquantized; ignoring inherited draft quantization %r.",
+                server_args.speculative_draft_model_quantization,
+            )
+            server_args.speculative_draft_model_quantization = None
+
+    server_args.speculative_num_steps = 1
+    server_args.speculative_eagle_topk = 1
+
+    gamma = server_args.speculative_dspark_block_size
+    if gamma is None and draft_hf_config is not None:
+        gamma = getattr(draft_hf_config, "block_size", None)
+    if gamma is None:
+        gamma = 7
+        logger.warning("DSPARK block size is not set; defaulting gamma to 7.")
+    gamma = int(gamma)
+    if gamma <= 0:
+        raise ValueError(
+            "DSPARK requires --speculative-dspark-block-size to be positive, "
+            f"got {gamma}."
+        )
+
+    verify_width = gamma + 1
+    if (
+        server_args.speculative_num_draft_tokens is not None
+        and int(server_args.speculative_num_draft_tokens) != verify_width
+    ):
+        raise ValueError(
+            "DSPARK --speculative-num-draft-tokens is the verify width and must "
+            f"equal gamma + 1 ({verify_width}), got "
+            f"{server_args.speculative_num_draft_tokens}."
+        )
+    server_args.speculative_dspark_block_size = gamma
+    server_args.speculative_num_draft_tokens = verify_width
+
+    if (
+        server_args.speculative_draft_window_size is not None
+        and int(server_args.speculative_draft_window_size) < verify_width
+    ):
+        raise ValueError(
+            "--speculative-draft-window-size must be at least the DSPARK "
+            f"verify width ({verify_width})."
+        )
+
+    if server_args.max_running_requests is None:
+        server_args.max_running_requests = 48
+    if server_args.enable_mixed_chunk:
+        server_args.enable_mixed_chunk = False
+        logger.warning("Mixed chunked prefill is disabled for DSPARK.")
 
 
 def _handle_frozen_kv_mtp(server_args: "ServerArgs") -> None:

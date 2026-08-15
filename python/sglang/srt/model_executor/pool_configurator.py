@@ -105,7 +105,7 @@ class DefaultPoolConfigurator(MemoryPoolConfigurator):
         self._cell_size = self._compute_cell_size(mr, num_layers)
 
         # DFLASH: scale cell_size to account for draft model KV cache
-        if mr.spec_algorithm.is_dflash() and not mr.is_draft_worker:
+        if mr.spec_algorithm.is_dflash_family() and not mr.is_draft_worker:
             from sglang.srt.speculative.dflash_utils import (
                 scale_kv_cell_size_per_token_for_dflash,
             )
@@ -116,10 +116,30 @@ class DefaultPoolConfigurator(MemoryPoolConfigurator):
                 and int(draft_num_layers) > 0
                 and int(num_layers) > 0
             ):
+                draft_cell_size = None
+                if mr.spec_algorithm.is_dspark():
+                    draft_kv_dtype = mr.kv_cache_dtype
+                    if (
+                        torch.cuda.is_available()
+                        and torch.cuda.get_device_capability()[0] == 7
+                    ):
+                        # The SM70 DSpark runner keeps its small draft cache in
+                        # native FP16 even when the target cache is FP8.
+                        draft_kv_dtype = torch.float16
+                    draft_cell_size = (
+                        int(mr.dflash_draft_num_kv_heads)
+                        * (
+                            int(mr.dflash_draft_head_dim)
+                            + int(mr.dflash_draft_v_head_dim)
+                        )
+                        * int(draft_num_layers)
+                        * torch._utils._element_size(draft_kv_dtype)
+                    )
                 self._cell_size = scale_kv_cell_size_per_token_for_dflash(
                     target_cell_size_per_token=self._cell_size,
                     target_num_layers=int(num_layers),
                     draft_num_layers=int(draft_num_layers),
+                    draft_cell_size_per_token=draft_cell_size,
                 )
 
     def _compute_cell_size(self, mr: ModelRunner, num_layers: int) -> int:

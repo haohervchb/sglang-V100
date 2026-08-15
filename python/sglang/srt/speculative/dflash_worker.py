@@ -96,6 +96,15 @@ def _get_fused_kv_materialize_helper():
 class DFlashWorker:
     """DFlash speculative decoding worker (spec-v1, tp>=1/pp=1)."""
 
+    def _draft_kv_cache_dtype(self, server_args: ServerArgs) -> str:
+        """Return the cache dtype for the private draft runner.
+
+        DFlash normally mirrors the target cache.  Draft families may override
+        this when their hardware-specific attention path has a better native
+        representation.
+        """
+        return server_args.kv_cache_dtype
+
     def __init__(
         self,
         server_args: ServerArgs,
@@ -143,6 +152,7 @@ class DFlashWorker:
         )
         draft_server_args = deepcopy(server_args)
         draft_server_args.skip_tokenizer_init = True
+        draft_server_args.kv_cache_dtype = self._draft_kv_cache_dtype(server_args)
         draft_backend = draft_server_args.speculative_draft_attention_backend
         if draft_backend is None:
             draft_backend, _ = draft_server_args.get_attention_backends()
@@ -190,6 +200,7 @@ class DFlashWorker:
                 model_block_size = getattr(self.draft_model, "block_size", None)
             if (
                 self.tp_rank == 0
+                and server_args.speculative_algorithm != "DSPARK"
                 and model_block_size is not None
                 and int(model_block_size) != int(self.block_size)
             ):
@@ -207,8 +218,10 @@ class DFlashWorker:
             mask_token_id=self._mask_token_id_override,
         )
         if self.tp_rank == 0:
+            algorithm_name = server_args.speculative_algorithm or "DFLASH"
             logger.info(
-                "Initialized DFLASH draft runner. attention_backend=%s, model=%s, block_size=%s, draft_window_size=%s, compact_cache=%s",
+                "Initialized %s draft runner. attention_backend=%s, model=%s, block_size=%s, draft_window_size=%s, compact_cache=%s",
+                algorithm_name,
                 getattr(draft_server_args, "attention_backend", None),
                 self.draft_model.__class__.__name__,
                 self.block_size,
@@ -216,7 +229,8 @@ class DFlashWorker:
                 self.use_compact_draft_cache,
             )
             logger.info(
-                "DFLASH draft runner ready. mask_token=%s, mask_token_id=%s, mask_token_id_override=%s",
+                "%s draft runner ready. mask_token=%s, mask_token_id=%s, mask_token_id_override=%s",
+                algorithm_name,
                 self._mask_token,
                 self._mask_token_id,
                 self._mask_token_id_override,

@@ -153,6 +153,34 @@ class DFlashWorkerV2(DFlashWorker):
             )
             self._warned_sampling_fallback = True
 
+    def _populate_draft_tokens(
+        self,
+        *,
+        draft_hidden: torch.Tensor,
+        block_ids: torch.Tensor,
+        lm_head,
+        draft_tokens: torch.Tensor,
+    ) -> None:
+        """Populate the target verification chain from draft hidden states.
+
+        Plain DFlash predicts positions 1..N from the preceding masked block.
+        DSpark overrides this hook because its Markov head predicts gamma tokens
+        from all gamma draft positions.
+        """
+        if int(draft_hidden.shape[1]) != int(self.block_size):
+            raise ValueError(
+                "DFLASH draft forward width must match its verify width, got "
+                f"{draft_hidden.shape[1]} and {self.block_size}."
+            )
+        draft_next = self._greedy_sample_from_vocab_parallel_head(
+            hidden_states=draft_hidden[:, 1:, :].reshape(
+                -1, draft_hidden.shape[-1]
+            ),
+            lm_head=lm_head,
+        ).view(draft_hidden.shape[0], int(self.block_size) - 1)
+        draft_tokens[:, 0].copy_(block_ids[:, 0])
+        draft_tokens[:, 1:].copy_(draft_next)
+
     def _make_next_draft_input_prefill(
         self,
         *,
@@ -302,6 +330,7 @@ class DFlashWorkerV2(DFlashWorker):
             )
 
         block_size = int(self.block_size)
+        draft_forward_size = int(getattr(self, "draft_forward_size", block_size))
         self._ensure_draft_block_buffers(bs)
         assert self._draft_block_ids_buf is not None
         assert self._draft_block_positions_buf is not None
@@ -370,11 +399,15 @@ class DFlashWorkerV2(DFlashWorker):
             )
             verify_out_cache_loc_2d.copy_(verify_out_cache_loc.view(bs, block_size))
 
-        noise_embedding = embed_module(block_ids)
+        noise_embedding = embed_module(block_ids[:, :draft_forward_size])
         input_embeds = noise_embedding.view(-1, noise_embedding.shape[-1])
 
         positions = positions_2d.reshape(-1)
+        draft_positions = positions_2d[:, :draft_forward_size].reshape(-1)
         verify_out_cache_loc = verify_out_cache_loc_2d.reshape(-1)
+        draft_out_cache_loc = verify_out_cache_loc_2d[
+            :, :draft_forward_size
+        ].reshape(-1)
 
         seq_lens_cpu = self._draft_seq_lens_cpu_buf[:bs]
         if self.use_compact_draft_cache:
@@ -401,13 +434,13 @@ class DFlashWorkerV2(DFlashWorker):
             )
 
             block_end = self._draft_block_end_buf[:bs]
-            torch.add(draft_prefix_lens, block_size, out=block_end)
+            torch.add(draft_prefix_lens, draft_forward_size, out=block_end)
             assign_req_to_token_pool_func(
                 batch.req_pool_indices,
                 self.draft_model_runner.req_to_token_pool.req_to_token,
                 draft_prefix_lens,
                 block_end,
-                verify_out_cache_loc,
+                draft_out_cache_loc,
                 bs,
             )
             draft_seq_lens = draft_prefix_lens
@@ -420,7 +453,7 @@ class DFlashWorkerV2(DFlashWorker):
             if batch.seq_lens_cpu is not None:
                 # Host bound = committed prefix + one verify block.
                 seq_lens_cpu.copy_(batch.seq_lens_cpu)
-                seq_lens_cpu.add_(block_size)
+                seq_lens_cpu.add_(draft_forward_size)
                 draft_seq_lens_sum = int(seq_lens_cpu.sum())
             elif draft_input.reserved_seq_lens_cpu is not None:
                 # GPU-only backend: reserved is a safe over-estimate.
@@ -433,15 +466,15 @@ class DFlashWorkerV2(DFlashWorker):
         forward_batch = ForwardBatch(
             forward_mode=ForwardMode.TARGET_VERIFY,
             batch_size=bs,
-            input_ids=block_ids.flatten(),
+            input_ids=block_ids[:, :draft_forward_size].reshape(-1),
             req_pool_indices=batch.req_pool_indices,
             seq_lens=draft_seq_lens,
-            out_cache_loc=verify_out_cache_loc,
+            out_cache_loc=draft_out_cache_loc,
             seq_lens_sum=draft_seq_lens_sum,
             seq_lens_cpu=seq_lens_cpu,
-            positions=positions,
+            positions=draft_positions,
             input_embeds=input_embeds,
-            spec_algorithm=SpeculativeAlgorithm.DFLASH,
+            spec_algorithm=self.model_runner.spec_algorithm,
             spec_info=self._draft_block_spec_info,
             capture_hidden_mode=CaptureHiddenMode.NULL,
         )
@@ -454,15 +487,15 @@ class DFlashWorkerV2(DFlashWorker):
         draft_hidden = draft_logits_output.hidden_states
         if draft_hidden is None:
             raise RuntimeError("DFLASH draft model returned no hidden states.")
-        draft_hidden = draft_hidden.view(bs, int(self.block_size), -1)
-        draft_next = self._greedy_sample_from_vocab_parallel_head(
-            hidden_states=draft_hidden[:, 1:, :].reshape(-1, draft_hidden.shape[-1]),
-            lm_head=lm_head,
-        ).view(bs, int(self.block_size) - 1)
+        draft_hidden = draft_hidden.view(bs, draft_forward_size, -1)
 
         draft_tokens = self._draft_block_tokens_buf[:bs]
-        draft_tokens[:, 0].copy_(block_ids[:, 0])
-        draft_tokens[:, 1:].copy_(draft_next)
+        self._populate_draft_tokens(
+            draft_hidden=draft_hidden,
+            block_ids=block_ids,
+            lm_head=lm_head,
+            draft_tokens=draft_tokens,
+        )
 
         # --- 2) Target verify.
         # TARGET_VERIFY uses standard causal masking; custom masks are unnecessary here.
