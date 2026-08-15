@@ -210,6 +210,9 @@ def build_warmup_reqs(
 
         req = Req(**req_kwargs)
         req.set_as_warmup(server_args.warmup_steps)
+        req.sampling_params.prepare_synthetic_warmup_request_for_queue(
+            req, server_args
+        )
         if return_warmup_result:
             req.extra["return_warmup_result"] = True
         if server_based_warmup:

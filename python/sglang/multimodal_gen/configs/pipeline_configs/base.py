@@ -241,9 +241,6 @@ class PipelineConfig:
     text_encoder_precisions: tuple[str, ...] = field(default_factory=lambda: ("fp32",))
     text_encoder_extra_args: list[dict] = field(default_factory=lambda: [{}])
 
-    def get_model_deployment_config(self) -> ModelDeploymentConfig:
-        return ModelDeploymentConfig()
-
     def postprocess_image(self, image):
         return image.last_hidden_state
 
@@ -267,6 +264,11 @@ class PipelineConfig:
     def get_model_deployment_config(self) -> ModelDeploymentConfig:
         # return the model-specific config for optimal deployment setting
         return ModelDeploymentConfig()
+
+    def validate_server_args(self, server_args: Any) -> None:
+        """Validate model-owned constraints after server args are normalized."""
+
+        del server_args
 
     # Wan2.2 TI2V parameters
     boundary_ratio: float | None = None
@@ -391,6 +393,11 @@ class PipelineConfig:
         The scheduler still checks each request before merging it into a batch.
         """
         return self.task_type in (ModelTaskType.T2I, ModelTaskType.T2V)
+
+    def supports_disaggregation(self) -> bool:
+        """Return whether multi-service disaggregated deployment is supported."""
+
+        return True
 
     def estimate_request_cost(self, batch) -> float:
         """Return the relative cost used for batching admission caps.

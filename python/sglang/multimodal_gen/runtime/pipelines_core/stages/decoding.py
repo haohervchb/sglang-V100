@@ -8,7 +8,7 @@ Decoding stage for diffusion pipelines.
 import weakref
 
 import torch
-
+import torch.nn as nn
 from sglang.multimodal_gen.runtime.distributed import get_local_torch_device
 from sglang.multimodal_gen.runtime.loader.component_loaders.vae_loader import VAELoader
 from sglang.multimodal_gen.runtime.managers.memory_managers.component_manager import (
@@ -26,6 +26,11 @@ from sglang.multimodal_gen.runtime.pipelines_core.stages.validators import (
 from sglang.multimodal_gen.runtime.platforms import current_platform
 from sglang.multimodal_gen.runtime.server_args import ServerArgs, get_global_server_args
 from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
+from sglang.multimodal_gen.runtime.utils.torch_compile import (
+    ActiveTargetCompiledCallable,
+    build_torch_compile_kwargs,
+    resolve_torch_compile_mode,
+)
 from sglang.multimodal_gen.utils import PRECISION_TO_TYPE
 
 logger = init_logger(__name__)
@@ -70,6 +75,7 @@ class DecodingStage(PipelineStage):
         self.vae: ParallelTiledVAE = vae
         self.pipeline = weakref.ref(pipeline) if pipeline else None
         self.component_name = component_name
+        self._compiled_vae_decode = ActiveTargetCompiledCallable()
 
     def component_uses(
         self, server_args: ServerArgs, stage_name: str | None = None
@@ -125,6 +131,41 @@ class DecodingStage(PipelineStage):
             else:
                 latents += shift_factor
         return latents
+
+    def _get_vae_decode_fn(
+        self,
+        vae,
+        server_args: ServerArgs,
+        *,
+        decode_fn=None,
+        compiled_callable: ActiveTargetCompiledCallable | None = None,
+    ):
+        decode_fn = decode_fn or vae.decode
+        if not server_args.enable_torch_compile or not isinstance(vae, nn.Module):
+            return decode_fn
+
+        compiled_callable = compiled_callable or self._compiled_vae_decode
+        will_compile = (
+            compiled_callable.target_id != id(vae)
+            or compiled_callable.compiled_module is None
+        )
+        if current_platform.is_npu():
+            compile_kwargs = build_torch_compile_kwargs(mode=None)
+            if will_compile:
+                logger.info("Compiling VAE decode with torchair backend on NPU")
+        else:
+            mode = resolve_torch_compile_mode(
+                "SGLANG_VAE_TORCH_COMPILE_MODE",
+                "SGLANG_TORCH_COMPILE_MODE",
+                default="default",
+            )
+            compile_kwargs = build_torch_compile_kwargs(mode=mode)
+            if will_compile:
+                logger.info("Compiling VAE decode with mode: %s", mode)
+
+        return compiled_callable.get_or_compile(
+            vae, decode_fn, compile_kwargs=compile_kwargs
+        )
 
     @torch.no_grad()
     def decode(
@@ -225,9 +266,9 @@ class DecodingStage(PipelineStage):
 
             # decode trajectory latents if needed
             if batch.return_trajectory_decoded:
-                assert (
-                    batch.trajectory_latents is not None
-                ), "batch should have trajectory latents"
+                assert batch.trajectory_latents is not None, (
+                    "batch should have trajectory latents"
+                )
 
                 # 1. Batch trajectory decoding to improve GPU utilization
                 # batch.trajectory_latents is [batch_size, timesteps, channels, frames, height, width]

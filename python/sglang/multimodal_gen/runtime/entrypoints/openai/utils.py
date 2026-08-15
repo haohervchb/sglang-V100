@@ -1,6 +1,7 @@
 # Copied and adapted from: https://github.com/hao-ai-lab/FastVideo
 import asyncio
 import base64
+import json
 import os
 import re
 import shutil
@@ -50,6 +51,26 @@ logger = init_logger(__name__)
 OUTPUT_QUALITY_MAPPER = {"maximum": 100, "high": 90, "medium": 55, "low": 35}
 DEFAULT_FPS = 24
 DEFAULT_VIDEO_SECONDS = 4
+
+
+def flatten_extra_params(payload: Any) -> dict[str, Any]:
+    """Promote vLLM-Omni-style ``extra_params`` into request fields."""
+    if not isinstance(payload, dict):
+        return {}
+    extra_params = payload.pop("extra_params", None)
+    if isinstance(extra_params, str):
+        try:
+            extra_params = json.loads(extra_params)
+        except (json.JSONDecodeError, TypeError):
+            extra_params = None
+    if isinstance(extra_params, dict):
+        for key, value in extra_params.items():
+            payload.setdefault(key, value)
+        if "guardrails" in extra_params:
+            payload.setdefault("use_guardrails", extra_params["guardrails"])
+    elif "guardrails" in payload:
+        payload.setdefault("use_guardrails", payload["guardrails"])
+    return payload
 
 
 @contextmanager
@@ -323,10 +344,14 @@ async def _save_base64_image_to_path(base64_data: str, target_path: str) -> str:
 async def process_generation_batch(
     scheduler_client: AsyncSchedulerClient,
     batch,
+    *,
+    scheduler_batches=None,
 ) -> tuple[list[str], OutputBatch]:
     total_start_time = time.perf_counter()
     with trace_req(batch.trace_ctx), log_generation_timer(logger, batch.prompt):
-        result = await scheduler_client.forward([batch])
+        result = await scheduler_client.forward(
+            scheduler_batches if scheduler_batches is not None else [batch]
+        )
 
         if result.output is None and result.output_file_paths is None:
             error_msg = result.error or "Unknown error"

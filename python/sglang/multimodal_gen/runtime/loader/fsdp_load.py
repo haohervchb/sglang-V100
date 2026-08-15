@@ -20,6 +20,7 @@ from torch.distributed.fsdp import (
     FSDPModule,
     MixedPrecisionPolicy,
     fully_shard,
+    register_fsdp_forward_method,
 )
 from torch.nn.modules.module import _IncompatibleKeys
 
@@ -187,7 +188,8 @@ def maybe_load_fsdp_model(
     Args:
         param_dtype: Data type for model parameters, also used for:
             - Model initialization context (set_default_torch_dtype)
-            - FSDP mixed precision policy
+            - FSDP mixed precision policy unless the model preserves mixed
+              original parameter dtypes
             - Weight loading and casting
         reduce_dtype: Data type for gradient reduction in FSDP mixed precision.
         strict: If True, enforce strict state dict loading (all keys must match).
@@ -195,8 +197,19 @@ def maybe_load_fsdp_model(
     # NOTE(will): cast_forward_inputs=True shouldn't be needed as we are
     # manually casting the inputs to the model
     default_torch_dtype = param_dtype if param_dtype else torch.bfloat16
+    # Some native models deliberately mix FP32 projections with lower-precision
+    # blocks.  FSDP must all-gather those parameters in their original dtypes;
+    # the thread-local compute dtype below remains the requested default.
+    fsdp_param_dtype = (
+        None
+        if fsdp_inference and getattr(model_cls, "_fsdp_mixed_dtype_params", False)
+        else default_torch_dtype
+    )
     mp_policy = MixedPrecisionPolicy(
-        default_torch_dtype, reduce_dtype, output_dtype, cast_forward_inputs=False
+        param_dtype=fsdp_param_dtype,
+        reduce_dtype=reduce_dtype,
+        output_dtype=output_dtype,
+        cast_forward_inputs=False,
     )
 
     set_mixed_precision_policy(
@@ -243,6 +256,8 @@ def maybe_load_fsdp_model(
             fsdp_shard_conditions=getattr(model, "_fsdp_shard_conditions", None),
             pin_cpu_memory=pin_cpu_memory,
         )
+        if callable(getattr(model, "refine_prompt_embeds", None)):
+            register_fsdp_forward_method(model, "refine_prompt_embeds")
 
     weight_iterator = safetensors_weights_iterator(weight_dir_list)
     preprocess_loaded_state_dict = getattr(model, "preprocess_loaded_state_dict", None)

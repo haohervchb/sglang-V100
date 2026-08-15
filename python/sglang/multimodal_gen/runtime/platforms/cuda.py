@@ -225,7 +225,34 @@ class CudaPlatformBase(Platform):
         target_backend: AttentionBackendEnum | None = None
         # TODO(will): maybe come up with a more general interface for local attention
         # if distributed is False, we always try to use Flash attn
-        if selected_backend == AttentionBackendEnum.SLIDING_TILE_ATTN:
+        if selected_backend == AttentionBackendEnum.TILELANG_FA_V100:
+            capability = cls.get_device_capability()
+            capability_int = capability.to_int() if capability is not None else None
+            if capability_int != 70:
+                raise ValueError(
+                    "TileLang V100 FlashAttention requires compute capability 7.0, "
+                    f"got {capability_int}."
+                )
+            if dtype != torch.float16:
+                raise ValueError(
+                    f"TileLang V100 FlashAttention requires torch.float16, got {dtype}."
+                )
+            if head_size != 128:
+                raise ValueError(
+                    "TileLang V100 FlashAttention requires head size 128, "
+                    f"got {head_size}."
+                )
+            try:
+                from sglang.multimodal_gen.runtime.layers.attention.backends.tilelang_fa_v100 import (  # noqa: F401
+                    TileLangFlashAttentionV100Backend,
+                )
+            except ImportError as error:
+                raise ImportError(
+                    "TileLang V100 FlashAttention requires the tilelang package."
+                ) from error
+            logger.info("Using TileLang V100 FlashAttention backend")
+            return "sglang.multimodal_gen.runtime.layers.attention.backends.tilelang_fa_v100.TileLangFlashAttentionV100Backend"
+        elif selected_backend == AttentionBackendEnum.SLIDING_TILE_ATTN:
             try:
                 from st_attn import sliding_tile_attention  # noqa: F401
 

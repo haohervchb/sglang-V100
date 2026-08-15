@@ -11,14 +11,13 @@ import os
 import time
 import weakref
 from collections.abc import Callable, Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any
 
 import torch
 import torch.nn as nn
-from tqdm.auto import tqdm
-
 from sglang.jit_kernel.nvfp4 import prewarm_nvfp4_jit_modules
 from sglang.multimodal_gen import envs
 from sglang.multimodal_gen.configs.pipeline_configs.base import ModelTaskType, STA_Mode
@@ -103,6 +102,7 @@ from sglang.multimodal_gen.runtime.utils.perf_logger import StageProfiler
 from sglang.multimodal_gen.runtime.utils.profiler import SGLDiffusionProfiler
 from sglang.multimodal_gen.utils import PRECISION_TO_TYPE, dict_to_3d_list
 from sglang.srt.utils.common import get_compiler_backend
+from tqdm.auto import tqdm
 
 logger = init_logger(__name__)
 
@@ -180,11 +180,16 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
         self._cached_num_steps = None
         self._torch_compiled_module_ids: set[int] = set()
 
-        hidden_size = self.server_args.pipeline_config.dit_config.hidden_size
+        dit_config = self.server_args.pipeline_config.dit_config
+        hidden_size = dit_config.hidden_size
         num_attention_heads = (
-            self.server_args.pipeline_config.dit_config.num_attention_heads
+            dit_config.num_attention_heads
         )
-        attn_head_size = hidden_size // num_attention_heads
+        attn_head_size = getattr(
+            dit_config,
+            "attention_head_dim",
+            hidden_size // num_attention_heads,
+        )
 
         # torch compile
         for transformer in filter(None, [self.transformer, self.transformer_2]):
@@ -289,7 +294,7 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
             module, nn.Module
         ):
             return
-        if envs.SGLANG_CACHE_DIT_ENABLED and not self._cache_dit_enabled:
+        if self._cache_dit_requested() and not self._cache_dit_enabled:
             logger.debug("Deferring torch.compile until cache-dit is enabled")
             return
         module_id = id(module)
@@ -334,6 +339,104 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
         self._maybe_enable_cache_dit(num_inference_steps, batch)
         for transformer in filter(None, [self.transformer, self.transformer_2]):
             self._maybe_enable_torch_compile(transformer)
+
+    def _cache_dit_requested(self) -> bool:
+        return envs.SGLANG_CACHE_DIT_ENABLED
+
+    @staticmethod
+    def _parse_cache_dit_scm_bins() -> tuple[list[int] | None, list[int] | None, str]:
+        scm_preset = envs.SGLANG_CACHE_DIT_SCM_PRESET
+        compute_bins_str = envs.SGLANG_CACHE_DIT_SCM_COMPUTE_BINS
+        cache_bins_str = envs.SGLANG_CACHE_DIT_SCM_CACHE_BINS
+        compute_bins = None
+        cache_bins = None
+        if compute_bins_str and cache_bins_str:
+            try:
+                compute_bins = [int(x.strip()) for x in compute_bins_str.split(",")]
+                cache_bins = [int(x.strip()) for x in cache_bins_str.split(",")]
+            except ValueError as exc:
+                logger.warning("Failed to parse SCM bins: %s. SCM disabled.", exc)
+                scm_preset = "none"
+        elif compute_bins_str or cache_bins_str:
+            logger.warning(
+                "SCM custom bins require both compute_bins and cache_bins; "
+                "falling back to preset %r.",
+                scm_preset,
+            )
+        return compute_bins, cache_bins, scm_preset
+
+    def _cache_dit_scm_masks(
+        self, primary_num_steps: int, secondary_num_steps: int | None = None
+    ) -> tuple[str, str, list[int] | None, list[int] | None]:
+        compute_bins, cache_bins, preset = self._parse_cache_dit_scm_bins()
+        policy = envs.SGLANG_CACHE_DIT_SCM_POLICY
+        primary_mask = get_scm_mask(
+            preset=preset,
+            num_inference_steps=primary_num_steps,
+            compute_bins=compute_bins,
+            cache_bins=cache_bins,
+        )
+        secondary_mask = (
+            get_scm_mask(
+                preset=preset,
+                num_inference_steps=secondary_num_steps,
+                compute_bins=compute_bins,
+                cache_bins=cache_bins,
+            )
+            if secondary_num_steps is not None
+            else None
+        )
+        return preset, policy, primary_mask, secondary_mask
+
+    @staticmethod
+    def _build_cache_dit_config(
+        num_inference_steps: int,
+        steps_computation_mask: list[int] | None,
+        scm_policy: str,
+        *,
+        secondary: bool = False,
+    ) -> CacheDitConfig:
+        return CacheDitConfig(
+            enabled=True,
+            Fn_compute_blocks=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_FN
+                if secondary
+                else envs.SGLANG_CACHE_DIT_FN
+            ),
+            Bn_compute_blocks=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_BN
+                if secondary
+                else envs.SGLANG_CACHE_DIT_BN
+            ),
+            max_warmup_steps=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_WARMUP
+                if secondary
+                else envs.SGLANG_CACHE_DIT_WARMUP
+            ),
+            residual_diff_threshold=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_RDT
+                if secondary
+                else envs.SGLANG_CACHE_DIT_RDT
+            ),
+            max_continuous_cached_steps=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_MC
+                if secondary
+                else envs.SGLANG_CACHE_DIT_MC
+            ),
+            enable_taylorseer=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_TAYLORSEER
+                if secondary
+                else envs.SGLANG_CACHE_DIT_TAYLORSEER
+            ),
+            taylorseer_order=(
+                envs.SGLANG_CACHE_DIT_SECONDARY_TS_ORDER
+                if secondary
+                else envs.SGLANG_CACHE_DIT_TS_ORDER
+            ),
+            num_inference_steps=num_inference_steps,
+            steps_computation_mask=steps_computation_mask,
+            steps_computation_policy=scm_policy,
+        )
 
     @staticmethod
     def _needs_nvfp4_jit_prewarm(module: nn.Module) -> bool:
@@ -382,7 +485,7 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
 
         # Keep cache-dit disabled for ordinary warmup, but allow torch.compile
         # warmup to mount cache-dit before Dynamo traces the transformer.
-        if not envs.SGLANG_CACHE_DIT_ENABLED:
+        if not self._cache_dit_requested():
             return
         if batch.is_warmup and not self.server_args.enable_torch_compile:
             return
@@ -462,42 +565,26 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
             )
 
         # build config for primary transformer (high-noise expert)
-        primary_config = CacheDitConfig(
-            enabled=True,
-            Fn_compute_blocks=envs.SGLANG_CACHE_DIT_FN,
-            Bn_compute_blocks=envs.SGLANG_CACHE_DIT_BN,
-            max_warmup_steps=envs.SGLANG_CACHE_DIT_WARMUP,
-            residual_diff_threshold=envs.SGLANG_CACHE_DIT_RDT,
-            max_continuous_cached_steps=envs.SGLANG_CACHE_DIT_MC,
-            enable_taylorseer=envs.SGLANG_CACHE_DIT_TAYLORSEER,
-            taylorseer_order=envs.SGLANG_CACHE_DIT_TS_ORDER,
-            num_inference_steps=(
-                num_inference_steps
-                if isinstance(num_inference_steps, int)
-                else num_high_noise_steps
-            ),
-            # SCM fields
-            steps_computation_mask=steps_computation_mask,
-            steps_computation_policy=scm_policy,
+        primary_num_steps = (
+            num_inference_steps
+            if isinstance(num_inference_steps, int)
+            else num_high_noise_steps
+        )
+        primary_config = self._build_cache_dit_config(
+            primary_num_steps,
+            steps_computation_mask,
+            scm_policy,
         )
 
         if self.transformer_2 is not None:
             # dual transformer
             # build config for secondary transformer (low-noise expert)
             # uses secondary parameters which inherit from primary if not explicitly set
-            secondary_config = CacheDitConfig(
-                enabled=True,
-                Fn_compute_blocks=envs.SGLANG_CACHE_DIT_SECONDARY_FN,
-                Bn_compute_blocks=envs.SGLANG_CACHE_DIT_SECONDARY_BN,
-                max_warmup_steps=envs.SGLANG_CACHE_DIT_SECONDARY_WARMUP,
-                residual_diff_threshold=envs.SGLANG_CACHE_DIT_SECONDARY_RDT,
-                max_continuous_cached_steps=envs.SGLANG_CACHE_DIT_SECONDARY_MC,
-                enable_taylorseer=envs.SGLANG_CACHE_DIT_SECONDARY_TAYLORSEER,
-                taylorseer_order=envs.SGLANG_CACHE_DIT_SECONDARY_TS_ORDER,
-                num_inference_steps=num_low_noise_steps,
-                # SCM fields - shared with primary
-                steps_computation_mask=steps_computation_mask_2,
-                steps_computation_policy=scm_policy,
+            secondary_config = self._build_cache_dit_config(
+                num_low_noise_steps,
+                steps_computation_mask_2,
+                scm_policy,
+                secondary=True,
             )
 
             # for dual transformers, must use BlockAdapter to enable cache on both simultaneously.
@@ -527,10 +614,10 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
             )
             logger.info(
                 "cache-dit enabled on transformer (steps=%d, Fn=%d, Bn=%d, rdt=%.3f)",
-                num_inference_steps,
-                envs.SGLANG_CACHE_DIT_FN,
-                envs.SGLANG_CACHE_DIT_BN,
-                envs.SGLANG_CACHE_DIT_RDT,
+                primary_num_steps,
+                primary_config.Fn_compute_blocks,
+                primary_config.Bn_compute_blocks,
+                primary_config.residual_diff_threshold,
             )
 
         self._cache_dit_enabled = True
@@ -712,8 +799,13 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
             )
         else:
             reserved_frames_mask_sp, z_sp = (
-                reserved_frames_masks[0] if reserved_frames_masks is not None else None
-            ), z
+                (
+                    reserved_frames_masks[0]
+                    if reserved_frames_masks is not None
+                    else None
+                ),
+                z,
+            )
 
         guidance = self.get_or_build_guidance(
             # TODO: replace with raw_latent_shape?
@@ -981,9 +1073,9 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
         # 1. Prepare latent inputs in the model's compute dtype.
         latent_model_input = ctx.latents.to(ctx.target_dtype)
         if batch.image_latent is not None:
-            assert (
-                not server_args.pipeline_config.task_type == ModelTaskType.TI2V
-            ), "image latents should not be provided for TI2V task"
+            assert not server_args.pipeline_config.task_type == ModelTaskType.TI2V, (
+                "image latents should not be provided for TI2V task"
+            )
             latent_model_input = torch.cat(
                 [latent_model_input, batch.image_latent], dim=1
             ).to(ctx.target_dtype)
@@ -1321,6 +1413,14 @@ class DenoisingStage(PipelineStage, RolloutDenoisingMixin):
             latents = blend_wan_ti2v_latents(latents, reserved_frames_mask, z)
 
         return latents
+
+    @contextmanager
+    def _offload_for_torch_compile_warmup(self, batch: Req):
+        # This older V100 fork does not expose the upstream compile-time
+        # layerwise-offload controls. Keep the shared model-specific stage
+        # contract while preserving its existing residency behavior.
+        del batch
+        yield
 
     @torch.no_grad()
     def forward(

@@ -2,21 +2,23 @@ import dataclasses
 import glob
 import os
 import re
-from collections.abc import Generator, Iterable
+from collections.abc import Callable, Generator, Iterable
 from typing import cast
 
 import torch
 import torch.distributed as dist
-from torch import nn
-from torch.distributed import init_device_mesh
-from transformers import AutoModel
-from transformers.utils import SAFE_WEIGHTS_INDEX_NAME
-
 from sglang.multimodal_gen.configs.models import EncoderConfig, ModelConfig
+from sglang.multimodal_gen.configs.models.encoders.minimax_h3_qwen3vl import (
+    MiniMaxH3Qwen3VLConfig,
+)
 from sglang.multimodal_gen.configs.pipeline_configs.qwen_image import (
     QwenImageEditPipelineConfig,
 )
 from sglang.multimodal_gen.runtime.distributed import get_local_torch_device
+from sglang.multimodal_gen.runtime.layers.quantization.v100_w8a16 import (
+    V100W8A16Config,
+    V100W8A16LinearMethod,
+)
 from sglang.multimodal_gen.runtime.loader.component_loaders.component_loader import (
     ComponentLoader,
 )
@@ -41,6 +43,10 @@ from sglang.multimodal_gen.runtime.utils.hf_diffusers_utils import (
 from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
 from sglang.multimodal_gen.utils import PRECISION_TO_TYPE
 from sglang.srt.environ import envs
+from torch import nn
+from torch.distributed import init_device_mesh
+from transformers import AutoModel
+from transformers.utils import SAFE_WEIGHTS_INDEX_NAME
 
 logger = init_logger(__name__)
 
@@ -121,6 +127,7 @@ class TextEncoderLoader(ComponentLoader):
         model_name_or_path: str,
         fall_back_to_pt: bool,
         allow_patterns_overrides: list[str] | None,
+        key_filter: Callable[[str], bool] | None = None,
     ) -> tuple[str, list[str], bool]:
         """Prepare weights for the model.
 
@@ -153,7 +160,7 @@ class TextEncoderLoader(ComponentLoader):
 
         if use_safetensors:
             hf_weights_files = filter_duplicate_safetensors_files(
-                hf_weights_files, hf_folder, index_file
+                hf_weights_files, hf_folder, index_file, key_filter=key_filter
             )
         else:
             hf_weights_files = filter_files_not_needed_for_inference(hf_weights_files)
@@ -172,20 +179,35 @@ class TextEncoderLoader(ComponentLoader):
         self,
         source: "Source",
         to_cpu: bool,
+        key_filter: Callable[[str], bool] | None = None,
     ) -> Generator[tuple[str, torch.Tensor], None, None]:
         """get an iterator for the model weights based on the load format."""
+        source_key_filter = None
+        if key_filter is not None:
+
+            def source_key_filter(name: str) -> bool:
+                return key_filter(source.prefix + name)
+
         hf_folder, hf_weights_files, use_safetensors = self._prepare_weights(
             source.model_or_path,
             source.fall_back_to_pt,
             source.allow_patterns_overrides,
+            key_filter=source_key_filter,
         )
         if use_safetensors:
             weights_iterator = safetensors_weights_iterator(
                 hf_weights_files,
                 to_cpu=to_cpu,
+                key_filter=source_key_filter,
             )
         else:
             weights_iterator = pt_weights_iterator(hf_weights_files, to_cpu=to_cpu)
+            if source_key_filter is not None:
+                weights_iterator = (
+                    (name, tensor)
+                    for name, tensor in weights_iterator
+                    if source_key_filter(name)
+                )
 
         # apply the prefix.
         return ((source.prefix + name, tensor) for (name, tensor) in weights_iterator)
@@ -196,6 +218,10 @@ class TextEncoderLoader(ComponentLoader):
         model_path: str,
         to_cpu: bool,
     ) -> Generator[tuple[str, torch.Tensor], None, None]:
+        key_filter = cast(
+            Callable[[str], bool] | None,
+            getattr(model, "should_materialize_checkpoint_weight", None),
+        )
         primary_weights = TextEncoderLoader.Source(
             model_path,
             prefix="",
@@ -205,6 +231,7 @@ class TextEncoderLoader(ComponentLoader):
         yield from self._get_weights_iterator(
             primary_weights,
             to_cpu,
+            key_filter,
         )
 
         secondary_weights = cast(
@@ -215,6 +242,7 @@ class TextEncoderLoader(ComponentLoader):
             yield from self._get_weights_iterator(
                 source,
                 to_cpu,
+                key_filter,
             )
 
     def load_customized(
@@ -244,6 +272,13 @@ class TextEncoderLoader(ComponentLoader):
         if encoder_index == 0:
             for key, value in diffusers_pretrained_config.__dict__.items():
                 setattr(encoder_config.arch_config, key, value)
+        post_update = getattr(encoder_config, "post_diffusers_config_update", None)
+        if post_update is not None:
+            post_update()
+        if server_args.quantization == "v100_w8a16" and isinstance(
+            encoder_config, MiniMaxH3Qwen3VLConfig
+        ):
+            encoder_config.quant_config = V100W8A16Config()
         encoder_dtype = server_args.pipeline_config.text_encoder_precisions[
             encoder_index
         ]
@@ -291,9 +326,24 @@ class TextEncoderLoader(ComponentLoader):
         local_torch_device = get_local_torch_device()
 
         if not current_platform.is_cpu():
-            fsdp_cpu_offload = self.should_offload(server_args, model_config)
+            # H3's encoder parameters are already rank-local TP shards. FSDP
+            # assumes corresponding parameters are identical on every rank;
+            # wrapping these different shards would all-gather a corrupt
+            # matrix. Keep each complete TP shard on CPU and let the component
+            # residency manager move it to/from its rank's GPU instead.
+            use_rank_local_tp_offload = (
+                server_args.text_encoder_cpu_offload
+                and server_args.tp_size > 1
+                and isinstance(model_config, MiniMaxH3Qwen3VLConfig)
+            )
+            fsdp_cpu_offload = (
+                self.should_offload(server_args, model_config)
+                and not use_rank_local_tp_offload
+            )
             should_offload = (
-                cpu_offload_flag if cpu_offload_flag is not None else fsdp_cpu_offload
+                cpu_offload_flag
+                if cpu_offload_flag is not None
+                else (fsdp_cpu_offload or use_rank_local_tp_offload)
             )
         else:
             fsdp_cpu_offload = False
@@ -326,6 +376,11 @@ class TextEncoderLoader(ComponentLoader):
                     to_cpu=should_offload,
                 )
             )
+
+            for module in model.modules():
+                quant_method = getattr(module, "quant_method", None)
+                if isinstance(quant_method, V100W8A16LinearMethod):
+                    quant_method.process_weights_after_loading(module)
 
             if should_offload:
                 # Disable FSDP for MPS as it's not compatible

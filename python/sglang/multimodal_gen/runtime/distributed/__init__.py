@@ -1,5 +1,4 @@
 # Copied and adapted from: https://github.com/hao-ai-lab/FastVideo
-from functools import lru_cache
 
 from sglang.multimodal_gen.configs.models.encoders import TextEncoderConfig
 from sglang.multimodal_gen.runtime.distributed.communication_op import *
@@ -8,6 +7,9 @@ from sglang.multimodal_gen.runtime.distributed.group_coordinator import (
 )
 from sglang.multimodal_gen.runtime.distributed.parallel_state import (
     cleanup_dist_env_and_memory,
+    get_decode_parallel_group_coordinator,
+    get_decode_parallel_rank,
+    get_decode_parallel_world_size,
     get_dp_group,
     get_dp_rank,
     get_dp_world_size,
@@ -53,6 +55,10 @@ __all__ = [
     "get_tp_group",
     "get_tp_rank",
     "get_tp_world_size",
+    # Decode parallel group
+    "get_decode_parallel_group_coordinator",
+    "get_decode_parallel_rank",
+    "get_decode_parallel_world_size",
     # Get torch device
     "get_local_torch_device",
 ]

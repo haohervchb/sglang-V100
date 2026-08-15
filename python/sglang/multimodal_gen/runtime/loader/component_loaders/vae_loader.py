@@ -3,8 +3,8 @@ import os
 
 import torch
 import torch.nn as nn
+from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
-
 from sglang.multimodal_gen.configs.models import ModelConfig
 from sglang.multimodal_gen.runtime.loader.component_loaders.component_loader import (
     ComponentLoader,
@@ -28,6 +28,30 @@ logger = init_logger(__name__)
 VAE_CHANNELS_LAST_3D_ENV = "SGLANG_DIFFUSION_VAE_CHANNELS_LAST_3D"
 
 
+def _resolve_stream_state_key(name: str, state: dict[str, torch.Tensor]) -> str | None:
+    """Resolve checkpoint aliases without materializing a second state dict.
+
+    PyTorch's legacy ``torch.nn.utils.weight_norm`` serialized ``weight_g`` and
+    ``weight_v``.  The parametrization API used by current native VAEs exposes
+    the same tensors as ``parametrizations.weight.original0`` and
+    ``parametrizations.weight.original1``.  MiniMax H3 ships the legacy names,
+    so translate them while retaining strict shape/missing-key validation.
+    """
+    if name in state:
+        return name
+
+    suffix_aliases = {
+        "weight_g": "parametrizations.weight.original0",
+        "weight_v": "parametrizations.weight.original1",
+    }
+    for suffix, replacement in suffix_aliases.items():
+        if name.endswith(suffix):
+            candidate = f"{name[: -len(suffix)]}{replacement}"
+            if candidate in state:
+                return candidate
+    return None
+
+
 def _backfill_ltx2_audio_vae_latent_stats(
     loaded: dict[str, torch.Tensor], component_name: str
 ) -> None:
@@ -39,6 +63,41 @@ def _backfill_ltx2_audio_vae_latent_stats(
         loaded["latents_mean"] = loaded[mean_key]
     if "latents_std" not in loaded and std_key in loaded:
         loaded["latents_std"] = loaded[std_key]
+
+
+@torch.no_grad()
+def _stream_safetensors_into_module(
+    module: nn.Module,
+    safetensors_list: list[str],
+) -> None:
+    """Strictly load safetensors without retaining a full checkpoint copy."""
+    state = module.state_dict()
+    expected = set(state)
+    loaded: set[str] = set()
+
+    for path in safetensors_list:
+        with safe_open(path, framework="pt", device="cpu") as handle:
+            for name in handle.keys():
+                state_name = _resolve_stream_state_key(name, state)
+                if state_name is None:
+                    raise RuntimeError(
+                        f"Unexpected checkpoint key {name!r} while loading {path}"
+                    )
+                if state_name in loaded:
+                    raise RuntimeError(f"Duplicate checkpoint key {name!r}")
+                source = handle.get_tensor(name)
+                target = state[state_name]
+                if source.shape != target.shape:
+                    raise RuntimeError(
+                        f"Shape mismatch for {name!r}: checkpoint "
+                        f"{tuple(source.shape)} != model {tuple(target.shape)}"
+                    )
+                target.copy_(source.to(device=target.device, dtype=target.dtype))
+                loaded.add(state_name)
+
+    missing = expected - loaded
+    if missing:
+        raise RuntimeError(f"Missing checkpoint keys: {sorted(missing)}")
 
 
 def _convert_conv3d_weights_to_channels_last_3d(module: nn.Module) -> int:
@@ -101,9 +160,9 @@ class VAELoader(ComponentLoader):
         """Load the VAE based on the model path, and inference args."""
         config = get_diffusers_component_config(component_path=component_model_path)
         class_name = config.pop("_class_name", None)
-        assert (
-            class_name is not None
-        ), "Model config does not contain a _class_name attribute. Only diffusers format is supported."
+        assert class_name is not None, (
+            "Model config does not contain a _class_name attribute. Only diffusers format is supported."
+        )
 
         server_args.model_paths[component_name] = component_model_path
 
@@ -127,10 +186,12 @@ class VAELoader(ComponentLoader):
         should_offload = self.should_offload(server_args)
         target_device = self.target_device(should_offload)
 
-        # Check for auto_map first (custom VAE classes)
+        native_only = component_name in getattr(
+            server_args.pipeline_config, "native_only_components", ()
+        )
         auto_map = config.get("auto_map", {})
         auto_model_map = auto_map.get("AutoModel")
-        if auto_model_map:
+        if auto_model_map and not native_only:
             module_path, cls_name = auto_model_map.rsplit(".", 1)
             custom_module_file = os.path.join(component_model_path, f"{module_path}.py")
             spec = importlib.util.spec_from_file_location("_custom", custom_module_file)
@@ -170,23 +231,29 @@ class VAELoader(ComponentLoader):
             vae_precision=vae_precision,
         )
 
-        assert (
-            len(safetensors_list) >= 1
-        ), f"Found no safetensors files in {component_model_path}"
-        loaded = {}
-        for sf_path in safetensors_list:
-            loaded.update(safetensors_load_file(sf_path))
-        _backfill_ltx2_audio_vae_latent_stats(loaded, component_name)
-        vae.load_state_dict(loaded, strict=False)
-
-        state_keys = set(vae.state_dict().keys())
-        loaded_keys = set(loaded.keys())
-        missing_keys = sorted(state_keys - loaded_keys)
-        unexpected_keys = sorted(loaded_keys - state_keys)
-        if missing_keys:
-            logger.warning("VAE missing keys: %s", missing_keys)
-        if unexpected_keys:
-            logger.warning("VAE unexpected keys: %s", unexpected_keys)
+        assert len(safetensors_list) >= 1, (
+            f"Found no safetensors files in {component_model_path}"
+        )
+        strict_load = native_only
+        if strict_load:
+            # H3's video VAE alone is ~9.7 GiB. Every TP worker owns a VAE,
+            # so retaining a second full state dict per process can exhaust
+            # host memory before online quantization has bought any headroom.
+            _stream_safetensors_into_module(vae, safetensors_list)
+        else:
+            loaded = {}
+            for sf_path in safetensors_list:
+                loaded.update(safetensors_load_file(sf_path))
+            _backfill_ltx2_audio_vae_latent_stats(loaded, component_name)
+            vae.load_state_dict(loaded, strict=False)
+            state_keys = set(vae.state_dict().keys())
+            loaded_keys = set(loaded.keys())
+            missing_keys = sorted(state_keys - loaded_keys)
+            unexpected_keys = sorted(loaded_keys - state_keys)
+            if missing_keys:
+                logger.warning("VAE missing keys: %s", missing_keys)
+            if unexpected_keys:
+                logger.warning("VAE unexpected keys: %s", unexpected_keys)
 
         if _should_use_channels_last_3d(server_args, component_name):
             n = _convert_conv3d_weights_to_channels_last_3d(vae)

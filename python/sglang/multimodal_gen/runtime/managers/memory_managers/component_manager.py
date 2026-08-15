@@ -529,7 +529,14 @@ class ComponentResidencyManager:
         self.finish_active_use(prefetch_next=False)
         # 2. Pick components that should be ready for the next request.
         preferred_uses = self._preferred_request_end_uses()
-        # 3. Finish everything else, or prepare preferred uses for request tail.
+        # 3. Finish everything else before preparing preferred uses for the
+        # next request.  In particular, an offloaded DiT may be the first item
+        # in _uses_seen while a VAE used later in the pipeline is still on the
+        # GPU.  Moving the DiT back first can transiently require both large
+        # components and OOM after an otherwise successful decode.
+        request_prefetches: list[
+            tuple[str, ComponentUse, nn.Module, ComponentResidencyStrategy]
+        ] = []
         for component_name, use in list(self._uses_seen.items()):
             module = self.get_module(component_name)
             if module is None:
@@ -554,16 +561,16 @@ class ComponentResidencyManager:
                 continue
             strategy = self.strategy_for(component_name, module)
             if preferred and not self.state.batch_is_warmup:
-                self._trace("request_prefetch", use, strategy, module)
-                strategy.prepare_after_request(module, use, self.state)
-            else:
-                action = "request_resident" if preferred else "request_finish"
-                self._trace(action, use, strategy, module)
-                was_on_cuda = self._module_on_cuda(module)
-                strategy.finish_request(module, use, self.state, preferred=preferred)
-                self._empty_cache_after_large_release(
-                    use, strategy, module, was_on_cuda
-                )
+                request_prefetches.append((component_name, use, module, strategy))
+                continue
+            action = "request_resident" if preferred else "request_finish"
+            self._trace(action, use, strategy, module)
+            was_on_cuda = self._module_on_cuda(module)
+            strategy.finish_request(module, use, self.state, preferred=preferred)
+            self._empty_cache_after_large_release(use, strategy, module, was_on_cuda)
+        for _, use, module, strategy in request_prefetches:
+            self._trace("request_prefetch", use, strategy, module)
+            strategy.prepare_after_request(module, use, self.state)
         self._trace("request_end")
 
     def stage_name(self, stage: ComponentResidencyStage) -> str:
