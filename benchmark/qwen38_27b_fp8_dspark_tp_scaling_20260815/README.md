@@ -21,7 +21,7 @@ The benchmark command was:
 
 ```bash
 python benchmark/dflash_v100_20260716/run_benchmark.py \
-  --model-key qwen3.8-27b-fp8-fp16kv-dspark-tp{2,4} \
+  --model-key qwen3.8-27b-fp8-fp16kv-dspark-tp{2,4}-optimized \
   --tokenizer Qwen/Qwen3.8-27B-FP8 \
   --output-dir benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/tp{2,4} \
   --concurrency 1 \
@@ -32,30 +32,31 @@ python benchmark/dflash_v100_20260716/run_benchmark.py \
 
 | Context | TP2 prefill | TP4 prefill | TP2 decode | TP4 decode | TP2 accept | TP4 accept |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1K | 1,760.7 | 2,795.1 | 71.5 | 98.6 | 3.048 | 3.048 |
-| 3K | 1,922.7 | 3,447.3 | 49.7 | 76.3 | 2.226 | 2.510 |
-| 5K | 1,892.9 | 3,358.6 | 62.1 | 84.7 | 2.844 | 2.844 |
-| 7K | 1,910.1 | 3,509.5 | 97.6 | 131.7 | 4.571 | 4.571 |
-| 9K | 1,889.0 | 3,400.5 | 53.3 | 74.1 | 2.586 | 2.586 |
-| 11K | 1,844.6 | 3,392.2 | 57.0 | 78.6 | 2.753 | 2.753 |
-| 13K | 1,827.7 | 3,355.1 | 52.1 | 105.0 | 2.560 | 3.765 |
-| 15K | 1,797.4 | 3,324.8 | 58.3 | 72.7 | 2.909 | 2.612 |
-| 17K | 1,783.2 | 3,276.8 | 56.6 | 79.1 | 2.844 | 2.844 |
-| 19K | 1,751.6 | 3,265.7 | 44.3 | 61.4 | 2.265 | 2.265 |
-| 21K | 1,768.1 | 3,249.8 | 47.2 | 67.3 | 2.485 | 2.485 |
-| 23K | 1,755.9 | 3,245.9 | 86.0 | 122.9 | 4.571 | 4.571 |
-| 25K | 1,682.6 | 3,151.4 | 52.0 | 75.0 | 2.844 | 2.844 |
+| 1K | 1,761.0 | 2,748.7 | 76.5 | 107.8 | 3.048 | 3.122 |
+| 3K | 1,916.3 | 3,497.1 | 60.8 | 77.6 | 2.510 | 2.226 |
+| 5K | 1,887.9 | 3,309.5 | 67.8 | 98.8 | 2.844 | 2.844 |
+| 7K | 1,904.0 | 3,475.2 | 104.1 | 152.2 | 4.571 | 4.571 |
+| 9K | 1,887.7 | 3,354.5 | 60.7 | 84.7 | 2.753 | 2.586 |
+| 11K | 1,843.8 | 3,384.3 | 59.6 | 87.8 | 2.753 | 2.753 |
+| 13K | 1,829.8 | 3,350.1 | 79.0 | 117.5 | 3.765 | 3.765 |
+| 15K | 1,796.2 | 3,310.5 | 58.6 | 79.9 | 2.876 | 2.612 |
+| 17K | 1,778.2 | 3,278.3 | 56.9 | 86.7 | 2.844 | 2.844 |
+| 19K | 1,746.3 | 3,255.7 | 44.4 | 61.1 | 2.265 | 2.116 |
+| 21K | 1,767.5 | 3,245.9 | 47.1 | 72.2 | 2.485 | 2.485 |
+| 23K | 1,755.2 | 3,242.0 | 84.8 | 129.0 | 4.571 | 4.491 |
+| 25K | 1,686.0 | 3,140.4 | 51.9 | 78.3 | 2.844 | 2.844 |
 
 Rates are tokens per second. Prefill is exact input tokens divided by client
 TTFT, and decode excludes TTFT. TP4/TP2 geometric-mean speedup across all 13
-points is 1.81x for prefill and 1.43x for client-visible decode. Acceptance is
+points is 1.81x for prefill and 1.44x for client-visible decode. Acceptance is
 included because it is prompt-dependent and materially affects DSpark decode
-throughput.
+throughput. Compared with the initial branch benchmark, geometric-mean decode
+improved by 8.0% on TP2 and 8.9% on TP4 while prefill stayed within 0.5%.
 
 All 26 requests returned HTTP 200, used the exact requested input length,
 generated 256 tokens, used zero cached tokens, and passed the repetition and
-coherence audit. All prompt hashes matched across TP2 and TP4; 10 of the 13
-greedy completions were byte-identical, and the other three passed their
+coherence audit. All prompt hashes matched across TP2 and TP4; 8 of the 13
+greedy completions were byte-identical, and the other five passed their
 independent output audits.
 
 Raw requests, server configurations, CSV summaries, and JSON summaries are in

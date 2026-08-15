@@ -46,7 +46,10 @@ from sglang.srt.speculative.dflash_worker import (
 )
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
 from sglang.srt.speculative.dspark_config import parse_dspark_draft_config
-from sglang.srt.speculative.dspark_worker_v2 import DSparkWorkerV2
+from sglang.srt.speculative.dspark_worker_v2 import (
+    DSparkWorkerV2,
+    _DSparkGraphSampler,
+)
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 
 
@@ -610,6 +613,54 @@ def test_dspark_markov_head_is_autoregressive(monkeypatch):
     )
 
     assert proposed.tolist() == [[2, 3]]
+
+
+def test_dspark_graph_sampler_and_eager_fallback_match():
+    class DraftModel:
+        def __init__(self):
+            self.calls = 0
+
+        def sample_greedy_block(self, *, hidden_states, anchor_tokens, lm_head):
+            del hidden_states, lm_head
+            self.calls += 1
+            offsets = torch.arange(1, 4, dtype=torch.int64)
+            return anchor_tokens[:, None] + offsets[None, :]
+
+    model = DraftModel()
+    sampler = _DSparkGraphSampler(
+        model=model,
+        lm_head=object(),
+        gamma=3,
+        max_bs=2,
+        device="cpu",
+    )
+    block_ids = torch.tensor([[10, 0, 0], [20, 0, 0]], dtype=torch.int64)
+    hidden_states = torch.zeros((6, 4))
+    sampler(hidden_states, block_ids.flatten())
+
+    worker = DSparkWorkerV2.__new__(DSparkWorkerV2)
+    worker._graph_sampler = sampler
+    worker.draft_model = model
+    graph_tokens = torch.empty((2, 4), dtype=torch.int64)
+    worker._populate_draft_tokens(
+        draft_hidden=hidden_states.view(2, 3, 4),
+        block_ids=block_ids,
+        lm_head=object(),
+        draft_tokens=graph_tokens,
+        can_run_graph=True,
+    )
+    eager_tokens = torch.empty_like(graph_tokens)
+    worker._populate_draft_tokens(
+        draft_hidden=hidden_states.view(2, 3, 4),
+        block_ids=block_ids,
+        lm_head=object(),
+        draft_tokens=eager_tokens,
+        can_run_graph=False,
+    )
+
+    assert graph_tokens.tolist() == [[10, 11, 12, 13], [20, 21, 22, 23]]
+    assert torch.equal(graph_tokens, eager_tokens)
+    assert model.calls == 2
 
 
 def test_dflash_v2_reports_target_and_draft_attention_capabilities():

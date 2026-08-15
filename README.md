@@ -265,13 +265,13 @@ cold-cache request, and 256 greedy output tokens:
 
 | Input | TP2 prefill | TP4 prefill | TP2 decode | TP4 decode |
 | ---: | ---: | ---: | ---: | ---: |
-| 1K | 1,761 tok/s | 2,795 tok/s | 71.5 tok/s | 98.6 tok/s |
-| 9K | 1,889 tok/s | 3,401 tok/s | 53.3 tok/s | 74.1 tok/s |
-| 17K | 1,783 tok/s | 3,277 tok/s | 56.6 tok/s | 79.1 tok/s |
-| 25K | 1,683 tok/s | 3,151 tok/s | 52.0 tok/s | 75.0 tok/s |
+| 1K | 1,761 tok/s | 2,749 tok/s | 76.5 tok/s | 107.8 tok/s |
+| 9K | 1,888 tok/s | 3,355 tok/s | 60.7 tok/s | 84.7 tok/s |
+| 17K | 1,778 tok/s | 3,278 tok/s | 56.9 tok/s | 86.7 tok/s |
+| 25K | 1,686 tok/s | 3,140 tok/s | 51.9 tok/s | 78.3 tok/s |
 
 Across the complete 1K-to-25K sweep, TP4 is 1.81x faster for prefill and
-1.43x faster for decode by geometric mean. See the
+1.44x faster for decode by geometric mean. See the
 [full 13-point benchmark](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md).
 
 ### Qwen3.6-27B-FP8 with DFlash

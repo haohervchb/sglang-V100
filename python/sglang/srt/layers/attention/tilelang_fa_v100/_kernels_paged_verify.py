@@ -11,6 +11,7 @@ combines the normalized split outputs.
 """
 
 import math
+import os
 
 import tilelang
 import tilelang.language as T
@@ -18,9 +19,32 @@ import tilelang.language as T
 from ._kernels_paged import pass_configs
 
 VERIFY_Q_BLOCK = 16
-VERIFY_MIN_TOKENS_PER_SPLIT = 1024
+# A TP4 Qwen3.8 verifier rank has one KV head and only two grouped-GQA CTAs.
+# Keep the context slices small enough to expose useful SM-level parallelism
+# before long contexts saturate the fixed 80-CTA launch.  The former 1024
+# value left only eight CTAs active at a 4K prefix on an 80-SM V100.
+VERIFY_MIN_TOKENS_PER_SPLIT = 128
 VERIFY_SM_TARGET = 80  # V100 SXM2 SM count; one memory-streaming CTA per SM.
 _LOG2_E = 1.4426950408889634
+
+
+def _verify_min_tokens_per_split():
+    value = os.environ.get("SGLANG_V100_VERIFY_TOKENS_PER_SPLIT")
+    if value is None:
+        return VERIFY_MIN_TOKENS_PER_SPLIT
+    try:
+        value = int(value)
+    except ValueError as exc:
+        raise ValueError(
+            "SGLANG_V100_VERIFY_TOKENS_PER_SPLIT must be a positive integer, "
+            f"got {value!r}."
+        ) from exc
+    if value <= 0:
+        raise ValueError(
+            "SGLANG_V100_VERIFY_TOKENS_PER_SPLIT must be a positive integer, "
+            f"got {value}."
+        )
+    return value
 
 
 @tilelang.jit(out_idx=[-2, -1], pass_configs=pass_configs)
@@ -37,6 +61,7 @@ def _paged_verify_partial_kernel(
     block_N,
     threads,
     fp8_kv,
+    min_tokens_per_split,
 ):
     nt = T.dynamic("nt")
     group_size = heads // heads_kv
@@ -90,7 +115,7 @@ def _paged_verify_partial_kernel(
             total_kv = cache_seqlens[batch_id]
             active_splits = T.min(
                 max_splits,
-                T.max(1, T.ceildiv(total_kv, VERIFY_MIN_TOKENS_PER_SPLIT)),
+                T.max(1, T.ceildiv(total_kv, min_tokens_per_split)),
             )
             split_len = T.ceildiv(total_kv, active_splits)
             split_start = split_id * split_len
@@ -243,6 +268,7 @@ def _paged_verify_combine_kernel(
     dim,
     max_splits,
     threads,
+    min_tokens_per_split,
 ):
     partial_o_shape = [batch, max_splits, VERIFY_Q_BLOCK, heads, dim]
     partial_lse_shape = [batch, max_splits, VERIFY_Q_BLOCK, heads]
@@ -269,7 +295,7 @@ def _paged_verify_combine_kernel(
                 max_splits,
                 T.max(
                     1,
-                    T.ceildiv(cache_seqlens[batch_id], VERIFY_MIN_TOKENS_PER_SPLIT),
+                    T.ceildiv(cache_seqlens[batch_id], min_tokens_per_split),
                 ),
             )
             q_start = query_start_loc[batch_id]
@@ -318,6 +344,7 @@ def get_paged_verify_kernels(
     max_blocks,
     causal,
     fp8_kv=False,
+    min_tokens_per_split=None,
 ):
     """Compile the grouped partial/combine pair for one CUDA-graph shape."""
     assert heads % heads_kv == 0
@@ -327,6 +354,8 @@ def get_paged_verify_kernels(
     max_splits = max(1, math.ceil(VERIFY_SM_TARGET / (batch * heads_kv * gqa_ctas)))
     block_n = {128: 64, 256: 32}.get(dim, 64)
     threads = 256
+    if min_tokens_per_split is None:
+        min_tokens_per_split = _verify_min_tokens_per_split()
     key = (
         batch,
         heads,
@@ -340,6 +369,7 @@ def get_paged_verify_kernels(
         block_n,
         threads,
         fp8_kv,
+        min_tokens_per_split,
     )
     if key not in _VERIFY_KERNEL_CACHE:
         partial = _paged_verify_partial_kernel(
@@ -355,6 +385,7 @@ def get_paged_verify_kernels(
             block_N=block_n,
             threads=threads,
             fp8_kv=fp8_kv,
+            min_tokens_per_split=min_tokens_per_split,
         )
         combine = _paged_verify_combine_kernel(
             batch=batch,
@@ -362,6 +393,7 @@ def get_paged_verify_kernels(
             dim=dim,
             max_splits=max_splits,
             threads=128,
+            min_tokens_per_split=min_tokens_per_split,
         )
         _VERIFY_KERNEL_CACHE[key] = (partial, combine, max_splits)
     return _VERIFY_KERNEL_CACHE[key]

@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 
 from sglang.srt.distributed import get_tp_group
+from sglang.srt.environ import envs
 from sglang.srt.managers.schedule_batch import ScheduleBatch
 from sglang.srt.managers.scheduler import GenerationBatchResult
 from sglang.srt.managers.tp_worker import TpModelWorker
@@ -162,6 +163,16 @@ class DFlashWorker:
         draft_server_args.prefill_attention_backend = None
         draft_server_args.decode_attention_backend = None
         draft_server_args.attention_backend = draft_backend
+        # Dense DSpark appends its Markov proposal head to the draft CUDA graph.
+        # Defer only that graph until the subclass has installed the hook;
+        # ordinary DFlash keeps its existing initialization lifecycle.
+        self._draft_cuda_graph_deferred = (
+            server_args.speculative_algorithm == "DSPARK"
+            and not draft_server_args.disable_cuda_graph
+            and envs.SGLANG_DSPARK_FOLDED_PROPOSAL.get()
+        )
+        if self._draft_cuda_graph_deferred:
+            draft_server_args.disable_cuda_graph = True
         # Keep draft context length aligned with the target.
         draft_server_args.context_length = (
             target_worker.model_runner.model_config.context_len

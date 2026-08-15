@@ -1181,6 +1181,13 @@ class CudaGraphRunner:
                     forward_batch,
                     **kwargs,
                 )
+                for capture_hook in self.model_runner.capture_tail_hooks:
+                    capture_hook(
+                        self,
+                        logits_output_or_pp_proxy_tensors,
+                        forward_batch,
+                        num_tokens,
+                    )
                 return logits_output_or_pp_proxy_tensors
 
             self.deepep_adapter.capture(is_extend_in_batch=False)

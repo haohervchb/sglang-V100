@@ -160,6 +160,7 @@ class DFlashWorkerV2(DFlashWorker):
         block_ids: torch.Tensor,
         lm_head,
         draft_tokens: torch.Tensor,
+        can_run_graph: bool = False,
     ) -> None:
         """Populate the target verification chain from draft hidden states.
 
@@ -480,9 +481,8 @@ class DFlashWorkerV2(DFlashWorker):
         )
 
         with torch.inference_mode():
-            draft_logits_output = self.draft_model_runner.forward(
-                forward_batch
-            ).logits_output
+            draft_out = self.draft_model_runner.forward(forward_batch)
+        draft_logits_output = draft_out.logits_output
 
         draft_hidden = draft_logits_output.hidden_states
         if draft_hidden is None:
@@ -495,6 +495,7 @@ class DFlashWorkerV2(DFlashWorker):
             block_ids=block_ids,
             lm_head=lm_head,
             draft_tokens=draft_tokens,
+            can_run_graph=draft_out.can_run_graph,
         )
 
         # --- 2) Target verify.

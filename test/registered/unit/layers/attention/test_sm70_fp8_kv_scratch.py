@@ -2,6 +2,10 @@ import pytest
 import torch
 
 from sglang.srt.layers.attention.tilelang_fa_v100 import _paged_adapter
+from sglang.srt.layers.attention.tilelang_fa_v100._kernels_paged_verify import (
+    VERIFY_MIN_TOKENS_PER_SPLIT,
+    _verify_min_tokens_per_split,
+)
 from sglang.srt.layers.attention.triton_ops.fp8_sm70 import (
     dequantize_paged_kv_e4m3_sm70,
     store_paged_extend_kv_fp16_sm70,
@@ -11,6 +15,21 @@ pytestmark = pytest.mark.skipif(
     not torch.cuda.is_available() or torch.cuda.get_device_capability() != (7, 0),
     reason="SM70 FP8 KV scratch kernels require an NVIDIA V100",
 )
+
+
+def test_verify_split_granularity_defaults_to_v100_occupancy_tuning(monkeypatch):
+    monkeypatch.delenv("SGLANG_V100_VERIFY_TOKENS_PER_SPLIT", raising=False)
+
+    assert VERIFY_MIN_TOKENS_PER_SPLIT == 128
+    assert _verify_min_tokens_per_split() == 128
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "not-an-integer"])
+def test_verify_split_granularity_rejects_invalid_override(monkeypatch, value):
+    monkeypatch.setenv("SGLANG_V100_VERIFY_TOKENS_PER_SPLIT", value)
+
+    with pytest.raises(ValueError, match="must be a positive integer"):
+        _verify_min_tokens_per_split()
 
 
 def test_batched_prefix_dequant_and_scaled_extend_overlay():

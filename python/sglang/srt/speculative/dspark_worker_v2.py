@@ -12,6 +12,27 @@ from sglang.srt.speculative.dspark_config import parse_dspark_draft_config
 logger = logging.getLogger(__name__)
 
 
+class _DSparkGraphSampler:
+    """Capture-safe greedy proposal tail for the draft CUDA graph."""
+
+    def __init__(self, *, model, lm_head, gamma: int, max_bs: int, device) -> None:
+        self.model = model
+        self.lm_head = lm_head
+        self.gamma = int(gamma)
+        self.out = torch.empty(
+            (int(max_bs), self.gamma), dtype=torch.int64, device=device
+        )
+
+    def __call__(self, hidden_states: torch.Tensor, input_ids: torch.Tensor) -> None:
+        bs = int(hidden_states.shape[0]) // self.gamma
+        proposals = self.model.sample_greedy_block(
+            hidden_states=hidden_states.view(bs, self.gamma, -1),
+            anchor_tokens=input_ids.view(bs, self.gamma)[:, 0],
+            lm_head=self.lm_head,
+        )
+        self.out[:bs].copy_(proposals)
+
+
 class DSparkWorkerV2(DFlashWorkerV2):
     """Fixed-width DSpark on the native SM70 DFlash execution machinery."""
 
@@ -71,6 +92,42 @@ class DSparkWorkerV2(DFlashWorkerV2):
             custom_mask=None,
             capture_hidden_mode=CaptureHiddenMode.NULL,
         )
+
+        self._graph_sampler: Optional[_DSparkGraphSampler] = None
+        if self._draft_cuda_graph_deferred:
+            target_model = self.target_worker.model_runner.model
+            lm_head = getattr(target_model, "lm_head", None)
+            if lm_head is None or not hasattr(lm_head, "weight"):
+                raise RuntimeError(
+                    "DSPARK requires the target model to expose `lm_head` with `weight`."
+                )
+            graph_bs = server_args.cuda_graph_bs or [
+                server_args.cuda_graph_max_bs or 1
+            ]
+            self._graph_sampler = _DSparkGraphSampler(
+                model=self.draft_model,
+                lm_head=lm_head,
+                gamma=self.gamma,
+                max_bs=max(int(bs) for bs in graph_bs),
+                device=self.device,
+            )
+
+            def _capture_proposal(_runner, out, forward_batch, _num_tokens):
+                hidden_states = getattr(out, "hidden_states", None)
+                if hidden_states is None:
+                    raise RuntimeError(
+                        "DSPARK graph sampler requires draft hidden states."
+                    )
+                assert self._graph_sampler is not None
+                self._graph_sampler(hidden_states, forward_batch.input_ids)
+
+            self.draft_model_runner.capture_tail_hooks.append(_capture_proposal)
+            self.draft_model_runner.server_args.disable_cuda_graph = False
+            self.draft_worker.server_args.disable_cuda_graph = False
+            self.draft_model_runner.init_device_graphs()
+            if self.tp_rank == 0:
+                logger.info("DSPARK proposal head folded into the draft CUDA graph.")
+
         if self.tp_rank == 0:
             logger.info(
                 "Initialized DSPARK SM70 worker. gamma=%d, verify_width=%d, model=%s",
@@ -86,11 +143,15 @@ class DSparkWorkerV2(DFlashWorkerV2):
         block_ids: torch.Tensor,
         lm_head,
         draft_tokens: torch.Tensor,
+        can_run_graph: bool = False,
     ) -> None:
-        proposals = self.draft_model.sample_greedy_block(
-            hidden_states=draft_hidden,
-            anchor_tokens=block_ids[:, 0],
-            lm_head=lm_head,
-        )
+        if self._graph_sampler is not None and can_run_graph:
+            proposals = self._graph_sampler.out[: draft_hidden.shape[0]]
+        else:
+            proposals = self.draft_model.sample_greedy_block(
+                hidden_states=draft_hidden,
+                anchor_tokens=block_ids[:, 0],
+                lm_head=lm_head,
+            )
         draft_tokens[:, 0].copy_(block_ids[:, 0])
         draft_tokens[:, 1:].copy_(proposals)
