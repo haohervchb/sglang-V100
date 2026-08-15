@@ -396,6 +396,10 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         self.spec_algorithm = SpeculativeAlgorithm.from_string(
             server_args.speculative_algorithm
         )
+        # Optional work captured immediately after the model forward. A
+        # speculative draft worker can use this to keep its proposal head in
+        # the same CUDA graph as the draft backbone.
+        self.capture_tail_hooks = []
         self.page_size = server_args.page_size
         self.req_to_token_pool = req_to_token_pool
         self.token_to_kv_pool_allocator = token_to_kv_pool_allocator
@@ -430,6 +434,9 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         self.dflash_use_aux_hidden_state = False
         self.dflash_target_layer_ids = None
         self.dflash_draft_num_layers = None
+        self.dflash_draft_num_kv_heads = None
+        self.dflash_draft_head_dim = None
+        self.dflash_draft_v_head_dim = None
         if self.spec_algorithm.is_eagle3() and not self.is_draft_worker:
             # load draft config
             draft_model_config = ModelConfig.from_server_args(
@@ -455,7 +462,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 # if there is no aux layer, set to None
                 self.eagle_aux_hidden_state_layer_ids = None
 
-        if self.spec_algorithm.is_dflash() and not self.is_draft_worker:
+        if self.spec_algorithm.is_dflash_family() and not self.is_draft_worker:
             from sglang.srt.speculative.dflash_utils import (
                 parse_dflash_draft_config,
             )
@@ -496,6 +503,11 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
             self.dflash_use_aux_hidden_state = True
             self.dflash_draft_num_layers = int(draft_num_layers)
+            self.dflash_draft_num_kv_heads = int(
+                draft_model_config.get_num_kv_heads(self.tp_size)
+            )
+            self.dflash_draft_head_dim = int(draft_model_config.head_dim)
+            self.dflash_draft_v_head_dim = int(draft_model_config.v_head_dim)
             self.dflash_target_layer_ids = dflash_draft_config.resolve_target_layer_ids(
                 target_num_layers=int(target_num_layers),
                 draft_num_layers=int(draft_num_layers),
@@ -2374,7 +2386,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         # are all compiled lazily on first prefill call without this.  Run a
         # lightweight EXTEND forward pass so compilation happens at startup.
         if self.is_generation and not (
-            self.is_draft_worker and self.spec_algorithm.is_dflash()
+            self.is_draft_worker and self.spec_algorithm.is_dflash_family()
         ):
             major, _ = torch.cuda.get_device_capability()
             if major == 7:
@@ -2838,14 +2850,17 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                         seq_lens_sum=None,
                         seq_lens_cpu=None,
                     )
-            elif self.spec_algorithm.is_dflash():
+            elif self.spec_algorithm.is_dflash_family():
                 from sglang.srt.speculative.dflash_info import DFlashVerifyInput
 
                 # Dummy warmup only needs shape metadata; avoid forcing custom-mask mode.
                 spec_info = DFlashVerifyInput(
                     draft_token=None,
                     positions=None,
-                    draft_token_num=self.server_args.speculative_num_draft_tokens,
+                    draft_token_num=self.spec_algorithm.get_num_tokens_per_bs_for_target_verify(
+                        self.server_args.speculative_num_draft_tokens,
+                        self.is_draft_worker,
+                    ),
                     custom_mask=None,
                     capture_hidden_mode=(
                         CaptureHiddenMode.NULL

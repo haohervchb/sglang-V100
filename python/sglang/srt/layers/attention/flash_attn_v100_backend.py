@@ -81,7 +81,10 @@ def _is_dflash_draft_native_shape_supported(
     return (
         layer.head_dim == 128
         and layer.tp_k_head_num > 0
-        and layer.tp_q_head_num == 4 * layer.tp_k_head_num
+        # The grouped TileLang verifier supports any integral GQA ratio.  The
+        # earlier DFlash checkpoints use GQA-4; Qwen3.8 DSpark is trained with
+        # 40 Q / 8 KV heads and therefore uses GQA-5.
+        and layer.tp_q_head_num % layer.tp_k_head_num == 0
         # The E4M3 DFlash integration is validated only for the TP4 layout.
         # The kernel is numerically sound with four KV heads in isolation, but
         # the complete TP2 verify pipeline can otherwise admit corrupt tokens.
@@ -315,7 +318,7 @@ class FlashAttnV100Backend(AttentionBackend):
         if (
             target_xqa_requested
             and self._uses_sm70_fp8_kv
-            and model_runner.spec_algorithm.is_dflash()
+            and model_runner.spec_algorithm.is_dflash_family()
             and not model_runner.is_draft_worker
             and not self._target_xqa_enabled
         ):
@@ -329,7 +332,7 @@ class FlashAttnV100Backend(AttentionBackend):
         if not self._uses_sm70_fp8_kv or model_runner.spec_algorithm.is_speculative():
             _load_paged_forward()
         if (
-            model_runner.spec_algorithm.is_dflash()
+            model_runner.spec_algorithm.is_dflash_family()
             and not model_runner.is_draft_worker
         ):
             if self._target_xqa_enabled:
@@ -400,7 +403,7 @@ class FlashAttnV100Backend(AttentionBackend):
             and not self._target_xqa_enabled
             and not _use_tilelang
             and self._uses_sm70_fp8_kv
-            and model_runner.spec_algorithm.is_dflash()
+            and model_runner.spec_algorithm.is_dflash_family()
             and not model_runner.is_draft_worker
             and max_running_requests == 1
         ):
@@ -523,7 +526,7 @@ class FlashAttnV100Backend(AttentionBackend):
                     f"got {draft_xqa!r}."
                 )
             return (
-                self.model_runner.spec_algorithm.is_dflash()
+                self.model_runner.spec_algorithm.is_dflash_family()
                 and self.page_size == V100_PAGE_SIZE
                 and self._paged_decode is not None
             )
@@ -539,7 +542,7 @@ class FlashAttnV100Backend(AttentionBackend):
             )
         if self._uses_sm70_fp8_kv:
             return (
-                self.model_runner.spec_algorithm.is_dflash()
+                self.model_runner.spec_algorithm.is_dflash_family()
                 and self.page_size == V100_PAGE_SIZE
                 and (
                     _use_tilelang
@@ -560,7 +563,7 @@ class FlashAttnV100Backend(AttentionBackend):
         if not _use_tilelang:
             return False
         spec_algorithm = self.model_runner.spec_algorithm
-        return spec_algorithm.is_dflash() or (
+        return spec_algorithm.is_dflash_family() or (
             spec_algorithm.is_eagle()
             and self.model_runner.server_args.speculative_eagle_topk <= 1
         )

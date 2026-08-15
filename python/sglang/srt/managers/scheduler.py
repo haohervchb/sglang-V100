@@ -836,7 +836,7 @@ class Scheduler(
         ) = self.tp_worker.get_worker_info()
         self.dflash_prefill_refill_target = (
             resolve_dflash_prefill_refill_target(self.max_running_requests)
-            if self.spec_algorithm.is_dflash()
+            if self.spec_algorithm.is_dflash_family()
             else 1
         )
         if not get_global_server_args().pp_max_micro_batch_size:
@@ -2024,7 +2024,7 @@ class Scheduler(
             self._add_request_to_queue(req)
             return
 
-        if self.spec_algorithm.is_dflash():
+        if self.spec_algorithm.is_dflash_family():
             error_msg = validate_dflash_request(req, self.enable_overlap)
             if error_msg is not None:
                 req.set_finish_with_abort(error_msg)
@@ -2538,7 +2538,7 @@ class Scheduler(
         return res
 
     def _should_delay_dflash_prefill_for_batching(self, running_bs: int) -> bool:
-        if not self.spec_algorithm.is_dflash():
+        if not self.spec_algorithm.is_dflash_family():
             return False
         if running_bs <= 0 or self.chunked_req is not None:
             return False

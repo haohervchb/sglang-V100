@@ -221,6 +221,59 @@ or video-to-video jobs.
 Run `conda activate sglang-v100` first. These commands use all four V100s and
 listen on port 8082.
 
+### Qwen3.8-27B-FP8 with DSpark
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --trust-remote-code \
+  --model-path Qwen/Qwen3.8-27B-FP8 \
+  --dtype float16 \
+  --kv-cache-dtype fp8_e4m3 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.75 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 4096 \
+  --mamba-full-memory-ratio 0.1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 1 \
+  --cuda-graph-bs 1 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DSPARK \
+  --speculative-draft-model-path RadixArk/Qwen3.8-27B-DSpark \
+  --speculative-dspark-block-size 7 \
+  --speculative-draft-model-quantization unquant \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
+Use `--kv-cache-dtype auto` for the faster FP16 KV cache when its lower
+capacity is acceptable.
+
+Measured on V100-SXM2-32GB with FP8 weights, FP16 KV, DSpark block 7, one
+cold-cache request, and 256 greedy output tokens:
+
+| Input | TP2 prefill | TP4 prefill | TP2 decode | TP4 decode |
+| ---: | ---: | ---: | ---: | ---: |
+| 1K | 1,761 tok/s | 2,749 tok/s | 76.5 tok/s | 107.8 tok/s |
+| 9K | 1,888 tok/s | 3,355 tok/s | 60.7 tok/s | 84.7 tok/s |
+| 17K | 1,778 tok/s | 3,278 tok/s | 56.9 tok/s | 86.7 tok/s |
+| 25K | 1,686 tok/s | 3,140 tok/s | 51.9 tok/s | 78.3 tok/s |
+
+Across the complete 1K-to-25K sweep, TP4 is 1.81x faster for prefill and
+1.44x faster for decode by geometric mean. See the
+[full 13-point benchmark](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md).
+
 ### Qwen3.6-27B-FP8 with DFlash
 
 ```bash

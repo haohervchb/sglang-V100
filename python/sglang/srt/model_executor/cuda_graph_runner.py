@@ -542,7 +542,7 @@ def _get_safe_dflash_capture_bs(
     capture_bs: List[int], speculative_algorithm, attn_backend
 ) -> List[int]:
     """Use exact target graph sizes when DFlash verifies a hybrid GDN model."""
-    if speculative_algorithm.is_dflash() and hasattr(
+    if speculative_algorithm.is_dflash_family() and hasattr(
         attn_backend, "linear_attn_backend"
     ):
         return list(range(1, max(capture_bs) + 1))
@@ -779,7 +779,7 @@ class CudaGraphRunner:
                 max(forward_batch.global_num_tokens_cpu) // self.num_tokens_per_bs
                 if self.model_runner.spec_algorithm.is_eagle()
                 or self.model_runner.spec_algorithm.is_standalone()
-                or self.model_runner.spec_algorithm.is_dflash()
+                or self.model_runner.spec_algorithm.is_dflash_family()
                 else max(forward_batch.global_num_tokens_cpu)
             )
         else:
@@ -1169,7 +1169,7 @@ class CudaGraphRunner:
                         {k: v.clone() for k, v in pp_proxy_tensors.tensors.items()}
                     )
                 if (
-                    self.model_runner.spec_algorithm.is_dflash()
+                    self.model_runner.spec_algorithm.is_dflash_family()
                     and self.model_runner.is_draft_worker
                     and "input_embeds" in inspect.signature(forward).parameters
                 ):
@@ -1181,6 +1181,13 @@ class CudaGraphRunner:
                     forward_batch,
                     **kwargs,
                 )
+                for capture_hook in self.model_runner.capture_tail_hooks:
+                    capture_hook(
+                        self,
+                        logits_output_or_pp_proxy_tensors,
+                        forward_batch,
+                        num_tokens,
+                    )
                 return logits_output_or_pp_proxy_tensors
 
             self.deepep_adapter.capture(is_extend_in_batch=False)
@@ -1258,7 +1265,7 @@ class CudaGraphRunner:
                 max_num_tokens / self.num_tokens_per_bs
                 if self.model_runner.spec_algorithm.is_eagle()
                 or self.model_runner.spec_algorithm.is_standalone()
-                or self.model_runner.spec_algorithm.is_dflash()
+                or self.model_runner.spec_algorithm.is_dflash_family()
                 else max_num_tokens
             )
             index = bisect.bisect_left(self.capture_bs, max_batch_size)
@@ -1282,7 +1289,7 @@ class CudaGraphRunner:
         )
 
         if (
-            self.model_runner.spec_algorithm.is_dflash()
+            self.model_runner.spec_algorithm.is_dflash_family()
             and self.model_runner.is_draft_worker
             and forward_batch.input_embeds is not None
         ):
@@ -1346,7 +1353,7 @@ class CudaGraphRunner:
             self.buffers.input_ids[: self.raw_num_token].copy_(forward_batch.input_ids)
             self.buffers.positions[: self.raw_num_token].copy_(forward_batch.positions)
             if (
-                self.model_runner.spec_algorithm.is_dflash()
+                self.model_runner.spec_algorithm.is_dflash_family()
                 and self.model_runner.is_draft_worker
                 and forward_batch.input_embeds is not None
             ):
@@ -1435,7 +1442,7 @@ class CudaGraphRunner:
                     seq_lens_sum=None,
                     seq_lens_cpu=None,
                 )
-        elif self.model_runner.spec_algorithm.is_dflash():
+        elif self.model_runner.spec_algorithm.is_dflash_family():
             from sglang.srt.speculative.dflash_info import DFlashVerifyInput
             from sglang.srt.speculative.dflash_utils import (
                 resolve_dflash_verify_mask_policy,
@@ -1449,7 +1456,12 @@ class CudaGraphRunner:
             spec_info = DFlashVerifyInput(
                 draft_token=None,
                 positions=None,
-                draft_token_num=self.model_runner.server_args.speculative_num_draft_tokens,
+                draft_token_num=(
+                    self.model_runner.spec_algorithm.get_num_tokens_per_bs_for_target_verify(
+                        self.model_runner.server_args.speculative_num_draft_tokens,
+                        self.model_runner.is_draft_worker,
+                    )
+                ),
                 custom_mask=(
                     None
                     if (self.model_runner.is_draft_worker or not build_custom_mask)

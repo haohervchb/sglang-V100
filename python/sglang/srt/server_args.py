@@ -591,6 +591,7 @@ class ServerArgs:
     speculative_eagle_topk: Optional[int] = None
     speculative_num_draft_tokens: Optional[int] = None
     speculative_dflash_block_size: Optional[int] = None
+    speculative_dspark_block_size: Optional[int] = None
     speculative_accept_threshold_single: float = 1.0
     speculative_accept_threshold_acc: float = 1.0
     speculative_token_map: Optional[str] = None
@@ -1627,7 +1628,7 @@ class ServerArgs:
                 if self.speculative_algorithm == "STANDALONE":
                     # standalonedraft model and cuda graphs
                     reserved_mem += 6 * 1024
-                elif self.speculative_algorithm not in {"NGRAM", "DFLASH"}:
+                elif self.speculative_algorithm not in {"NGRAM", "DFLASH", "DSPARK"}:
                     # eagle draft models and cuda graphs
                     reserved_mem += 4 * 1024
 
@@ -5712,7 +5713,7 @@ class ServerArgs:
             type=str,
             help=(
                 "Speculative algorithm. Builtins: EAGLE, EAGLE3, NEXTN, STANDALONE, "
-                "NGRAM, DFLASH. Or any name registered via "
+                "NGRAM, DFLASH, DSPARK. Or any name registered via "
                 "`SpeculativeAlgorithm.register`."
             ),
         )
@@ -5762,6 +5763,12 @@ class ServerArgs:
             type=int,
             help="DFLASH only. Block size (verify window length). Alias of --speculative-num-draft-tokens for DFLASH.",
             default=ServerArgs.speculative_dflash_block_size,
+        )
+        parser.add_argument(
+            "--speculative-dspark-block-size",
+            type=int,
+            help="DSPARK only. Number of proposed draft tokens (gamma). The target verify window is gamma + 1.",
+            default=ServerArgs.speculative_dspark_block_size,
         )
         parser.add_argument(
             "--speculative-accept-threshold-single",

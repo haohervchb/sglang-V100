@@ -559,12 +559,12 @@ class SchedulerBatchResultProcessor:
                 continue
 
             if req.finished():
-                if not batch.spec_algorithm.is_dflash():
+                if not batch.spec_algorithm.is_dflash_family():
                     # EAGLE prepare_for_decode pre-claimed the bonus slot.
                     req.kv_committed_len -= 1
                 continue
 
-            if batch.spec_algorithm.is_dflash():
+            if batch.spec_algorithm.is_dflash_family():
                 # DFLASH materialized accepted draft tokens plus the bonus token.
                 req.kv_committed_len += accept_lens[i]
             else:

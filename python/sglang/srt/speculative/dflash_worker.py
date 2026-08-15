@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 
 from sglang.srt.distributed import get_tp_group
+from sglang.srt.environ import envs
 from sglang.srt.managers.schedule_batch import ScheduleBatch
 from sglang.srt.managers.scheduler import GenerationBatchResult
 from sglang.srt.managers.tp_worker import TpModelWorker
@@ -96,6 +97,15 @@ def _get_fused_kv_materialize_helper():
 class DFlashWorker:
     """DFlash speculative decoding worker (spec-v1, tp>=1/pp=1)."""
 
+    def _draft_kv_cache_dtype(self, server_args: ServerArgs) -> str:
+        """Return the cache dtype for the private draft runner.
+
+        DFlash normally mirrors the target cache.  Draft families may override
+        this when their hardware-specific attention path has a better native
+        representation.
+        """
+        return server_args.kv_cache_dtype
+
     def __init__(
         self,
         server_args: ServerArgs,
@@ -143,6 +153,7 @@ class DFlashWorker:
         )
         draft_server_args = deepcopy(server_args)
         draft_server_args.skip_tokenizer_init = True
+        draft_server_args.kv_cache_dtype = self._draft_kv_cache_dtype(server_args)
         draft_backend = draft_server_args.speculative_draft_attention_backend
         if draft_backend is None:
             draft_backend, _ = draft_server_args.get_attention_backends()
@@ -152,6 +163,16 @@ class DFlashWorker:
         draft_server_args.prefill_attention_backend = None
         draft_server_args.decode_attention_backend = None
         draft_server_args.attention_backend = draft_backend
+        # Dense DSpark appends its Markov proposal head to the draft CUDA graph.
+        # Defer only that graph until the subclass has installed the hook;
+        # ordinary DFlash keeps its existing initialization lifecycle.
+        self._draft_cuda_graph_deferred = (
+            server_args.speculative_algorithm == "DSPARK"
+            and not draft_server_args.disable_cuda_graph
+            and envs.SGLANG_DSPARK_FOLDED_PROPOSAL.get()
+        )
+        if self._draft_cuda_graph_deferred:
+            draft_server_args.disable_cuda_graph = True
         # Keep draft context length aligned with the target.
         draft_server_args.context_length = (
             target_worker.model_runner.model_config.context_len
@@ -190,6 +211,7 @@ class DFlashWorker:
                 model_block_size = getattr(self.draft_model, "block_size", None)
             if (
                 self.tp_rank == 0
+                and server_args.speculative_algorithm != "DSPARK"
                 and model_block_size is not None
                 and int(model_block_size) != int(self.block_size)
             ):
@@ -207,8 +229,10 @@ class DFlashWorker:
             mask_token_id=self._mask_token_id_override,
         )
         if self.tp_rank == 0:
+            algorithm_name = server_args.speculative_algorithm or "DFLASH"
             logger.info(
-                "Initialized DFLASH draft runner. attention_backend=%s, model=%s, block_size=%s, draft_window_size=%s, compact_cache=%s",
+                "Initialized %s draft runner. attention_backend=%s, model=%s, block_size=%s, draft_window_size=%s, compact_cache=%s",
+                algorithm_name,
                 getattr(draft_server_args, "attention_backend", None),
                 self.draft_model.__class__.__name__,
                 self.block_size,
@@ -216,7 +240,8 @@ class DFlashWorker:
                 self.use_compact_draft_cache,
             )
             logger.info(
-                "DFLASH draft runner ready. mask_token=%s, mask_token_id=%s, mask_token_id_override=%s",
+                "%s draft runner ready. mask_token=%s, mask_token_id=%s, mask_token_id_override=%s",
+                algorithm_name,
                 self._mask_token,
                 self._mask_token_id,
                 self._mask_token_id_override,

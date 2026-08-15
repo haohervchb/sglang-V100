@@ -3,9 +3,12 @@ from unittest.mock import Mock
 
 import pytest
 import torch
-
 from sglang.jit_kernel.all_reduce import AllReduceAlgo
-from sglang.srt.arg_groups.speculative_hook import _handle_dflash, _handle_eagle_family
+from sglang.srt.arg_groups.speculative_hook import (
+    _handle_dflash,
+    _handle_dspark,
+    _handle_eagle_family,
+)
 from sglang.srt.distributed.device_communicators.custom_all_reduce_v2 import (
     CustomAllReduceV2,
     ModeConfig,
@@ -27,12 +30,14 @@ from sglang.srt.models.dflash import (
     _get_dflash_layer_attention_params,
     _resolve_dflash_rope_config,
 )
+from sglang.srt.models.dspark import DSparkDraftModel, VanillaMarkov
 from sglang.srt.models.qwen3_5_mtp import _is_mtp_dynamically_unquantized
 from sglang.srt.speculative.dflash_utils import (
     apply_dflash_verify_logits_adjustments,
     get_dflash_attention_sliding_window_size,
     parse_dflash_draft_config,
     resolve_dflash_verify_mask_policy,
+    scale_kv_cell_size_per_token_for_dflash,
     synchronize_dflash_sampling_results,
 )
 from sglang.srt.speculative.dflash_worker import (
@@ -40,6 +45,11 @@ from sglang.srt.speculative.dflash_worker import (
     _resolve_dflash_draft_attention_backend,
 )
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
+from sglang.srt.speculative.dspark_config import parse_dspark_draft_config
+from sglang.srt.speculative.dspark_worker_v2 import (
+    DSparkWorkerV2,
+    _DSparkGraphSampler,
+)
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 
 
@@ -497,6 +507,162 @@ def test_dflash_worker_selection_tracks_spec_v2_env(enable_spec_v2):
             assert worker_cls is DFlashWorker
 
 
+def test_dspark_worker_is_always_spec_v2():
+    assert SpeculativeAlgorithm.DSPARK.supports_spec_v2()
+    assert SpeculativeAlgorithm.DSPARK.is_dflash_family()
+    assert (
+        SpeculativeAlgorithm.DSPARK.get_num_tokens_per_bs_for_target_verify(8, True)
+        == 7
+    )
+    assert (
+        SpeculativeAlgorithm.DSPARK.get_num_tokens_per_bs_for_target_verify(8, False)
+        == 8
+    )
+    assert (
+        SpeculativeAlgorithm.DSPARK.create_worker(SimpleNamespace()) is DSparkWorkerV2
+    )
+
+
+def test_dspark_config_and_verify_width_contract(monkeypatch):
+    draft_config = SimpleNamespace(
+        architectures=["DSparkDraftModel"],
+        num_hidden_layers=5,
+        block_size=7,
+        markov_rank=256,
+        markov_head_type="vanilla",
+        quantization_config=None,
+        dflash_config={"mask_token_id": 248077},
+    )
+    monkeypatch.setattr(
+        "sglang.srt.utils.hf_transformers_utils.get_config",
+        lambda *args, **kwargs: draft_config,
+    )
+    args = SimpleNamespace(
+        enable_dp_attention=False,
+        pp_size=1,
+        speculative_draft_model_path="RadixArk/Qwen3.8-27B-DSpark",
+        trust_remote_code=True,
+        speculative_draft_model_revision="main",
+        json_model_override_args="{}",
+        speculative_draft_model_quantization="unquant",
+        speculative_num_steps=None,
+        speculative_eagle_topk=None,
+        speculative_dspark_block_size=7,
+        speculative_num_draft_tokens=None,
+        speculative_draft_window_size=None,
+        max_running_requests=1,
+        enable_mixed_chunk=True,
+    )
+
+    _handle_dspark(args)
+    parsed = parse_dspark_draft_config(draft_config)
+
+    assert parsed.gamma == 7
+    assert parsed.markov_rank == 256
+    assert parsed.mask_token_id == 248077
+    assert args.speculative_num_draft_tokens == 8
+    assert args.speculative_num_steps == 1
+    assert args.speculative_eagle_topk == 1
+    assert args.speculative_draft_model_quantization is None
+    assert args.enable_mixed_chunk is False
+
+
+def test_dspark_sm70_draft_cache_stays_fp16(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "get_device_capability", lambda: (7, 0))
+    worker = DSparkWorkerV2.__new__(DSparkWorkerV2)
+
+    assert (
+        worker._draft_kv_cache_dtype(SimpleNamespace(kv_cache_dtype="fp8_e4m3"))
+        == "auto"
+    )
+    assert (
+        scale_kv_cell_size_per_token_for_dflash(
+            target_cell_size_per_token=8192,
+            target_num_layers=16,
+            draft_num_layers=5,
+            draft_cell_size_per_token=5120,
+        )
+        == 13312
+    )
+
+
+def test_dspark_markov_head_is_autoregressive(monkeypatch):
+    monkeypatch.setattr(
+        "sglang.srt.models.dspark.tensor_model_parallel_all_gather",
+        lambda logits, dim: logits,
+    )
+    model = DSparkDraftModel.__new__(DSparkDraftModel)
+    torch.nn.Module.__init__(model)
+    model.gamma = 2
+    model.config = SimpleNamespace(vocab_size=4)
+    model.markov_head = VanillaMarkov(vocab_size=4, rank=4)
+    lm_head = torch.nn.Linear(2, 4, bias=False)
+
+    with torch.no_grad():
+        lm_head.weight.zero_()
+        model.markov_head.markov_w1.weight.copy_(torch.eye(4))
+        model.markov_head.markov_w2.weight.zero_()
+        model.markov_head.markov_w2.weight[2, 1] = 10
+        model.markov_head.markov_w2.weight[3, 2] = 10
+
+    proposed = model.sample_greedy_block(
+        hidden_states=torch.zeros(1, 2, 2),
+        anchor_tokens=torch.tensor([1]),
+        lm_head=lm_head,
+    )
+
+    assert proposed.tolist() == [[2, 3]]
+
+
+def test_dspark_graph_sampler_and_eager_fallback_match():
+    class DraftModel:
+        def __init__(self):
+            self.calls = 0
+
+        def sample_greedy_block(self, *, hidden_states, anchor_tokens, lm_head):
+            del hidden_states, lm_head
+            self.calls += 1
+            offsets = torch.arange(1, 4, dtype=torch.int64)
+            return anchor_tokens[:, None] + offsets[None, :]
+
+    model = DraftModel()
+    sampler = _DSparkGraphSampler(
+        model=model,
+        lm_head=object(),
+        gamma=3,
+        max_bs=2,
+        device="cpu",
+    )
+    block_ids = torch.tensor([[10, 0, 0], [20, 0, 0]], dtype=torch.int64)
+    hidden_states = torch.zeros((6, 4))
+    sampler(hidden_states, block_ids.flatten())
+
+    worker = DSparkWorkerV2.__new__(DSparkWorkerV2)
+    worker._graph_sampler = sampler
+    worker.draft_model = model
+    graph_tokens = torch.empty((2, 4), dtype=torch.int64)
+    worker._populate_draft_tokens(
+        draft_hidden=hidden_states.view(2, 3, 4),
+        block_ids=block_ids,
+        lm_head=object(),
+        draft_tokens=graph_tokens,
+        can_run_graph=True,
+    )
+    eager_tokens = torch.empty_like(graph_tokens)
+    worker._populate_draft_tokens(
+        draft_hidden=hidden_states.view(2, 3, 4),
+        block_ids=block_ids,
+        lm_head=object(),
+        draft_tokens=eager_tokens,
+        can_run_graph=False,
+    )
+
+    assert graph_tokens.tolist() == [[10, 11, 12, 13], [20, 21, 22, 23]]
+    assert torch.equal(graph_tokens, eager_tokens)
+    assert model.calls == 2
+
+
 def test_dflash_v2_reports_target_and_draft_attention_capabilities():
     from sglang.srt.speculative.dflash_worker_v2 import DFlashWorkerV2
 
@@ -557,6 +723,7 @@ def test_dflash_draft_skips_irrelevant_sm70_prefill_warmup(monkeypatch):
     runner.is_draft_worker = True
     runner.spec_algorithm = SimpleNamespace(
         is_dflash=lambda: True,
+        is_dflash_family=lambda: True,
         is_speculative=lambda: True,
     )
     runner._should_run_flashinfer_autotune = Mock(return_value=False)
@@ -639,7 +806,8 @@ def test_v100_native_attention_uses_per_layer_dflash_mask(attn_type, window, exp
         (16, 4, 128, torch.float16, True),  # TP2
         (8, 2, 128, torch.float8_e4m3fn, True),  # TP4 E4M3
         (16, 4, 128, torch.float8_e4m3fn, False),  # TP2 E4M3 guard
-        (16, 2, 128, torch.float16, False),
+        (10, 2, 128, torch.float16, True),  # Qwen3.8 DSpark GQA-5
+        (16, 2, 128, torch.float16, True),
         (16, 4, 256, torch.float16, False),
         (0, 0, 128, torch.float16, False),
     ],
@@ -893,6 +1061,7 @@ def test_v100_mtp_linear_verify_builds_native_causal_metadata(monkeypatch):
         is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: False,
+            is_dflash_family=lambda: False,
             is_eagle=lambda: True,
         ),
         server_args=SimpleNamespace(speculative_eagle_topk=1),
@@ -930,6 +1099,7 @@ def test_v100_dflash_verify_builds_native_causal_metadata(monkeypatch):
         is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: True,
+            is_dflash_family=lambda: True,
             is_eagle=lambda: False,
         ),
         server_args=SimpleNamespace(speculative_eagle_topk=1),
