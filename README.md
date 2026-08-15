@@ -2,6 +2,35 @@
 
 SGLang serving commands for four SM70 V100 GPUs.
 
+## Current V100 performance
+
+All currently documented model checkpoints are listed below. LLM results use
+TP4, one cold request, and 256 greedy output tokens. Prefill is the exact input
+length divided by client time to first token; decode excludes that first-token
+time. The measurements came from separate tuning runs, so treat this as a
+practical reference rather than a perfectly controlled cross-model leaderboard.
+H3 reports wall-clock video generation time in the Results column rather than
+LLM token throughput. `—` means the metric does not apply or the supported
+configuration has no comparable retained end-to-end benchmark.
+
+| Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
+| `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
+| `Qwen/Qwen3.6-27B-FP8` | DFlash-16, FP16 KV | 2,774 tok/s | 154.0 tok/s | 3,128 tok/s | 126.2 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen36_27b_fp8_tp_scaling_20260802/README.md) |
+| `Qwen/Qwen3.6-27B` | FP16, DFlash-16 | 3,261 tok/s | 101.2 tok/s | 3,631 tok/s | 86.6 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
+| `Qwen/Qwen3.6-35B-A3B` | FP16, DFlash-16 | 4,240 tok/s | 150.1 tok/s | 12,258 tok/s | 136.4 tok/s | [35B optimization results](https://github.com/haohervchb/sglang-V100/commit/7b8615f26e) |
+| `QuantTrio/Qwen3.6-35B-A3B-AWQ` | AWQ target/DFlash | — | — | — | — | Supported; comparable run not retained |
+| `Qwen/Qwen3.5-122B-A10B-GPTQ-Int4` | GPTQ-Marlin, DFlash-16 | 3,426 tok/s | 109.2 tok/s | 4,718 tok/s | 81.9 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
+| `QuantTrio/Qwen3.5-122B-A10B-AWQ` | AWQ-Marlin target only | — | — | — | — | Supported; comparable run not retained |
+| `poolside/Laguna-S-2.1-INT4` | Marlin, DFlash-8 | 3,334 tok/s† | 77.3 tok/s | 4,327 tok/s† | 67.0 tok/s | [Context sweep](benchmark/dflash_v100_20260716/README.md) and [Laguna tuning](https://github.com/haohervchb/sglang-V100/commit/491bb6095a) |
+
+Target-only and MTP modes are also supported where commands are provided
+below. †Laguna prefill comes from the retained DFlash sweep; its later Marlin
+selector changed low-token-count decode and left effective prefill unchanged
+within normal cold-run variation. The Laguna decode columns are the later tuned
+block-8 results.
+
 ## Install on the host
 
 ```bash
