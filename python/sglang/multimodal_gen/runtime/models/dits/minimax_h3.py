@@ -52,6 +52,7 @@ from sglang.srt.model_executor.breakable_cuda_graph.breakable_cuda_graph import 
 
 _ARCH_DEFAULTS = MiniMaxH3DiTArchConfig()
 _FP32_DTYPE = torch.float32
+_FP16_ELEMENTWISE_CHUNK_NUMEL = 16 * 1024 * 1024
 
 
 def _reduced_precision_dtype() -> torch.dtype:
@@ -236,12 +237,23 @@ def _modulate_scale_shift(
 ) -> torch.Tensor:
     """Apply indexed affine modulation."""
     # Apply per-index affine modulation: x * (1 + scale[idx]) + shift[idx].
+    if dtype == torch.float16:
+        fp16_max = torch.finfo(torch.float16).max
+        output = torch.empty_like(x, dtype=dtype)
+        row_numel = max(1, x[0].numel())
+        chunk_rows = max(1, _FP16_ELEMENTWISE_CHUNK_NUMEL // row_numel)
+        for start in range(0, x.shape[0], chunk_rows):
+            stop = min(start + chunk_rows, x.shape[0])
+            chunk_indices = indices[start:stop]
+            selected_scale = scale.index_select(0, chunk_indices).float()
+            selected_scale.add_(1.0)
+            value = x[start:stop].float()
+            value.mul_(selected_scale)
+            value.add_(shift.index_select(0, chunk_indices).float())
+            output[start:stop].copy_(value.clamp_(-fp16_max, fp16_max))
+        return output
     selected_scale = scale.index_select(0, indices)
     selected_shift = shift.index_select(0, indices)
-    if dtype == torch.float16:
-        value = x.float() * (1.0 + selected_scale.float()) + selected_shift.float()
-        fp16_max = torch.finfo(torch.float16).max
-        return value.clamp_(-fp16_max, fp16_max).to(dtype)
     return (x * (1.0 + selected_scale) + selected_shift).to(dtype)
 
 
@@ -255,11 +267,19 @@ def _modulate_gate(
 ) -> torch.Tensor:
     """Apply indexed gated residual."""
     # Apply the per-index gated residual: x + gate[idx] * other.
-    selected_gate = gate.index_select(0, indices)
     if dtype == torch.float16:
-        value = x.float() + selected_gate.float() * other.float()
         fp16_max = torch.finfo(torch.float16).max
-        return value.clamp_(-fp16_max, fp16_max).to(dtype)
+        output = torch.empty_like(x, dtype=dtype)
+        row_numel = max(1, x[0].numel())
+        chunk_rows = max(1, _FP16_ELEMENTWISE_CHUNK_NUMEL // row_numel)
+        for start in range(0, x.shape[0], chunk_rows):
+            stop = min(start + chunk_rows, x.shape[0])
+            value = other[start:stop].float()
+            value.mul_(gate.index_select(0, indices[start:stop]).float())
+            value.add_(x[start:stop])
+            output[start:stop].copy_(value.clamp_(-fp16_max, fp16_max))
+        return output
+    selected_gate = gate.index_select(0, indices)
     return (x + selected_gate * other).to(dtype)
 
 
@@ -267,9 +287,16 @@ def _silu_mul(hidden: torch.Tensor, *, reuse_input: bool) -> torch.Tensor:
     del reuse_input  # Kept in the contract for graph/quantization parity.
     gate, up = hidden.chunk(2, dim=-1)
     if hidden.dtype == torch.float16:
-        value = nn.functional.silu(gate.float()) * up.float()
         fp16_max = torch.finfo(torch.float16).max
-        return value.clamp_(-fp16_max, fp16_max).to(hidden.dtype)
+        output = torch.empty_like(gate)
+        row_numel = max(1, gate[0].numel())
+        chunk_rows = max(1, _FP16_ELEMENTWISE_CHUNK_NUMEL // row_numel)
+        for start in range(0, gate.shape[0], chunk_rows):
+            stop = min(start + chunk_rows, gate.shape[0])
+            value = nn.functional.silu(gate[start:stop].float(), inplace=True)
+            value.mul_(up[start:stop])
+            output[start:stop].copy_(value.clamp_(-fp16_max, fp16_max))
+        return output
     return nn.functional.silu(gate) * up
 
 
@@ -277,7 +304,15 @@ def _residual_add(x: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
     """Add reduced-precision residuals without introducing FP16 infinities."""
     if x.dtype == torch.float16:
         fp16_max = torch.finfo(torch.float16).max
-        return (x.float() + residual.float()).clamp_(-fp16_max, fp16_max).to(x.dtype)
+        output = torch.empty_like(x)
+        row_numel = max(1, x[0].numel())
+        chunk_rows = max(1, _FP16_ELEMENTWISE_CHUNK_NUMEL // row_numel)
+        for start in range(0, x.shape[0], chunk_rows):
+            stop = min(start + chunk_rows, x.shape[0])
+            value = x[start:stop].float()
+            value.add_(residual[start:stop])
+            output[start:stop].copy_(value.clamp_(-fp16_max, fp16_max))
+        return output
     return x + residual
 
 
@@ -1186,7 +1221,7 @@ class MiniMaxH3DiTModel(BaseDiT, LayerwiseOffloadableModuleMixin):
                 for index in range(arch.num_layers)
             ]
         )
-        self.layer_names = ["blocks"]
+        self.layer_names = ["token_refiner.blocks", "blocks"]
         self.final_layer = MiniMaxH3FinalLayer(
             arch,
             quant_config,

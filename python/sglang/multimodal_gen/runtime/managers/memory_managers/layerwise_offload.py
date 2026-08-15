@@ -57,7 +57,7 @@ class LayerwiseOffloadManager:
         self.copy_stream = torch.get_device_module().Stream()
 
         self._layer_name_re = re.compile(
-            rf"(^|\.){re.escape(layers_attr_str)}\.(\d+)(\.|$)"
+            rf"^{re.escape(layers_attr_str)}\.(\d+)(\.|$)"
         )
 
         # layer_idx -> {dtype: consolidated_pinned_cpu_tensor}
@@ -88,7 +88,7 @@ class LayerwiseOffloadManager:
         if not m:
             return None
         try:
-            return int(m.group(2))
+            return int(m.group(1))
         except Exception:
             return None
 
@@ -530,8 +530,10 @@ class LayerwiseOffloadManager:
                         self._prefetch_events[i]
                     )
 
-                # trigger batch prefetch (i + prefetch_size ~ i + 2 * prefetch_size) if needed
-                if i % self.prefetch_size == 0:
+                # Pageable CPU memory cannot overlap H2D copies with compute.
+                # Avoid holding the next layer on GPU in that low-memory mode;
+                # its own pre-hook will load it synchronously when needed.
+                if self.pin_cpu_memory and i % self.prefetch_size == 0:
                     for j in range(i + self.prefetch_size, i + 2 * self.prefetch_size):
                         layer_to_prefetch = j % self.num_layers
                         self.prefetch_layer(layer_to_prefetch, non_blocking=True)
