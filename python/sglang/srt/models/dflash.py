@@ -5,16 +5,20 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Iterable, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from torch import nn
-
 from sglang.srt.configs.laguna import normalize_gating
 from sglang.srt.distributed import get_tensor_model_parallel_world_size
+from sglang.srt.distributed.communication_op import tensor_model_parallel_all_gather
 from sglang.srt.layers.activation import SiluAndMul
+from sglang.srt.layers.laguna_rmsnorm import (
+    laguna_scale_output_sm70,
+    laguna_silu_and_mul_sm70,
+)
 from sglang.srt.layers.layernorm import RMSNorm
 from sglang.srt.layers.linear import (
     ColumnParallelLinear,
@@ -23,10 +27,6 @@ from sglang.srt.layers.linear import (
     RowParallelLinear,
 )
 from sglang.srt.layers.logits_processor import LogitsProcessorOutput
-from sglang.srt.layers.laguna_rmsnorm import (
-    laguna_scale_output_sm70,
-    laguna_silu_and_mul_sm70,
-)
 from sglang.srt.layers.radix_attention import AttentionType, RadixAttention
 from sglang.srt.layers.rotary_embedding import get_rope
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
@@ -41,23 +41,44 @@ from sglang.srt.speculative.dflash_utils import (
     can_dflash_slice_qkv_weight,
     get_dflash_attention_sliding_window_size,
     get_dflash_layer_types,
+    is_dense_head_weight,
     parse_dflash_draft_config,
 )
+from sglang.srt.speculative.triton_ops.dflash_selector import selector_walk_triton
 from sglang.srt.utils import is_npu
+from sglang.srt.utils.common import get_compiler_backend
+from torch import nn
 
 _is_npu = is_npu()
 if _is_npu:
     from sgl_kernel_npu.norm.split_qkv_rmsnorm_rope import split_qkv_rmsnorm_rope
+
+logger = logging.getLogger(__name__)
+
+try:
+    from flashinfer import top_k as _flashinfer_top_k
+except ImportError:
+    _flashinfer_top_k = None
+
+
+def _radix_topk(scores: torch.Tensor, k: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    if _flashinfer_top_k is not None:
+        return _flashinfer_top_k(scores, k, sorted=True, deterministic=True)
+    return torch.topk(scores, k, dim=-1)
 
 
 def _is_laguna_dflash(config) -> bool:
     return "DFlashLagunaForCausalLM" in getattr(config, "architectures", [])
 
 
-def _use_laguna_v100_emulation(config) -> bool:
-    """Use BF16-compatible arithmetic for Laguna drafts on pre-Ampere GPUs."""
+def _is_dflash2(config) -> bool:
+    return "DFlash2DraftModel" in getattr(config, "architectures", [])
+
+
+def _use_sm70_bf16_emulation(config) -> bool:
+    """Use range-preserving BF16 arithmetic for BF16 drafts on SM70."""
     return (
-        _is_laguna_dflash(config)
+        (_is_laguna_dflash(config) or _is_dflash2(config))
         and torch.cuda.is_available()
         and torch.cuda.get_device_capability()[0] < 8
     )
@@ -78,6 +99,19 @@ def _resolve_dflash_rope_config(config) -> tuple[float, Optional[dict]]:
     return float(rope_theta), rope_scaling
 
 
+def _get_dflash_attention_type(config, *, default: AttentionType) -> AttentionType:
+    """Honor an explicit checkpoint causality flag, preserving legacy defaults."""
+    text_config = (
+        config.get_text_config()
+        if hasattr(config, "get_text_config")
+        else getattr(config, "text_config", config)
+    )
+    is_causal = getattr(text_config, "is_causal", None)
+    if is_causal is None:
+        return default
+    return AttentionType.DECODER if is_causal else AttentionType.ENCODER_ONLY
+
+
 def _get_dflash_layer_attention_params(
     config, layer_id: int
 ) -> Tuple[int, AttentionType]:
@@ -93,16 +127,17 @@ def _get_dflash_layer_attention_params(
 
     layer_type = layer_types[layer_id]
     if layer_type == "full_attention":
-        # The final diffusion layer attends bidirectionally over the full block.
-        return -1, AttentionType.ENCODER_ONLY
+        return -1, _get_dflash_attention_type(
+            config, default=AttentionType.ENCODER_ONLY
+        )
     if layer_type == "sliding_attention":
         sliding_window_size = get_dflash_attention_sliding_window_size(config)
         assert sliding_window_size is not None
-        # Qwen3.6 DFlash's SWA layers are causal, unlike its final full layer.
-        return sliding_window_size, AttentionType.DECODER
+        return sliding_window_size, _get_dflash_attention_type(
+            config, default=AttentionType.DECODER
+        )
     raise ValueError(
-        "Unsupported DFLASH draft layer type. "
-        f"layer_types[{layer_id}]={layer_type!r}."
+        f"Unsupported DFLASH draft layer type. layer_types[{layer_id}]={layer_type!r}."
     )
 
 
@@ -120,9 +155,7 @@ class DFlashAttention(nn.Module):
         self.hidden_size = hidden_size
         self.layer_id = layer_id
         self.wide_output_scale = (
-            get_laguna_wide_output_scale()
-            if _use_laguna_v100_emulation(config)
-            else 1.0
+            get_laguna_wide_output_scale() if _use_sm70_bf16_emulation(config) else 1.0
         )
         self.total_num_heads = total_num_heads
         self.total_num_kv_heads = total_num_kv_heads
@@ -311,18 +344,17 @@ class DFlashMLP(nn.Module):
         if hidden_act != "silu":
             raise ValueError(
                 f"Unsupported DFlash activation: {hidden_act}. Only silu is supported for now."
-        )
+            )
         self.act_fn = SiluAndMul()
         self.wide_output_scale = (
-            get_laguna_wide_output_scale()
-            if _use_laguna_v100_emulation(config)
-            else 1.0
+            get_laguna_wide_output_scale() if _use_sm70_bf16_emulation(config) else 1.0
         )
         self.gate_up_input_scale = (
             get_laguna_gate_up_input_scale()
-            if _use_laguna_v100_emulation(config)
+            if _use_sm70_bf16_emulation(config)
             else 1.0
         )
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.wide_output_scale != 1.0:
             gate_up, _ = self.gate_up_proj(x / self.gate_up_input_scale)
@@ -343,24 +375,113 @@ class DFlashMLP(nn.Module):
         return x
 
 
+@torch.compile(dynamic=True, backend=get_compiler_backend(), disable=_is_npu)
+def _grouped_conv(
+    hidden_states: torch.Tensor,
+    delta: torch.Tensor,
+    base: torch.Tensor,
+    block_size: int,
+    num_groups: int,
+    group_size: int,
+    taps: int,
+) -> torch.Tensor:
+    blocks = hidden_states.unflatten(-1, (num_groups, group_size))
+    coefficients = base.view(1, taps, num_groups, group_size) + delta.unsqueeze(-1)
+    out = coefficients[:, 0] * blocks
+    position = torch.arange(hidden_states.shape[0], device=hidden_states.device)
+    if block_size & (block_size - 1) == 0:
+        position = position & (block_size - 1)
+    else:
+        position = position % block_size
+    for tap in range(1, taps):
+        shifted = F.pad(blocks[:-tap], (0, 0, 0, 0, tap, 0))
+        out = out + coefficients[:, tap] * shifted * (position >= tap).view(-1, 1, 1)
+    return out.flatten(-2)
+
+
+class DFlashGroupedConv(nn.Module):
+    """Grouped dynamic depthwise K-tap convolution across one draft block."""
+
+    def __init__(
+        self, hidden_size: int, block_size: int, taps: int, group_size: int
+    ) -> None:
+        super().__init__()
+        if hidden_size % group_size:
+            raise ValueError(
+                f"DFLASH conv_group_size={group_size} must divide "
+                f"hidden_size={hidden_size}."
+            )
+        hidden_size = int(hidden_size)
+        self.block_size = int(block_size)
+        self.taps = int(taps)
+        self.group_size = int(group_size)
+        self.num_groups = hidden_size // self.group_size
+
+        # [input/output, tap, channel], matching the checkpoint export layout.
+        base_kernel = torch.zeros(2, self.taps, hidden_size)
+        base_kernel[:, 0] = 1.0
+        self.base_kernel = nn.Parameter(base_kernel)
+        self.kernel_projection = nn.Linear(
+            hidden_size, 2 * self.taps * self.num_groups, bias=False
+        )
+
+    def _convolve(
+        self, hidden_states: torch.Tensor, delta: torch.Tensor, side: int
+    ) -> torch.Tensor:
+        # Preserve these model constants when torch.compile traces dynamic batch size.
+        torch._dynamo.mark_static(hidden_states, 1)
+        torch._dynamo.mark_static(delta, 1)
+        torch._dynamo.mark_static(delta, 2)
+        return _grouped_conv(
+            hidden_states,
+            delta,
+            self.base_kernel[side],
+            self.block_size,
+            self.num_groups,
+            self.group_size,
+            self.taps,
+        )
+
+    def prepare(self, hidden_states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        coefficients = self.kernel_projection(hidden_states).reshape(
+            *hidden_states.shape[:-1], 2, self.taps, self.num_groups
+        )
+        return (
+            self._convolve(hidden_states, coefficients[..., 0, :, :], side=0),
+            coefficients[..., 1, :, :],
+        )
+
+    def finish(
+        self, hidden_states: torch.Tensor, coefficients: torch.Tensor
+    ) -> torch.Tensor:
+        return self._convolve(hidden_states, coefficients, side=1)
+
+
 class DFlashDecoderLayer(nn.Module):
     attention_cls = DFlashAttention
 
-    def __init__(self, config, layer_id: int, quant_config=None) -> None:
+    def __init__(
+        self,
+        config,
+        layer_id: int,
+        attention_conv: Optional[DFlashGroupedConv] = None,
+        mlp_conv: Optional[DFlashGroupedConv] = None,
+        quant_config=None,
+    ) -> None:
         super().__init__()
         hidden_size = int(config.hidden_size)
         self.layer_id = layer_id
         rms_norm_eps = float(getattr(config, "rms_norm_eps", 1e-6))
 
-        norm_cls = (
-            LagunaRMSNorm if _use_laguna_v100_emulation(config) else RMSNorm
-        )
+        norm_cls = LagunaRMSNorm if _use_sm70_bf16_emulation(config) else RMSNorm
         self.input_layernorm = norm_cls(hidden_size, eps=rms_norm_eps)
         self.self_attn = self.attention_cls(
             config=config, layer_id=layer_id, quant_config=quant_config
         )
         self.post_attention_layernorm = norm_cls(hidden_size, eps=rms_norm_eps)
         self.mlp = DFlashMLP(config=config, quant_config=quant_config)
+        self.attention_conv = attention_conv
+        self.mlp_conv = mlp_conv
 
     def forward(
         self,
@@ -381,13 +502,26 @@ class DFlashDecoderLayer(nn.Module):
             hidden_states = self.input_layernorm(hidden_states)
         else:
             hidden_states, residual = self.input_layernorm(hidden_states, residual)
+
+        attention_kernel = None
+        if self.attention_conv is not None:
+            hidden_states, attention_kernel = self.attention_conv.prepare(hidden_states)
         attn_out = self.self_attn(
             positions=positions,
             hidden_states=hidden_states,
             forward_batch=forward_batch,
         )
+        if attention_kernel is not None:
+            attn_out = self.attention_conv.finish(attn_out, attention_kernel)
+
         hidden_states, residual = self.post_attention_layernorm(attn_out, residual)
+
+        mlp_kernel = None
+        if self.mlp_conv is not None:
+            hidden_states, mlp_kernel = self.mlp_conv.prepare(hidden_states)
         hidden_states = self.mlp(hidden_states)
+        if mlp_kernel is not None:
+            hidden_states = self.mlp_conv.finish(hidden_states, mlp_kernel)
         return hidden_states, residual
 
 
@@ -410,26 +544,40 @@ class DFlashDraftModel(nn.Module):
         hidden_size = int(config.hidden_size)
         num_layers = int(config.num_hidden_layers)
         rms_norm_eps = float(getattr(config, "rms_norm_eps", 1e-6))
+        draft_config = self.draft_config = parse_dflash_draft_config(
+            draft_hf_config=config
+        )
+        self.block_size = int(draft_config.resolve_block_size(default=16))
+        self.candidate_selector: Optional[nn.Module] = None
+
+        def grouped_conv() -> Optional[DFlashGroupedConv]:
+            if not draft_config.conv_kernel_size:
+                return None
+            return DFlashGroupedConv(
+                hidden_size=hidden_size,
+                block_size=self.block_size,
+                taps=draft_config.conv_kernel_size,
+                group_size=draft_config.conv_group_size,
+            )
 
         self.layers = nn.ModuleList(
             [
                 self.decoder_layer_cls(
                     config=config,
                     layer_id=i,
+                    attention_conv=grouped_conv(),
+                    mlp_conv=grouped_conv(),
                     quant_config=quant_config,
                 )
                 for i in range(num_layers)
             ]
         )
-        norm_cls = (
-            LagunaRMSNorm if _use_laguna_v100_emulation(config) else RMSNorm
-        )
+        norm_cls = LagunaRMSNorm if _use_sm70_bf16_emulation(config) else RMSNorm
         self.norm = norm_cls(hidden_size, eps=rms_norm_eps)
 
         # Project per-token target context features:
         # concat(K * hidden_size) -> hidden_size, where K is the number of target-layer
         # feature tensors concatenated per token (not necessarily equal to num_layers).
-        draft_config = parse_dflash_draft_config(draft_hf_config=config)
         target_num_layers = (
             int(draft_config.num_target_layers)
             if draft_config.num_target_layers is not None
@@ -450,11 +598,17 @@ class DFlashDraftModel(nn.Module):
                 eps=rms_norm_eps,
                 scaled_residual_stream=False,
             )
-            if _use_laguna_v100_emulation(config)
+            if _use_sm70_bf16_emulation(config)
             else RMSNorm(hidden_size, eps=rms_norm_eps)
         )
 
-        self.block_size = draft_config.resolve_block_size(default=16)
+    def set_block_size(self, block_size: int) -> None:
+        """Propagate a runtime block-size override into every local convolution."""
+        self.block_size = int(block_size)
+        for layer in self.layers:
+            for conv in (layer.attention_conv, layer.mlp_conv):
+                if conv is not None:
+                    conv.block_size = self.block_size
 
     def get_attention_sliding_window_size(self) -> Optional[int]:
         return get_dflash_attention_sliding_window_size(self.config)
@@ -693,7 +847,9 @@ class DFlashLagunaForCausalLM(DFlashDraftModel):
                 normalized = (value * weight).to(torch.bfloat16).to(runtime_dtype)
             else:
                 normalized = norm(
-                    feature if feature.dtype == runtime_dtype else feature.to(runtime_dtype)
+                    feature
+                    if feature.dtype == runtime_dtype
+                    else feature.to(runtime_dtype)
                 )
             normed[:, index, :] = normalized.to(runtime_dtype)
         fused = normed.reshape(target_hidden.shape[0], -1)
@@ -702,4 +858,208 @@ class DFlashLagunaForCausalLM(DFlashDraftModel):
         return output
 
 
-EntryClass = [DFlashDraftModel, DFlashLagunaForCausalLM]
+@torch.compile(dynamic=True, backend=get_compiler_backend(), disable=_is_npu)
+def _score_edges(
+    *,
+    predecessor_table: torch.Tensor,
+    successor_table: torch.Tensor,
+    candidate_ids: torch.Tensor,
+    unary_logits: torch.Tensor,
+    hidden: torch.Tensor,
+    anchor_token_ids: torch.Tensor,
+    top_k: int,
+) -> torch.Tensor:
+    keys = successor_table[candidate_ids]
+    predecessor_ids = torch.cat(
+        [anchor_token_ids[:, None, None].expand(-1, 1, top_k), candidate_ids[:, :-1]],
+        dim=1,
+    )
+    predecessors = predecessor_table[predecessor_ids]
+    return unary_logits[:, :, None] + torch.einsum(
+        "blpr,blcr->blpc", predecessors * hidden[:, :, None], keys
+    )
+
+
+@torch.compile(dynamic=True, backend=get_compiler_backend(), disable=_is_npu)
+def _follow_maps(
+    maps: torch.Tensor, initial_indices: torch.Tensor, edges: int
+) -> torch.Tensor:
+    index = initial_indices
+    path = [index]
+    for edge in range(edges):
+        index = maps[:, edge].gather(-1, index[:, None])[:, 0]
+        path.append(index)
+    return torch.stack(path, dim=1)
+
+
+class CandidateSelector(nn.Module):
+    """Score top-k transitions between draft slots and walk one coherent path."""
+
+    def __init__(
+        self,
+        *,
+        hidden_size: int,
+        vocab_size: int,
+        state_rank: int,
+        top_k: int,
+    ) -> None:
+        super().__init__()
+        if _flashinfer_top_k is None:
+            logger.warning(
+                "FlashInfer top-k is unavailable; the DFlash2 selector is using "
+                "torch.topk, which is slower for a large vocabulary."
+            )
+        state_rank = int(state_rank)
+        self.top_k = int(top_k)
+        self.predecessor_codebook = nn.Parameter(
+            torch.zeros(int(vocab_size), state_rank), requires_grad=False
+        )
+        self.successor_codebook = nn.Parameter(
+            torch.zeros(int(vocab_size), state_rank), requires_grad=False
+        )
+        self.hidden_projection = nn.Linear(hidden_size, state_rank, bias=False)
+
+    def build_lattice(
+        self,
+        *,
+        candidate_ids: torch.Tensor,
+        unary_logits: torch.Tensor,
+        hidden_states: torch.Tensor,
+        anchor_token_ids: torch.Tensor,
+    ) -> torch.Tensor:
+        hidden = self.hidden_projection(hidden_states)
+        for tensor in (candidate_ids, unary_logits, hidden):
+            torch._dynamo.mark_static(tensor, 1)
+            torch._dynamo.mark_static(tensor, 2)
+        return _score_edges(
+            predecessor_table=self.predecessor_codebook,
+            successor_table=self.successor_codebook,
+            candidate_ids=candidate_ids,
+            unary_logits=unary_logits,
+            hidden=hidden,
+            anchor_token_ids=anchor_token_ids,
+            top_k=self.top_k,
+        )
+
+    def sample_path(
+        self,
+        *,
+        candidate_ids: torch.Tensor,
+        scores: torch.Tensor,
+        uniforms: torch.Tensor,
+        temperatures: torch.Tensor,
+        greedy_mask: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if scores.is_cuda:
+            return selector_walk_triton(
+                candidate_ids=candidate_ids,
+                scores=scores,
+                uniforms=uniforms,
+                temperatures=temperatures,
+                greedy_mask=greedy_mask,
+            )
+
+        top_k = self.top_k
+        temps = temperatures.view(-1, 1)
+        initial_probs = torch.softmax(scores[:, 0, 0].float() / temps, dim=-1)
+        initial_indices = (
+            uniforms[:, :1]
+            .ge(initial_probs.cumsum(dim=-1))
+            .sum(dim=-1)
+            .clamp_max(top_k - 1)
+        )
+        transition_probs = torch.softmax(
+            scores[:, 1:].float() / temps[:, :, None, None], dim=-1
+        )
+        local_maps = (
+            uniforms[:, 1:, None, None]
+            .ge(transition_probs.cumsum(dim=-1))
+            .sum(dim=-1)
+            .clamp_max(top_k - 1)
+        )
+        initial_indices = torch.where(
+            greedy_mask, scores[:, 0, 0].argmax(dim=-1), initial_indices
+        )
+        local_maps = torch.where(
+            greedy_mask[:, None, None], scores[:, 1:].argmax(dim=-1), local_maps
+        )
+        torch._dynamo.mark_static(local_maps, 1)
+        torch._dynamo.mark_static(local_maps, 2)
+        path_indices = _follow_maps(
+            local_maps, initial_indices, int(scores.shape[1]) - 1
+        )
+        tokens = candidate_ids.gather(-1, path_indices.unsqueeze(-1))[:, :, 0]
+        realized_rows = transition_probs.gather(
+            2, path_indices[:, :-1, None, None].expand(-1, -1, 1, top_k)
+        )[:, :, 0]
+        q_rows = torch.cat((initial_probs.unsqueeze(1), realized_rows), dim=1)
+        q_rows = torch.where(
+            greedy_mask[:, None, None],
+            F.one_hot(path_indices, top_k).float(),
+            q_rows,
+        )
+        return tokens, q_rows
+
+
+class DFlash2DraftModel(DFlashDraftModel):
+    """DFlash backbone with local convolutions and candidate-path selection."""
+
+    def __init__(self, config, quant_config=None, prefix: str = "") -> None:
+        super().__init__(config=config, quant_config=quant_config, prefix=prefix)
+        draft_config = self.draft_config
+        if not draft_config.selector_rank:
+            raise ValueError("DFlash2 selector requires dflash_config.selector_rank.")
+        self.candidate_selector = CandidateSelector(
+            hidden_size=int(config.hidden_size),
+            vocab_size=int(config.vocab_size),
+            state_rank=draft_config.selector_rank,
+            top_k=draft_config.selector_top_k,
+        )
+        # The checkpoint has no head; the worker attaches the target's dense head.
+        self.lm_head: Optional[nn.Module] = None
+
+    def _transform_unary_logits(self, logits: torch.Tensor) -> torch.Tensor:
+        logits = logits.float()
+        if self.draft_config.output_multiplier != 1.0:
+            logits.mul_(self.draft_config.output_multiplier)
+        softcap = self.draft_config.final_logit_softcapping
+        if softcap is not None:
+            logits.div_(softcap).tanh_().mul_(softcap)
+        return logits
+
+    def compute_candidates(
+        self, hidden: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute global top-k candidates without gathering the full TP vocabulary."""
+        if self.lm_head is None:
+            raise RuntimeError("DFlash2 target lm_head was not attached by the worker.")
+        weight = getattr(self.lm_head, "weight", None)
+        if not is_dense_head_weight(weight):
+            raise RuntimeError(
+                "DFlash2 selector requires a dense FP16/BF16/FP32 target lm_head."
+            )
+        hidden = hidden.to(weight.dtype)
+        k = self.candidate_selector.top_k
+        tp_size = int(get_tensor_model_parallel_world_size())
+        if tp_size == 1:
+            org = int(getattr(self.lm_head, "org_vocab_size", weight.shape[0]))
+            vals, ids = _radix_topk(torch.matmul(hidden, weight[:org].T), k)
+            return ids.long(), self._transform_unary_logits(vals)
+
+        shard = getattr(self.lm_head, "shard_indices", None)
+        if shard is None:
+            raise RuntimeError(
+                "DFlash2 TP selector requires target lm_head.shard_indices."
+            )
+        vals, ids = _radix_topk(
+            torch.matmul(hidden, weight[: int(shard.num_org_elements)].T), k
+        )
+        global_ids = ids.long() + int(shard.org_vocab_start_index)
+        gathered_vals = tensor_model_parallel_all_gather(vals.float(), dim=-1)
+        gathered_ids = tensor_model_parallel_all_gather(global_ids, dim=-1)
+        top_vals, selected = torch.topk(gathered_vals, k, dim=-1)
+        top_ids = torch.gather(gathered_ids, -1, selected).long()
+        return top_ids, self._transform_unary_logits(top_vals)
+
+
+EntryClass = [DFlashDraftModel, DFlashLagunaForCausalLM, DFlash2DraftModel]

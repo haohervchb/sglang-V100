@@ -464,6 +464,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
         if self.spec_algorithm.is_dflash_family() and not self.is_draft_worker:
             from sglang.srt.speculative.dflash_utils import (
+                map_dflash_target_layer_ids_for_capture,
                 parse_dflash_draft_config,
             )
 
@@ -511,6 +512,17 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             self.dflash_target_layer_ids = dflash_draft_config.resolve_target_layer_ids(
                 target_num_layers=int(target_num_layers),
                 draft_num_layers=int(draft_num_layers),
+            )
+            draft_architectures = (
+                getattr(draft_model_config.hf_config, "architectures", None) or []
+            )
+            target_model_type = getattr(
+                self.model_config.hf_text_config, "model_type", None
+            )
+            self.dflash_target_layer_ids = map_dflash_target_layer_ids_for_capture(
+                target_model_type=target_model_type,
+                draft_architectures=list(draft_architectures),
+                layer_ids=self.dflash_target_layer_ids,
             )
 
         # Apply the rank zero filter to logger

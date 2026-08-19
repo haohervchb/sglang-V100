@@ -144,6 +144,7 @@ class DSparkWorkerV2(DFlashWorkerV2):
         lm_head,
         draft_tokens: torch.Tensor,
         can_run_graph: bool = False,
+        sampling_info=None,
     ) -> None:
         if self._graph_sampler is not None and can_run_graph:
             proposals = self._graph_sampler.out[: draft_hidden.shape[0]]

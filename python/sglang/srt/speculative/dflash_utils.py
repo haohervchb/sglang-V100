@@ -17,6 +17,9 @@ from sglang.srt.managers.schedule_batch import Req
 from sglang.srt.sampling.penaltylib.repetition_penalty import (
     apply_scaling_penalties,
 )
+from sglang.srt.speculative.triton_ops.dflash_sampling import (
+    chain_speculative_sampling_triton,
+)
 from sglang.srt.utils import is_cuda, is_musa
 
 DEFAULT_DFLASH_MASK_TOKEN = "<|MASK|>"
@@ -25,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 _DFLASH_SAMPLING_VERIFY_AVAILABLE = False
 _DFLASH_CHAIN_VERIFY_BUFFERS: dict[tuple[Optional[int], int], dict[str, Any]] = {}
+_DFLASH_SELECTOR_PROB_BUFFERS: dict[
+    tuple[Optional[int], int, int, torch.dtype], dict[str, Any]
+] = {}
 _DFLASH_VERIFY_SKIP_CUSTOM_MASK_BACKENDS = frozenset(
     {
         "FlashInferAttnBackend",
@@ -160,8 +166,7 @@ def apply_dflash_verify_logits_adjustments(
         return
     if next_token_logits.ndim != 2:
         raise ValueError(
-            "next_token_logits must be 2D, "
-            f"got shape={tuple(next_token_logits.shape)}."
+            f"next_token_logits must be 2D, got shape={tuple(next_token_logits.shape)}."
         )
     if draft_token_num <= 0:
         raise ValueError(f"draft_token_num must be positive, got {draft_token_num}.")
@@ -329,6 +334,31 @@ def _get_or_create_chain_verify_buffers(
     )
 
 
+def _get_or_create_selector_prob_buffer(
+    *,
+    bs: int,
+    num_rows: int,
+    vocab_size: int,
+    dtype: torch.dtype,
+    device: torch.device,
+) -> torch.Tensor:
+    """Reuse the selector's dense q carrier without clearing the full vocabulary."""
+    key = (device.index, int(num_rows), int(vocab_size), dtype)
+    cached = _DFLASH_SELECTOR_PROB_BUFFERS.get(key)
+    cap_bs = 0 if cached is None else int(cached["cap_bs"])
+    if cap_bs < bs:
+        new_cap = max(int(bs), cap_bs * 2 if cap_bs > 0 else int(bs))
+        cached = {
+            "cap_bs": new_cap,
+            "buffer": torch.zeros(
+                (new_cap, num_rows, vocab_size), dtype=dtype, device=device
+            ),
+        }
+        _DFLASH_SELECTOR_PROB_BUFFERS[key] = cached
+    assert cached is not None
+    return cached["buffer"][:bs]
+
+
 def build_target_layer_ids(num_target_layers: int, num_draft_layers: int) -> List[int]:
     """Select target layer indices used to build DFlash context features.
 
@@ -400,6 +430,23 @@ def get_dflash_attention_sliding_window_size(config: Any) -> Optional[int]:
     return int(sliding_window) - 1
 
 
+def map_dflash_target_layer_ids_for_capture(
+    *,
+    target_model_type: Optional[str],
+    draft_architectures: list[str],
+    layer_ids: list[int],
+) -> list[int]:
+    """Map checkpoint layer-output ids to an SGLang target's capture boundary."""
+    if (
+        target_model_type in {"qwen3_5", "qwen3_5_text"}
+        and "DFlash2DraftModel" in draft_architectures
+    ):
+        # Qwen3.5 captures the residual at a layer entrance.  The published
+        # DFlash2 ids follow Hugging Face and name the preceding layer output.
+        return [layer_id + 1 for layer_id in layer_ids]
+    return layer_ids
+
+
 def _cfg_get(config: Any, key: str, default: Any = None) -> Any:
     if isinstance(config, dict):
         return config.get(key, default)
@@ -464,6 +511,12 @@ class DFlashDraftConfig:
     num_hidden_layers: Optional[int]
     num_target_layers: Optional[int]
     block_size: Optional[int]
+    conv_kernel_size: int
+    conv_group_size: int
+    selector_rank: int
+    selector_top_k: int
+    output_multiplier: float
+    final_logit_softcapping: Optional[float]
     target_layer_ids: Optional[List[int]]
     mask_token: str
     mask_token_id: Optional[int]
@@ -542,6 +595,45 @@ def parse_dflash_draft_config(*, draft_hf_config: Any) -> DFlashDraftConfig:
         min_value=1,
     )
 
+    conv_kernel_size = _parse_optional_int(
+        dflash_cfg.get("conv_kernel_size", 0),
+        field_name="DFLASH conv_kernel_size",
+        min_value=0,
+    )
+    conv_group_size = _parse_optional_int(
+        dflash_cfg.get("conv_group_size", 0),
+        field_name="DFLASH conv_group_size",
+        min_value=0,
+    )
+    if bool(conv_kernel_size) != bool(conv_group_size):
+        raise ValueError(
+            "DFLASH grouped convolution needs conv_kernel_size and conv_group_size "
+            f"together. Got conv_kernel_size={conv_kernel_size}, "
+            f"conv_group_size={conv_group_size}."
+        )
+
+    selector_rank = _parse_optional_int(
+        dflash_cfg.get("selector_rank", 0),
+        field_name="DFLASH selector rank",
+        min_value=0,
+    )
+    selector_top_k = _parse_optional_int(
+        dflash_cfg.get("selector_top_k", 0),
+        field_name="DFLASH selector top_k",
+        min_value=0,
+    )
+    if bool(selector_rank) != bool(selector_top_k):
+        raise ValueError(
+            "DFLASH selector needs rank and top_k together. "
+            f"Got rank={selector_rank}, top_k={selector_top_k}."
+        )
+
+    output_multiplier = float(dflash_cfg.get("output_multiplier", 1.0))
+    if output_multiplier <= 0:
+        raise ValueError("DFLASH output_multiplier must be positive.")
+    softcap = float(dflash_cfg.get("final_logit_softcapping") or 0.0)
+    final_logit_softcapping = softcap if softcap > 0 else None
+
     layer_ids = dflash_cfg.get(
         "target_layer_ids",
         _cfg_get(draft_hf_config, "target_layer_ids", None),
@@ -589,10 +681,25 @@ def parse_dflash_draft_config(*, draft_hf_config: Any) -> DFlashDraftConfig:
         num_hidden_layers=num_hidden_layers,
         num_target_layers=num_target_layers,
         block_size=block_size,
+        conv_kernel_size=conv_kernel_size,
+        conv_group_size=conv_group_size,
+        selector_rank=selector_rank,
+        selector_top_k=selector_top_k,
+        output_multiplier=output_multiplier,
+        final_logit_softcapping=final_logit_softcapping,
         target_layer_ids=parsed_target_layer_ids,
         mask_token=mask_token,
         mask_token_id=mask_token_id,
     )
+
+
+# is_floating_point() is also true for FP8. The DFlash2 selector reads the target
+# head as a plain dense matrix, so enumerate the safe storage dtypes explicitly.
+_DENSE_HEAD_DTYPES = (torch.float16, torch.bfloat16, torch.float32)
+
+
+def is_dense_head_weight(weight: Any) -> bool:
+    return weight is not None and weight.dtype in _DENSE_HEAD_DTYPES
 
 
 def can_dflash_slice_qkv_weight(qkv_proj: Any) -> Tuple[bool, str]:
@@ -673,13 +780,14 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
     uniform_samples_for_final_sampling: Optional[torch.Tensor] = None,
     sampling_positions: Optional[torch.Tensor] = None,
     use_sparse_topk: bool = True,
+    selector_candidate_ids: Optional[torch.Tensor] = None,
+    selector_q_rows: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Compute DFlash accept lengths and bonus tokens for non-greedy sampling.
 
-    This is a chain-specialized variant of speculative target-only verification:
-      - DFlash proposals are linear (topk == 1), so each verify level has at most one candidate.
-      - When a candidate is rejected at a level, the final token is sampled from
-        `relu(q - p)` where `p` has only the rejected candidate mass.
+    Plain DFlash uses a zero draft distribution (target-only verification).
+    DFlash2 supplies the selector's sparse candidate distribution so rejection
+    sampling remains lossless for its sampled candidate path.
     """
     if not _DFLASH_SAMPLING_VERIFY_AVAILABLE:
         raise RuntimeError(
@@ -689,8 +797,7 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
         raise ValueError(f"candidates must be 2D, got shape={tuple(candidates.shape)}")
     if next_token_logits.ndim != 2:
         raise ValueError(
-            "next_token_logits must be 2D, "
-            f"got shape={tuple(next_token_logits.shape)}."
+            f"next_token_logits must be 2D, got shape={tuple(next_token_logits.shape)}."
         )
 
     bs, draft_token_num = candidates.shape
@@ -708,6 +815,27 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
             "candidates and next_token_logits must be on the same device, "
             f"got {candidates.device} and {next_token_logits.device}."
         )
+    if (selector_candidate_ids is None) != (selector_q_rows is None):
+        raise ValueError(
+            "DFlash2 selector_candidate_ids and selector_q_rows must be provided together."
+        )
+    if selector_candidate_ids is not None:
+        expected_prefix = (bs, draft_token_num - 1)
+        if (
+            selector_candidate_ids.ndim != 3
+            or tuple(selector_candidate_ids.shape[:2]) != expected_prefix
+        ):
+            raise ValueError(
+                "DFlash2 selector candidate shape mismatch. "
+                f"Expected [bs, {draft_token_num - 1}, top_k], got "
+                f"{tuple(selector_candidate_ids.shape)}."
+            )
+        if selector_q_rows.shape != selector_candidate_ids.shape:
+            raise ValueError(
+                "DFlash2 selector probability shape mismatch: "
+                f"ids={tuple(selector_candidate_ids.shape)}, "
+                f"q={tuple(selector_q_rows.shape)}."
+            )
 
     if threshold_single is None:
         from sglang.srt.server_args import get_global_server_args
@@ -837,7 +965,23 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
                 torch.repeat_interleave(sampling_info.min_ps, draft_token_num, dim=0),
             )
     target_probs = target_probs.view(bs, draft_token_num, -1).contiguous()
-    draft_probs = torch.zeros_like(target_probs)
+    selector_ids_i64 = None
+    if selector_candidate_ids is not None:
+        selector_ids_i64 = selector_candidate_ids.to(device=device, dtype=torch.int64)
+        draft_probs = _get_or_create_selector_prob_buffer(
+            bs=bs,
+            num_rows=draft_token_num - 1,
+            vocab_size=target_probs.shape[-1],
+            dtype=target_probs.dtype,
+            device=device,
+        )
+        draft_probs.scatter_(
+            -1,
+            selector_ids_i64,
+            selector_q_rows.to(device=device, dtype=draft_probs.dtype),
+        )
+    else:
+        draft_probs = torch.zeros_like(target_probs)
 
     (
         retrieve_index,
@@ -854,23 +998,42 @@ def compute_dflash_sampling_correct_drafts_and_bonus(
     candidates_i64 = (
         candidates if candidates.dtype == torch.int64 else candidates.to(torch.int64)
     )
-    tree_speculative_sampling_target_only(
-        predicts=predicts,
-        accept_index=accept_index,
-        accept_token_num=accept_token_num,
-        candidates=candidates_i64,
-        # kwarg LHS retained as `retrive_*` to match sgl_kernel op schema.
-        retrive_index=retrieve_index,
-        retrive_next_token=retrieve_next_token,
-        retrive_next_sibling=retrieve_next_sibling,
-        uniform_samples=uniform_samples,
-        uniform_samples_for_final_sampling=uniform_samples_for_final_sampling,
-        target_probs=target_probs,
-        draft_probs=draft_probs,
-        threshold_single=threshold_single,
-        threshold_acc=threshold_acc,
-        deterministic=True,
-    )
+    if selector_candidate_ids is not None:
+        assert selector_ids_i64 is not None
+        try:
+            chain_speculative_sampling_triton(
+                predicts=predicts,
+                accept_index=accept_index,
+                accept_token_num=accept_token_num,
+                candidates=candidates_i64,
+                retrieve_index=retrieve_index,
+                uniform_samples=uniform_samples[:, :-1].contiguous(),
+                uniform_samples_for_final_sampling=uniform_samples_for_final_sampling,
+                target_probs=target_probs,
+                draft_probs=draft_probs,
+            )
+        finally:
+            # Only top-k entries are ever nonzero. Clearing those entries after
+            # the verifier avoids a full [batch, gamma, vocab] memset per step.
+            draft_probs.scatter_(-1, selector_ids_i64, 0.0)
+    else:
+        tree_speculative_sampling_target_only(
+            predicts=predicts,
+            accept_index=accept_index,
+            accept_token_num=accept_token_num,
+            candidates=candidates_i64,
+            # kwarg LHS retained as `retrive_*` to match sgl_kernel op schema.
+            retrive_index=retrieve_index,
+            retrive_next_token=retrieve_next_token,
+            retrive_next_sibling=retrieve_next_sibling,
+            uniform_samples=uniform_samples,
+            uniform_samples_for_final_sampling=uniform_samples_for_final_sampling,
+            target_probs=target_probs,
+            draft_probs=draft_probs,
+            threshold_single=threshold_single,
+            threshold_acc=threshold_acc,
+            deterministic=True,
+        )
 
     # Do not silently turn stale or corrupt kernel output into a valid commit.
     # The clamp keeps the subsequent gather memory-safe while the async assert

@@ -163,13 +163,21 @@ class DFlashWorker:
         draft_server_args.prefill_attention_backend = None
         draft_server_args.decode_attention_backend = None
         draft_server_args.attention_backend = draft_backend
-        # Dense DSpark appends its Markov proposal head to the draft CUDA graph.
-        # Defer only that graph until the subclass has installed the hook;
-        # ordinary DFlash keeps its existing initialization lifecycle.
+        # DSpark and spec-v2 DFlash append their proposal head to the draft CUDA
+        # graph. Defer capture until the concrete worker has installed that hook.
         self._draft_cuda_graph_deferred = (
-            server_args.speculative_algorithm == "DSPARK"
+            (
+                server_args.speculative_algorithm == "DSPARK"
+                or (
+                    server_args.speculative_algorithm == "DFLASH"
+                    and envs.SGLANG_ENABLE_SPEC_V2.get()
+                )
+            )
             and not draft_server_args.disable_cuda_graph
-            and envs.SGLANG_DSPARK_FOLDED_PROPOSAL.get()
+            and (
+                server_args.speculative_algorithm != "DSPARK"
+                or envs.SGLANG_DSPARK_FOLDED_PROPOSAL.get()
+            )
         )
         if self._draft_cuda_graph_deferred:
             draft_server_args.disable_cuda_graph = True
@@ -220,7 +228,11 @@ class DFlashWorker:
                     self.block_size,
                     model_block_size,
                 )
+        if hasattr(self.draft_model, "set_block_size"):
+            self.draft_model.set_block_size(self.block_size)
         self.speculative_num_draft_tokens = int(self.block_size)
+        self.selector = getattr(self.draft_model, "candidate_selector", None)
+        self._selector_sample: Optional[tuple[torch.Tensor, torch.Tensor]] = None
 
         self._mask_token = draft_config.mask_token
         self._mask_token_id_override = draft_config.mask_token_id
@@ -584,6 +596,65 @@ class DFlashWorker:
 
         return int(resolved_id)
 
+    def _propose_dflash_block(
+        self,
+        *,
+        draft_hidden: torch.Tensor,
+        block_ids: torch.Tensor,
+        lm_head,
+        sampling_info,
+    ) -> torch.Tensor:
+        """Return positions 1..N for plain DFlash or a DFlash2 selector path."""
+        self._selector_sample = None
+        pred_hidden = draft_hidden[:, 1:, :]
+        if self.selector is None:
+            return self._greedy_sample_from_vocab_parallel_head(
+                hidden_states=pred_hidden.reshape(-1, pred_hidden.shape[-1]),
+                lm_head=lm_head,
+            ).view(draft_hidden.shape[0], int(self.block_size) - 1)
+
+        self.draft_model.lm_head = lm_head
+        bs, num_pred = pred_hidden.shape[:2]
+        candidate_ids, unary_logits = self.draft_model.compute_candidates(
+            pred_hidden.reshape(-1, pred_hidden.shape[-1])
+        )
+        candidate_ids = candidate_ids.view(bs, num_pred, -1)
+        scores = self.selector.build_lattice(
+            candidate_ids=candidate_ids,
+            unary_logits=unary_logits.view(bs, num_pred, -1),
+            hidden_states=pred_hidden,
+            anchor_token_ids=block_ids[:, 0],
+        )
+
+        if sampling_info is None:
+            temperatures = torch.ones(
+                bs, dtype=torch.float32, device=pred_hidden.device
+            )
+            greedy_mask = torch.ones(bs, dtype=torch.bool, device=pred_hidden.device)
+        else:
+            temperatures = sampling_info.temperatures.view(-1).float().clamp_min(1e-5)
+            greedy_mask = (sampling_info.top_ks <= 1).view(-1)
+
+        # Every TP rank must verify the same proposed chain. Draw on rank zero and
+        # broadcast before walking the otherwise identical selector lattice.
+        uniforms = torch.rand(
+            (bs, num_pred), dtype=torch.float32, device=pred_hidden.device
+        )
+        tp_group = get_tp_group()
+        if int(tp_group.world_size) > 1:
+            tp_group.broadcast(uniforms, src=0)
+
+        tokens, q_rows = self.selector.sample_path(
+            candidate_ids=candidate_ids,
+            scores=scores,
+            uniforms=uniforms,
+            temperatures=temperatures,
+            greedy_mask=greedy_mask,
+        )
+        if sampling_info is not None and not sampling_info.is_all_greedy:
+            self._selector_sample = (candidate_ids, q_rows)
+        return tokens
+
     def _prepare_for_speculative_decoding(
         self, batch: ScheduleBatch, draft_input: DFlashDraftInput
     ):
@@ -595,6 +666,10 @@ class DFlashWorker:
                 "Invariant broken: DFLASH batch has grammar constraints, but scheduler should have rejected this request."
             )
         if batch.sampling_info is not None and not batch.sampling_info.is_all_greedy:
+            if self.selector is not None and not is_dflash_sampling_verify_available():
+                raise RuntimeError(
+                    "DFlash2 non-greedy decoding requires the speculative sampling kernel."
+                )
             if (
                 not is_dflash_sampling_verify_available()
                 and not self._warned_sampling_fallback
@@ -743,10 +818,12 @@ class DFlashWorker:
         if draft_hidden is None:
             raise RuntimeError("DFLASH draft model returned no hidden states.")
         draft_hidden = draft_hidden.view(bs, self.block_size, -1)
-        draft_next = self._greedy_sample_from_vocab_parallel_head(
-            hidden_states=draft_hidden[:, 1:, :].reshape(-1, draft_hidden.shape[-1]),
+        draft_next = self._propose_dflash_block(
+            draft_hidden=draft_hidden,
+            block_ids=block_ids,
             lm_head=lm_head,
-        ).view(bs, self.block_size - 1)
+            sampling_info=batch.sampling_info,
+        )
         draft_tokens = self._draft_block_tokens_buf[:bs]
         draft_tokens[:, 0].copy_(block_ids[:, 0])
         draft_tokens[:, 1:].copy_(draft_next)
@@ -756,6 +833,12 @@ class DFlashWorker:
             draft_token=draft_tokens.reshape(-1),
             positions=positions,
             draft_token_num=self.block_size,
+            selector_candidate_ids=(
+                None if self._selector_sample is None else self._selector_sample[0]
+            ),
+            selector_q_rows=(
+                None if self._selector_sample is None else self._selector_sample[1]
+            ),
         )
         _, build_custom_mask = resolve_dflash_verify_mask_policy(
             self.model_runner.attn_backend

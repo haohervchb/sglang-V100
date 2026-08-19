@@ -175,6 +175,10 @@ class DFlashVerifyInput(SpecInput):
     custom_mask: torch.Tensor | None = None
     capture_hidden_mode: CaptureHiddenMode = CaptureHiddenMode.FULL
 
+    # DFlash2's sparse proposal distribution. Plain DFlash leaves both unset.
+    selector_candidate_ids: torch.Tensor | None = None
+    selector_q_rows: torch.Tensor | None = None
+
     # Shape info for padding (e.g., DP attention / CUDA graph).
     num_tokens_per_batch: int = -1
 
@@ -409,6 +413,8 @@ class DFlashVerifyInput(SpecInput):
                     else None
                 ),
                 sampling_positions=self.positions.view(bs, self.draft_token_num)[:, 0],
+                selector_candidate_ids=self.selector_candidate_ids,
+                selector_q_rows=self.selector_q_rows,
             )
             correct_len, bonus = synchronize_dflash_sampling_results(
                 correct_len=correct_len,

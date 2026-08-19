@@ -542,9 +542,10 @@ def _get_safe_dflash_capture_bs(
     capture_bs: List[int], speculative_algorithm, attn_backend
 ) -> List[int]:
     """Use exact target graph sizes when DFlash verifies a hybrid GDN model."""
-    if speculative_algorithm.is_dflash_family() and hasattr(
-        attn_backend, "linear_attn_backend"
-    ):
+    is_dflash_family = getattr(speculative_algorithm, "is_dflash_family", None)
+    if is_dflash_family is None:
+        is_dflash_family = speculative_algorithm.is_dflash
+    if is_dflash_family() and hasattr(attn_backend, "linear_attn_backend"):
         return list(range(1, max(capture_bs) + 1))
     return capture_bs
 
