@@ -99,12 +99,12 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
       -e /opt/deps/flashinfer-sm70
 
 # 1Cat carries the proven SM70 attention and TurboMind source paths. Pin the
-# source once and apply SGLang's E4M3-XQA compatibility patch.
+# v1.3.0 release and apply SGLang's E4M3-XQA compatibility patch.
 COPY patches/1cat-vllm-sm70-sglang.patch /opt/sglang/patches/
 RUN git clone --filter=blob:none https://github.com/1CatAI/1Cat-vLLM.git \
       /opt/deps/1cat-vllm \
     && git -C /opt/deps/1cat-vllm checkout --detach \
-      3ec0c68c6596d6ab31fbdee9fa676254a52c2b7d \
+      6ada86ed64af6d1a7b3cb0f34df237fd86f06d48 \
     && git -C /opt/deps/1cat-vllm apply \
       /opt/sglang/patches/1cat-vllm-sm70-sglang.patch
 RUN git clone --filter=blob:none https://github.com/NVIDIA/cutlass.git \

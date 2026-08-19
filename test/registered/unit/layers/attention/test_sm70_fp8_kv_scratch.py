@@ -10,6 +10,12 @@ from sglang.srt.layers.attention.triton_ops.fp8_sm70 import (
     dequantize_paged_kv_e4m3_sm70,
     store_paged_extend_kv_fp16_sm70,
 )
+from sglang.srt.layers.attention.triton_ops.decode_attention import (
+    decode_attention_fwd,
+)
+from sglang.srt.layers.attention.triton_ops.extend_attention import (
+    extend_attention_fwd,
+)
 
 pytestmark = pytest.mark.skipif(
     not torch.cuda.is_available() or torch.cuda.get_device_capability() != (7, 0),
@@ -22,6 +28,323 @@ def test_verify_split_granularity_defaults_to_v100_occupancy_tuning(monkeypatch)
 
     assert VERIFY_MIN_TOKENS_PER_SPLIT == 128
     assert _verify_min_tokens_per_split() == 128
+
+
+def test_d256_gather_policy_is_bounded_to_measured_shape(monkeypatch):
+    monkeypatch.delenv("SGLANG_V100_PREFILL_D256_GATHER", raising=False)
+    shape = dict(
+        batch=1,
+        heads=6,
+        heads_kv=1,
+        dim=256,
+        num_tokens=4096,
+        max_seq_len=8192,
+        causal=True,
+        sliding_window_size=-1,
+        fp8_kv=False,
+        fp16=True,
+    )
+
+    assert _paged_adapter._should_use_d256_gather(**shape)
+    assert not _paged_adapter._should_use_d256_gather(
+        **{**shape, "num_tokens": 3919}
+    )
+    assert _paged_adapter._should_use_d256_gather(
+        **{
+            **shape,
+            "num_tokens": 4000,
+            "max_seq_len": 4000,
+            "logical_dense_kv": True,
+        }
+    )
+    assert _paged_adapter._should_use_d256_gather(
+        **{
+            **shape,
+            "num_tokens": 15680,
+            "max_seq_len": 15680,
+            "logical_dense_kv": True,
+        }
+    )
+    assert _paged_adapter._should_use_d256_gather(
+        **{
+            **shape,
+            "num_tokens": 15681,
+            "max_seq_len": 15681,
+            "logical_dense_kv": True,
+        }
+    )
+    assert not _paged_adapter._should_use_d256_gather(
+        **{**shape, "sliding_window_size": 4096}
+    )
+    assert not _paged_adapter._should_use_d256_gather(
+        **{**shape, "max_seq_len": 8191}
+    )
+    assert _paged_adapter._should_use_d256_gather(
+        **{**shape, "max_seq_len": 4096, "logical_dense_kv": True}
+    )
+
+
+def test_d256_gathered_dense_matches_shuffled_paged_attention(monkeypatch):
+    torch.manual_seed(29)
+    device = "cuda:0"
+    page_size = 16
+    seq_len = 8192
+    num_tokens = 4096
+    num_pages = seq_len // page_size
+    q = torch.randn(
+        num_tokens, 6, 256, dtype=torch.float16, device=device
+    ).mul_(0.1)
+    k_cache = torch.randn(
+        num_pages, page_size, 1, 256, dtype=torch.float16, device=device
+    ).mul_(0.1)
+    v_cache = torch.randn_like(k_cache).mul_(0.1)
+    block_table = torch.randperm(
+        num_pages, dtype=torch.int32, device=device
+    ).view(1, -1)
+    seq_lens = torch.tensor([seq_len], dtype=torch.int32, device=device)
+    query_start_loc = torch.tensor(
+        [0, num_tokens], dtype=torch.int32, device=device
+    )
+    prefix_kv_lens = torch.tensor(
+        [seq_len - num_tokens], dtype=torch.int32, device=device
+    )
+    args = (
+        q,
+        k_cache,
+        v_cache,
+        block_table,
+        seq_lens,
+        query_start_loc,
+        prefix_kv_lens,
+    )
+
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_GATHER", "0")
+    paged, _ = _paged_adapter.paged_forward(*args, max_seq_len_hint=seq_len)
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_GATHER", "1")
+    gathered, _ = _paged_adapter.paged_forward(*args, max_seq_len_hint=seq_len)
+
+    # 1Cat's native Split-D operator and the TileLang paged reference use
+    # different, mathematically equivalent FP32 reduction trees before the
+    # final FP16 narrow.
+    torch.testing.assert_close(gathered, paged, rtol=1e-3, atol=5e-6)
+
+
+def test_d256_full_prompt_tail_padding_matches_paged_attention(monkeypatch):
+    """A 4000-token request should use the exact D256 kernel via suffix pad."""
+    torch.manual_seed(47)
+    device = "cuda:0"
+    page_size = 16
+    seq_len = num_tokens = 4000
+    q = torch.randn(
+        num_tokens, 6, 256, dtype=torch.float16, device=device
+    ).mul_(0.1)
+    k_cache = torch.randn(
+        seq_len // page_size,
+        page_size,
+        1,
+        256,
+        dtype=torch.float16,
+        device=device,
+    ).mul_(0.1)
+    v_cache = torch.randn_like(k_cache).mul_(0.1)
+    block_table = torch.arange(
+        seq_len // page_size, dtype=torch.int32, device=device
+    ).view(1, -1)
+    seq_lens = torch.tensor([seq_len], dtype=torch.int32, device=device)
+    query_start_loc = torch.tensor(
+        [0, num_tokens], dtype=torch.int32, device=device
+    )
+    prefix_kv_lens = torch.tensor([0], dtype=torch.int32, device=device)
+    args = (
+        q,
+        k_cache,
+        v_cache,
+        block_table,
+        seq_lens,
+        query_start_loc,
+        prefix_kv_lens,
+    )
+
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_GATHER", "0")
+    paged, _ = _paged_adapter.paged_forward(*args, max_seq_len_hint=seq_len)
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_GATHER", "1")
+    exact, _ = _paged_adapter.paged_forward(
+        *args,
+        max_seq_len_hint=seq_len,
+        logical_dense_kv=True,
+    )
+
+    torch.testing.assert_close(exact, paged, rtol=1e-3, atol=5e-5)
+
+
+def test_native_e5m2_cache_writer_matches_torch_conversion():
+    from sglang.jit_kernel.sm70_fp8_kv import write_fp8_e5m2_cache_sm70
+
+    torch.manual_seed(31)
+    tokens, heads, dim = 37, 1, 256
+    key = torch.randn(tokens, heads, dim, device="cuda", dtype=torch.float16)
+    value = torch.randn_like(key)
+    locations = torch.randperm(128, device="cuda")[:tokens].to(torch.int64)
+    key_cache = torch.zeros(128, heads, dim, device="cuda", dtype=torch.uint8)
+    value_cache = torch.zeros_like(key_cache)
+    scale = torch.tensor([0.75], device="cuda", dtype=torch.float32)
+
+    if not write_fp8_e5m2_cache_sm70(
+        key,
+        value,
+        key_cache,
+        value_cache,
+        locations,
+        scale,
+        scale,
+    ):
+        pytest.skip("optional SM70 TurboMind extension is not built")
+
+    expected_key = (key / scale).to(torch.float8_e5m2).view(torch.uint8)
+    expected_value = (value / scale).to(torch.float8_e5m2).view(torch.uint8)
+    torch.testing.assert_close(key_cache[locations], expected_key, rtol=0, atol=0)
+    torch.testing.assert_close(value_cache[locations], expected_value, rtol=0, atol=0)
+
+
+def test_native_e5m2_paged_bridge_matches_logical_torch_gather():
+    try:
+        from flash_attn_v100 import fp8_e5m2_paged_kv_to_fp16
+    except ImportError:
+        pytest.skip("1Cat flash-attention-v100 bridge is not installed")
+
+    torch.manual_seed(37)
+    pages, page_size, heads, dim = 11, 16, 1, 256
+    key = torch.randn(
+        pages, page_size, heads, dim, device="cuda", dtype=torch.float16
+    ).to(torch.float8_e5m2)
+    value = torch.randn_like(key.to(torch.float16)).to(torch.float8_e5m2)
+    page_table = torch.randperm(pages, device="cuda", dtype=torch.int32).view(1, -1)
+    seq_lens = torch.tensor([pages * page_size - 3], device="cuda", dtype=torch.int32)
+    output_pages = (pages * page_size + 783) // 784
+    key_out = torch.empty(
+        output_pages, 784, heads, dim, device="cuda", dtype=torch.float16
+    )
+    value_out = torch.empty_like(key_out)
+
+    fp8_e5m2_paged_kv_to_fp16(
+        key.view(torch.uint8),
+        value.view(torch.uint8),
+        page_table,
+        seq_lens,
+        key_out,
+        value_out,
+    )
+    active = int(seq_lens[0])
+    expected_key = key.index_select(0, page_table[0].to(torch.int64)).flatten(0, 1)
+    expected_value = value.index_select(0, page_table[0].to(torch.int64)).flatten(0, 1)
+    torch.testing.assert_close(
+        key_out.flatten(0, 1)[:active], expected_key[:active].half(), rtol=0, atol=0
+    )
+    torch.testing.assert_close(
+        value_out.flatten(0, 1)[:active],
+        expected_value[:active].half(),
+        rtol=0,
+        atol=0,
+    )
+
+
+def test_triton_e5m2_decode_fallback_matches_dequantized_reference():
+    """Keep unsupported XQA shapes correct on the software-decoded fallback."""
+    torch.manual_seed(41)
+    seq_len, q_heads, kv_heads, dim = 289, 5, 1, 128
+    k_scale, v_scale = 0.75, 1.25
+    q = torch.randn(1, q_heads, dim, device="cuda", dtype=torch.float16).mul_(0.1)
+    k_source = torch.randn(
+        seq_len, kv_heads, dim, device="cuda", dtype=torch.float16
+    ).mul_(0.1)
+    v_source = torch.randn_like(k_source).mul_(0.1)
+    k_cache = (k_source / k_scale).to(torch.float8_e5m2)
+    v_cache = (v_source / v_scale).to(torch.float8_e5m2)
+    kv_indptr = torch.tensor([0, seq_len], device="cuda", dtype=torch.int32)
+    kv_indices = torch.arange(seq_len, device="cuda", dtype=torch.int64)
+    max_splits = 8
+    num_splits = torch.tensor([4], device="cuda", dtype=torch.int32)
+    logits = torch.empty(
+        1, q_heads, max_splits, dim, device="cuda", dtype=torch.float32
+    )
+    lse = torch.empty(1, q_heads, max_splits, device="cuda", dtype=torch.float32)
+    out = torch.empty_like(q)
+
+    decode_attention_fwd(
+        q,
+        k_cache,
+        v_cache,
+        out,
+        kv_indptr,
+        kv_indices,
+        logits,
+        lse,
+        num_splits,
+        max_splits,
+        dim**-0.5,
+        k_scale,
+        v_scale,
+    )
+
+    k_ref = k_cache.float().mul(k_scale).repeat_interleave(q_heads, dim=1)
+    v_ref = v_cache.float().mul(v_scale).repeat_interleave(q_heads, dim=1)
+    scores = torch.einsum("bhd,lhd->bhl", q.float(), k_ref) * dim**-0.5
+    expected = torch.einsum("bhl,lhd->bhd", scores.softmax(-1), v_ref)
+    torch.testing.assert_close(out.float(), expected, rtol=1e-2, atol=2e-3)
+
+
+def test_triton_e5m2_extend_fallback_matches_mixed_kv_reference():
+    """Exercise the DSpark draft-extend path with compact E5M2 prefix KV."""
+    torch.manual_seed(43)
+    prefix_len, query_len, q_heads, kv_heads, dim = 257, 7, 5, 1, 128
+    k_scale, v_scale = 0.75, 1.25
+    q = torch.randn(
+        query_len, q_heads, dim, device="cuda", dtype=torch.float16
+    ).mul_(0.1)
+    k_prefix = torch.randn(
+        prefix_len, kv_heads, dim, device="cuda", dtype=torch.float16
+    ).mul_(0.1)
+    v_prefix = torch.randn_like(k_prefix).mul_(0.1)
+    k_cache = (k_prefix / k_scale).to(torch.float8_e5m2)
+    v_cache = (v_prefix / v_scale).to(torch.float8_e5m2)
+    k_extend = torch.randn(
+        query_len, kv_heads, dim, device="cuda", dtype=torch.float16
+    ).mul_(0.1)
+    v_extend = torch.randn_like(k_extend).mul_(0.1)
+    qo_indptr = torch.tensor([0, query_len], device="cuda", dtype=torch.int32)
+    kv_indptr = torch.tensor([0, prefix_len], device="cuda", dtype=torch.int32)
+    kv_indices = torch.arange(prefix_len, device="cuda", dtype=torch.int64)
+    out = torch.empty_like(q)
+
+    extend_attention_fwd(
+        q,
+        k_extend,
+        v_extend,
+        out,
+        k_cache,
+        v_cache,
+        qo_indptr,
+        kv_indptr,
+        kv_indices,
+        custom_mask=None,
+        is_causal=True,
+        mask_indptr=None,
+        max_len_extend=query_len,
+        k_scale=k_scale,
+        v_scale=v_scale,
+    )
+
+    k_full = torch.cat((k_cache.float() * k_scale, k_extend.float()))
+    v_full = torch.cat((v_cache.float() * v_scale, v_extend.float()))
+    k_full = k_full.repeat_interleave(q_heads, dim=1)
+    v_full = v_full.repeat_interleave(q_heads, dim=1)
+    scores = torch.einsum("qhd,khd->qhk", q.float(), k_full) * dim**-0.5
+    causal = torch.arange(prefix_len + query_len, device="cuda")[None, :] <= (
+        prefix_len + torch.arange(query_len, device="cuda")[:, None]
+    )
+    scores.masked_fill_(~causal[:, None, :], float("-inf"))
+    expected = torch.einsum("qhk,khd->qhd", scores.softmax(-1), v_full)
+    torch.testing.assert_close(out.float(), expected, rtol=1e-2, atol=2e-3)
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "not-an-integer"])

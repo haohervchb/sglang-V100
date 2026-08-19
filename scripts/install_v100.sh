@@ -25,8 +25,11 @@ die() { printf '\n\033[1;31m[install_v100] ERROR:\033[0m %s\n' "$*" >&2; exit 1;
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPS_ROOT="${SGLANG_V100_DEPS_DIR:-$HOME/.cache/sglang-v100-sources}"
 FLASHINFER_REV="c3c40a7b90b792fc59f90f8f55c9e2de9c1b6833"
-ONECAT_VLLM_REV="3ec0c68c6596d6ab31fbdee9fa676254a52c2b7d"
+# 1Cat-vLLM v1.3.0: D256 split-D/gather/split-KV prefill, long XQA decode,
+# and the bounded exact-dense SM70 AWQ projection path.
+ONECAT_VLLM_REV="6ada86ed64af6d1a7b3cb0f34df237fd86f06d48"
 ONECAT_CUTLASS_REV="da5e086dab31d63815acafdac9a9c5893b1c69e2"
+SM70_FA2_REV="c2eda5e6115b98c3ba4bfd181570668742eece22"
 
 [[ -d "$REPO_ROOT/.git" ]] || die "$REPO_ROOT is not an SGLang-V100 checkout."
 
@@ -173,9 +176,19 @@ prepare_patched_repo \
   "$ONECAT_VLLM_REV" "$ONECAT_VLLM_DIR" \
   "$REPO_ROOT/patches/1cat-vllm-sm70-sglang.patch"
 FLASH_ATTN_V100_DIR="$ONECAT_VLLM_DIR/flash-attention-v100"
-log "Building enhanced SM70 attention with direct E4M3 XQA"
+log "Building enhanced SM70 attention with direct E4M3/E5M2 XQA and the E5M2 prefill bridge"
 python -m pip install --force-reinstall --no-deps --no-build-isolation \
   "$FLASH_ATTN_V100_DIR"
+
+SM70_FA2_DIR="$DEPS_ROOT/flash-attention-v100-fa2"
+prepare_patched_repo \
+  "SM70 FA2" https://github.com/zhinianqin/flash-attention-v100.git \
+  "$SM70_FA2_REV" "$SM70_FA2_DIR" \
+  "$ONECAT_VLLM_DIR/cmake/patches/sm70_flash_attn_d256_pipeline.patch" \
+  "$ONECAT_VLLM_DIR/cmake/patches/sm70_flash_attn_d256_splitkv3.patch"
+log "Building 1Cat's exact dense/split-KV3 D256 prefill operators"
+SGLANG_SM70_FA2_ROOT="$SM70_FA2_DIR" \
+  python "$REPO_ROOT/scripts/build_sm70_fa2_d256.py"
 
 ONECAT_CUTLASS_DIR="$DEPS_ROOT/cutlass-1cat"
 prepare_patched_repo \

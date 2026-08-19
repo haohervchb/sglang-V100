@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import logging
+import os
+import weakref
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 import torch
@@ -36,6 +40,123 @@ def _unsupported_awq_dequantize(*args, **kwargs):
 
 
 awq_dequantize = _unsupported_awq_dequantize
+
+logger = logging.getLogger(__name__)
+
+_SM70_AWQ_PREFILL_DENSE_M = 4096
+_SM70_AWQ_PREFILL_DENSE_SHAPES = {
+    "gate_up_proj": (5120, 8704),
+    "down_proj": (4352, 5120),
+    "in_proj_qkvz": (5120, 4096),
+    "out_proj": (1536, 5120),
+    "o_proj": (1536, 5120),
+}
+_SM70_AWQ_PREFILL_DENSE_WORKSPACE_ELEMENTS = max(
+    k * n for k, n in _SM70_AWQ_PREFILL_DENSE_SHAPES.values()
+)
+_SM70_AWQ_PREFILL_DENSE_WORKSPACES: weakref.WeakValueDictionary[
+    tuple[int, torch.dtype], torch.Tensor
+] = weakref.WeakValueDictionary()
+_SM70_TURBOMIND_OPS_LOAD_ATTEMPTED = False
+_SM70_TURBOMIND_OPS_AVAILABLE = False
+_SM70_AWQ_PREFILL_DENSE_OOM_WARNED = False
+_SM70_AWQ_PREFILL_DENSE_LOGGED = False
+_SM70_AWQ_TURBOMIND_LOGGED = False
+_SM70_TURBOMIND_OPS_PATH = (
+    Path(__file__).resolve().parents[4]
+    / "jit_kernel"
+    / "_sm70_turbomind_v100.so"
+)
+
+
+def _env_flag(name: str, default: str) -> bool:
+    value = os.environ.get(name, default).strip().lower()
+    if value not in (
+        "0",
+        "false",
+        "off",
+        "no",
+        "1",
+        "true",
+        "on",
+        "yes",
+    ):
+        raise ValueError(f"{name} must be a boolean value, got {value!r}.")
+    return value in ("1", "true", "on", "yes")
+
+
+def _sm70_awq_prefill_exact_dense_enabled() -> bool:
+    return _env_flag("SGLANG_SM70_AWQ_PREFILL_EXACT_DENSE", "1")
+
+
+def _sm70_turbomind_awq_enabled() -> bool:
+    return _env_flag("SGLANG_SM70_AWQ_TURBOMIND", "1")
+
+
+def _load_sm70_turbomind_awq_ops() -> bool:
+    global _SM70_TURBOMIND_OPS_AVAILABLE, _SM70_TURBOMIND_OPS_LOAD_ATTEMPTED
+    if _SM70_TURBOMIND_OPS_LOAD_ATTEMPTED:
+        return _SM70_TURBOMIND_OPS_AVAILABLE
+    _SM70_TURBOMIND_OPS_LOAD_ATTEMPTED = True
+    path = Path(
+        os.environ.get("SGLANG_SM70_TURBOMIND_OPS_PATH", _SM70_TURBOMIND_OPS_PATH)
+    )
+    try:
+        torch.ops.load_library(str(path))
+        ops = torch.ops.sglang_sm70_turbomind
+        _SM70_TURBOMIND_OPS_AVAILABLE = all(
+            hasattr(ops, name)
+            for name in ("awq_prepare", "awq_gemm_out", "awq_dequantize_out")
+        )
+    except Exception as exc:
+        logger.warning("SM70 TurboMind AWQ operators unavailable: %s", exc)
+        _SM70_TURBOMIND_OPS_AVAILABLE = False
+    return _SM70_TURBOMIND_OPS_AVAILABLE
+
+
+def can_use_sm70_turbomind_awq() -> bool:
+    return (
+        _sm70_turbomind_awq_enabled()
+        and torch.cuda.is_available()
+        and torch.cuda.get_device_capability() == (7, 0)
+        and _load_sm70_turbomind_awq_ops()
+    )
+
+
+def _is_sm70_awq_prefill_exact_dense_layer(layer: torch.nn.Module) -> bool:
+    if getattr(layer, "tp_size", 1) != 4:
+        return False
+    suffix = getattr(layer, "prefix", "").rsplit(".", 1)[-1]
+    expected = _SM70_AWQ_PREFILL_DENSE_SHAPES.get(suffix)
+    if expected is None:
+        return False
+    return (layer.qweight.shape[0], layer.qweight.shape[1] * 8) == expected
+
+
+def _get_sm70_awq_prefill_dense_workspace(weight: torch.Tensor):
+    global _SM70_AWQ_PREFILL_DENSE_OOM_WARNED
+    device_index = weight.device.index
+    if device_index is None:
+        device_index = torch.cuda.current_device()
+    key = (device_index, torch.float16)
+    workspace = _SM70_AWQ_PREFILL_DENSE_WORKSPACES.get(key)
+    if workspace is None:
+        try:
+            workspace = torch.empty(
+                _SM70_AWQ_PREFILL_DENSE_WORKSPACE_ELEMENTS,
+                dtype=torch.float16,
+                device=weight.device,
+            )
+        except torch.OutOfMemoryError:
+            if not _SM70_AWQ_PREFILL_DENSE_OOM_WARNED:
+                logger.warning(
+                    "Insufficient memory for the bounded SM70 AWQ prefill "
+                    "workspace; retaining compact TurboMind AWQ."
+                )
+                _SM70_AWQ_PREFILL_DENSE_OOM_WARNED = True
+            return None
+        _SM70_AWQ_PREFILL_DENSE_WORKSPACES[key] = workspace
+    return workspace
 
 if is_xpu():
     try:
@@ -125,9 +246,86 @@ class AWQLinearKernel:
         self.quant_config = quant_config
 
     def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
+        if getattr(layer, "_awq_sm70_prepared", False):
+            return
+
         layer.qweight = torch.nn.Parameter(layer.qweight.data, requires_grad=False)
         layer.qzeros = torch.nn.Parameter(layer.qzeros.data, requires_grad=False)
         layer.scales = torch.nn.Parameter(layer.scales.data, requires_grad=False)
+
+        if not _sm70_turbomind_awq_enabled() or not layer.qweight.is_cuda:
+            return
+        if torch.cuda.get_device_capability(layer.qweight.device) != (7, 0):
+            return
+
+        group_size = self.quant_config.group_size
+        if group_size == -1:
+            group_size = layer.qweight.shape[0]
+        if group_size not in (32, 64, 128):
+            raise RuntimeError(
+                "SM70 TurboMind AWQ supports group_size 32/64/128, "
+                f"but got {group_size}."
+            )
+        if not _load_sm70_turbomind_awq_ops():
+            raise RuntimeError(
+                "SGLANG_SM70_AWQ_TURBOMIND=1 requires the v1.3.0 "
+                "SM70 TurboMind extension."
+            )
+
+        use_exact_dense = (
+            _sm70_awq_prefill_exact_dense_enabled()
+            and group_size == 128
+            and _is_sm70_awq_prefill_exact_dense_layer(layer)
+        )
+        workspace = (
+            _get_sm70_awq_prefill_dense_workspace(layer.qweight)
+            if use_exact_dense
+            else None
+        )
+        output_size = layer.qweight.shape[1] * self.quant_config.pack_factor
+        tm_weight, tm_scales, meta = (
+            torch.ops.sglang_sm70_turbomind.awq_prepare(
+                layer.qweight,
+                layer.scales,
+                layer.qzeros,
+                group_size,
+                False,
+            )
+        )
+        layer._awq_sm70_weight = tm_weight
+        layer._awq_sm70_scales = tm_scales
+        layer._awq_sm70_k_ld = int(meta[0].item())
+        layer._awq_sm70_q_ld = int(meta[1].item())
+        layer._awq_sm70_group_size = group_size
+        layer._awq_sm70_input_size = layer.qweight.shape[0]
+        layer._awq_sm70_output_size = output_size
+        if workspace is not None:
+            layer._awq_sm70_prefill_dense_workspace = workspace
+        layer._awq_sm70_prepared = True
+
+        # The packed TurboMind copy services decode and partial chunks too, so
+        # the original AWQ tensors can be released without resident duplication.
+        layer.qweight = torch.nn.Parameter(
+            torch.empty(0, dtype=torch.int32, device=tm_weight.device),
+            requires_grad=False,
+        )
+        layer.qzeros = torch.nn.Parameter(
+            torch.empty(0, dtype=torch.int32, device=tm_weight.device),
+            requires_grad=False,
+        )
+        layer.scales = torch.nn.Parameter(
+            torch.empty(0, dtype=tm_scales.dtype, device=tm_weight.device),
+            requires_grad=False,
+        )
+        global _SM70_AWQ_PREFILL_DENSE_LOGGED, _SM70_AWQ_TURBOMIND_LOGGED
+        if workspace is not None and not _SM70_AWQ_PREFILL_DENSE_LOGGED:
+            logger.info(
+                "SM70 AWQ: enabled bounded 85 MiB exact-dense M=4096 path."
+            )
+            _SM70_AWQ_PREFILL_DENSE_LOGGED = True
+        if not _SM70_AWQ_TURBOMIND_LOGGED:
+            logger.info("SM70 AWQ: enabled compact TurboMind dense path.")
+            _SM70_AWQ_TURBOMIND_LOGGED = True
 
     def apply(
         self,
@@ -135,6 +333,46 @@ class AWQLinearKernel:
         x: torch.Tensor,
         bias: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if getattr(layer, "_awq_sm70_prepared", False):
+            reshaped_x = x.reshape(-1, x.shape[-1])
+            out_shape = x.shape[:-1] + (layer._awq_sm70_output_size,)
+            if (
+                reshaped_x.shape[0] == _SM70_AWQ_PREFILL_DENSE_M
+                and reshaped_x.dtype == torch.float16
+                and hasattr(layer, "_awq_sm70_prefill_dense_workspace")
+            ):
+                k = layer._awq_sm70_input_size
+                n = layer._awq_sm70_output_size
+                dense_weight = layer._awq_sm70_prefill_dense_workspace[: k * n].view(
+                    k, n
+                )
+                torch.ops.sglang_sm70_turbomind.awq_dequantize_out(
+                    dense_weight,
+                    layer._awq_sm70_weight,
+                    layer._awq_sm70_scales,
+                    layer._awq_sm70_group_size,
+                )
+                out = torch.mm(reshaped_x, dense_weight)
+            else:
+                out = torch.empty(
+                    (reshaped_x.shape[0], layer._awq_sm70_output_size),
+                    dtype=x.dtype,
+                    device=x.device,
+                )
+                torch.ops.sglang_sm70_turbomind.awq_gemm_out(
+                    out,
+                    reshaped_x,
+                    layer._awq_sm70_weight,
+                    layer._awq_sm70_scales,
+                    layer._awq_sm70_group_size,
+                    layer._awq_sm70_k_ld,
+                    layer._awq_sm70_q_ld,
+                    False,
+                )
+            if bias is not None:
+                out.add_(bias)
+            return out.reshape(out_shape)
+
         qweight = layer.qweight
         scales = layer.scales
         qzeros = layer.qzeros

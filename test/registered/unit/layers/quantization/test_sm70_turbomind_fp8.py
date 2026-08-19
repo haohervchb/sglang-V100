@@ -1,8 +1,8 @@
 import pytest
 import torch
-import torch.nn.functional as F
 
 from sglang.srt.layers.quantization.sm70_turbomind_fp8 import (
+    _SM70_FP8_PREFILL_DENSE_WORKSPACE_BYTES,
     _load_sm70_turbomind_fp8_ops,
     apply_sm70_turbomind_fp8_fused_silu_and_mul,
     apply_sm70_turbomind_fp8_linear,
@@ -16,7 +16,9 @@ pytestmark = pytest.mark.skipif(
 
 
 class _DummyLinear(torch.nn.Module):
-    def __init__(self, output_size: int, input_size: int, gated: bool):
+    def __init__(
+        self, output_size: int, input_size: int, gated: bool, prefix: str
+    ):
         super().__init__()
         weight = (
             torch.randn((output_size, input_size), device="cuda", dtype=torch.float16)
@@ -40,50 +42,81 @@ class _DummyLinear(torch.nn.Module):
         self.logical_widths = (
             [output_size // 2, output_size // 2] if gated else [output_size]
         )
-        self.prefix = (
-            "model.layers.0.mlp.gate_up_proj"
-            if gated
-            else "model.layers.0.self_attn.qkv_proj"
-        )
+        self.prefix = prefix
+        self.tp_size = 4
 
 
 def _expanded_weight(layer: _DummyLinear) -> torch.Tensor:
-    scales = layer.sm70_fp8_prefill_scales.repeat_interleave(128, 0).repeat_interleave(
-        128, 1
+    weight = torch.empty(
+        (layer.input_size_per_partition, layer.output_size_per_partition),
+        dtype=torch.float16,
+        device=layer.weight.device,
     )
-    weight = layer.sm70_fp8_prefill_weight.float()
-    return (weight * scales[: weight.shape[0], : weight.shape[1]]).half()
+    torch.ops.sglang_sm70_turbomind.fp8_dequantize_out(
+        weight, layer.weight, layer.weight_scale_inv, 128
+    )
+    return weight
 
 
-@pytest.mark.parametrize("gated,output_size", [(False, 512), (True, 1024)])
-def test_prefill_bridge_and_decode_kernel(monkeypatch, gated, output_size):
+@pytest.mark.parametrize(
+    "gated,input_size,output_size,prefix",
+    [
+        (False, 1536, 5120, "model.layers.0.linear_attn.out_proj"),
+        (True, 5120, 8704, "model.layers.0.mlp.gate_up_proj"),
+    ],
+)
+def test_prefill_dispatch_and_decode_kernel(
+    monkeypatch, gated, input_size, output_size, prefix
+):
     monkeypatch.setenv("SGLANG_SM70_FP8_PREFILL_BACKEND", "fp16")
-    monkeypatch.setenv("SGLANG_SM70_FP8_PREFILL_MIN_TOKENS", "64")
+    monkeypatch.delenv("SGLANG_SM70_FP8_PREFILL_MIN_TOKENS", raising=False)
     torch.manual_seed(7)
     assert _load_sm70_turbomind_fp8_ops()
 
-    layer = _DummyLinear(output_size, 512, gated)
+    layer = _DummyLinear(output_size, input_size, gated, prefix)
     prepare_sm70_turbomind_fp8_linear(layer)
+    assert layer.sm70_fp8_prefill_exact_dense_workspace_ptr != 0
     weight = _expanded_weight(layer)
-    prefill_input = torch.randn(64, 512, device="cuda", dtype=torch.float16)
+    assert torch.isfinite(weight).all()
+    prefill_m = 3920
+    prefill_input = torch.randn(
+        prefill_m, input_size, device="cuda", dtype=torch.float16
+    )
+    compact = torch.empty(
+        (prefill_m, output_size // 2 if gated else output_size),
+        device="cuda",
+        dtype=torch.float16,
+    )
+    torch.ops.sglang_sm70_turbomind.fp8_gemm(
+        compact,
+        prefill_input,
+        layer.weight,
+        layer.weight_scale_inv,
+        128,
+        layer.sm70_fp8_k_ld,
+        layer.sm70_fp8_q_ld,
+        gated,
+    )
     if gated:
         actual = apply_sm70_turbomind_fp8_fused_silu_and_mul(layer, prefill_input)
-        projected = F.linear(prefill_input, weight)
-        gate, up = projected.chunk(2, dim=-1)
-        expected = F.silu(gate) * up
+        expected = compact
     else:
         bias = torch.randn(output_size, device="cuda", dtype=torch.float16)
         actual = apply_sm70_turbomind_fp8_linear(layer, prefill_input, bias)
-        expected = F.linear(prefill_input, weight, bias)
+        expected = compact.add_(bias)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
 
-    decode_input = torch.randn(1, 512, device="cuda", dtype=torch.float16)
+    decode_input = torch.randn(1, input_size, device="cuda", dtype=torch.float16)
     decode = (
         apply_sm70_turbomind_fp8_fused_silu_and_mul(layer, decode_input)
         if gated
         else apply_sm70_turbomind_fp8_linear(layer, decode_input, None)
     )
     assert torch.isfinite(decode).all()
+
+
+def test_prefill_exact_dense_workspace_is_bounded():
+    assert _SM70_FP8_PREFILL_DENSE_WORKSPACE_BYTES == 85 * 1024**2
 
 
 def test_decode_workspace_is_safe_across_cuda_streams():

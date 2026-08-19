@@ -250,6 +250,41 @@ or video-to-video jobs.
 Run `conda activate sglang-v100` first. These commands use all four V100s and
 listen on port 8082.
 
+### Qwen3.8-27B-FP8 target-only
+
+This is the reference command for ordinary, non-speculative decode. No
+speculative environment switch or `--speculative-*` argument is present.
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --trust-remote-code \
+  --model-path Qwen/Qwen3.8-27B-FP8 \
+  --dtype float16 \
+  --kv-cache-dtype fp8_e5m2 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.75 \
+  --context-length 262144 \
+  --max-total-tokens 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --mamba-full-memory-ratio 0.1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 1 \
+  --cuda-graph-bs 1 \
+  --enable-nccl-nvls \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
 ### Qwen3.8-27B-FP8 with DSpark
 
 ```bash
@@ -264,15 +299,16 @@ sglang serve \
   --trust-remote-code \
   --model-path Qwen/Qwen3.8-27B-FP8 \
   --dtype float16 \
-  --kv-cache-dtype fp8_e4m3 \
+  --kv-cache-dtype fp8_e5m2 \
   --attention-backend flash_attn_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
   --mem-fraction-static 0.75 \
   --context-length 262144 \
+  --max-total-tokens 262144 \
   --max-running-requests 1 \
-  --chunked-prefill-size 4096 \
+  --chunked-prefill-size 8192 \
   --mamba-full-memory-ratio 0.1 \
   --mamba-scheduler-strategy extra_buffer \
   --cuda-graph-max-bs 1 \
@@ -286,11 +322,19 @@ sglang serve \
   --tool-call-parser qwen3_coder
 ```
 
-Use `--kv-cache-dtype auto` for the faster FP16 KV cache when its lower
-capacity is acceptable.
+`fp8_e5m2` is the optimized compact-KV route for this model on V100: cache
+writes, long D=256 prefill, long decode, and DSpark target verification all
+have native SM70 paths. Use `--kv-cache-dtype auto` for the faster FP16 KV
+cache when its lower capacity is acceptable. `fp8_e4m3` remains a compatibility
+option, but is not the preferred compact-KV format for Qwen3.8-27B-FP8.
+For this single-request 262K configuration, keep `--max-total-tokens` equal to
+the context length. Leaving it automatic can allocate target and draft KV pools
+for over one million tokens, wasting the activation headroom required by the
+optimized prefill kernels.
 
-Measured on V100-SXM2-32GB with FP8 weights, FP16 KV, DSpark block 7, one
-cold-cache request, and 256 greedy output tokens:
+The following historical sweep was measured on V100-SXM2-32GB with FP8
+weights, **FP16 KV**, DSpark block 7, one cold-cache request, and 256 greedy
+output tokens. It is not an E5M2 result:
 
 | Input | TP2 prefill | TP4 prefill | TP2 decode | TP4 decode |
 | ---: | ---: | ---: | ---: | ---: |
