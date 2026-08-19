@@ -1693,6 +1693,12 @@ class FlashAttnV100Backend(AttentionBackend):
                 )
             )
             and self._uses_native_linear_verify(forward_batch.forward_mode)
+            # A DFlash2 checkpoint declares is_causal=false: every masked
+            # position in its draft block must see the whole block.  The
+            # small-Q decode kernel only represents one causally growing row
+            # at a time, so route encoder-only draft layers through the native
+            # paged forward kernel below.
+            and getattr(layer, "attn_type", None) != AttentionType.ENCODER_ONLY
             and md.smallq_page_table is not None
             and md.smallq_seq_lens is not None
             and md.smallq_active_num_partitions is not None

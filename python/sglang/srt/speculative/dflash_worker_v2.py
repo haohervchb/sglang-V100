@@ -25,7 +25,6 @@ from sglang.srt.speculative.dflash_utils import (
 )
 from sglang.srt.speculative.dflash_worker import DFlashWorker
 from sglang.srt.speculative.eagle_info_v2 import assign_extend_cache_locs_func
-from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 from sglang.srt.speculative.spec_utils import assign_req_to_token_pool_func
 from sglang.srt.speculative.triton_ops.dflash_accept_bonus import (
     _compute_dflash_accept_bonus_triton_unchecked,
@@ -38,6 +37,68 @@ from sglang.srt.utils import is_cuda, is_hip
 logger = logging.getLogger(__name__)
 
 
+class _DFlash2GraphSampler:
+    """Capture-safe DFlash2 candidate scoring and path selection tail."""
+
+    def __init__(self, *, draft_model, block_size: int, max_bs: int, device) -> None:
+        self.draft_model = draft_model
+        self.selector = draft_model.candidate_selector
+        self.block_size = int(block_size)
+        self.gamma = self.block_size - 1
+        self.top_k = int(self.selector.top_k)
+        max_bs = int(max_bs)
+
+        self.out = torch.empty((max_bs, self.gamma), dtype=torch.int64, device=device)
+        self.temperatures = torch.ones((max_bs,), dtype=torch.float32, device=device)
+        self.greedy_mask = torch.ones((max_bs,), dtype=torch.bool, device=device)
+        self.uniforms = torch.empty(
+            (max_bs, self.gamma), dtype=torch.float32, device=device
+        )
+        self.candidate_out = torch.empty(
+            (max_bs, self.gamma, self.top_k), dtype=torch.int64, device=device
+        )
+        self.q_out = torch.empty(
+            (max_bs, self.gamma, self.top_k), dtype=torch.float32, device=device
+        )
+
+    def stage_sampling_params(self, *, bs: int, sampling_info) -> None:
+        if sampling_info is None:
+            self.temperatures[:bs].fill_(1.0)
+            self.greedy_mask[:bs].fill_(True)
+            return
+        torch.clamp(
+            sampling_info.temperatures.view(-1)[:bs].to(torch.float32),
+            min=1e-5,
+            out=self.temperatures[:bs],
+        )
+        self.greedy_mask[:bs].copy_(sampling_info.top_ks.view(-1)[:bs] <= 1)
+
+    def __call__(self, hidden_states: torch.Tensor, input_ids: torch.Tensor) -> None:
+        bs = int(hidden_states.shape[0]) // self.block_size
+        block_ids = input_ids.view(bs, self.block_size)
+        pred_hidden = hidden_states.view(bs, self.block_size, -1)[:, 1:, :]
+        candidate_ids, unary_logits = self.draft_model.compute_candidates(
+            pred_hidden.reshape(-1, pred_hidden.shape[-1])
+        )
+        candidate_ids = candidate_ids.view(bs, self.gamma, self.top_k)
+        scores = self.selector.build_lattice(
+            candidate_ids=candidate_ids,
+            unary_logits=unary_logits.view(bs, self.gamma, self.top_k),
+            hidden_states=pred_hidden,
+            anchor_token_ids=block_ids[:, 0],
+        )
+        tokens, q_rows = self.selector.sample_path(
+            candidate_ids=candidate_ids,
+            scores=scores,
+            uniforms=self.uniforms[:bs].uniform_(),
+            temperatures=self.temperatures[:bs],
+            greedy_mask=self.greedy_mask[:bs],
+        )
+        self.out[:bs].copy_(tokens)
+        self.candidate_out[:bs].copy_(candidate_ids)
+        self.q_out[:bs].copy_(q_rows)
+
+
 class DFlashWorkerV2(DFlashWorker):
     """DFLASH speculative decoding worker (spec-v2 overlap scheduling).
 
@@ -45,6 +106,14 @@ class DFlashWorkerV2(DFlashWorker):
     spec-v1 `DFlashWorker` (non-overlap), to keep the v1 path stable and to
     minimize risk while bringing up overlap scheduling.
     """
+
+    def _draft_kv_cache_dtype(self, server_args: ServerArgs) -> str:
+        # Volta has no native FP8 arithmetic. The five-layer draft is small,
+        # and keeping its recurrent KV in FP16 avoids quantize/dequantize noise
+        # in every proposal while the much larger target cache stays FP8.
+        if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 7:
+            return "auto"
+        return super()._draft_kv_cache_dtype(server_args)
 
     def __init__(
         self,
@@ -79,6 +148,51 @@ class DFlashWorkerV2(DFlashWorker):
         self._bonus_id_bufs: List[torch.Tensor] = []
         self._out_tokens_bufs: List[torch.Tensor] = []
         self._new_seq_lens_bufs: List[torch.Tensor] = []
+        self._selector_graph_sampler: Optional[_DFlash2GraphSampler] = None
+
+        if (
+            self._draft_cuda_graph_deferred
+            and server_args.speculative_algorithm == "DFLASH"
+        ):
+            if self.selector is not None:
+                target_model = self.target_worker.model_runner.model
+                lm_head = getattr(target_model, "lm_head", None)
+                if lm_head is None or not hasattr(lm_head, "weight"):
+                    raise RuntimeError(
+                        "DFlash2 requires the target model to expose `lm_head` with `weight`."
+                    )
+                self.draft_model.lm_head = lm_head
+                graph_bs = server_args.cuda_graph_bs or [
+                    server_args.cuda_graph_max_bs or 1
+                ]
+                self._selector_graph_sampler = _DFlash2GraphSampler(
+                    draft_model=self.draft_model,
+                    block_size=self.block_size,
+                    max_bs=max(int(value) for value in graph_bs),
+                    device=self.device,
+                )
+
+                def _capture_selector(_runner, out, forward_batch, _num_tokens):
+                    hidden_states = getattr(out, "hidden_states", None)
+                    if hidden_states is None:
+                        raise RuntimeError(
+                            "DFlash2 graph selector requires draft hidden states."
+                        )
+                    assert self._selector_graph_sampler is not None
+                    self._selector_graph_sampler(hidden_states, forward_batch.input_ids)
+
+                self.draft_model_runner.capture_tail_hooks.append(_capture_selector)
+
+            self.draft_model_runner.server_args.disable_cuda_graph = False
+            self.draft_worker.server_args.disable_cuda_graph = False
+            self.draft_model_runner.init_device_graphs()
+            if self.tp_rank == 0:
+                message = (
+                    "DFlash2 selector folded into the draft CUDA graph."
+                    if self._selector_graph_sampler is not None
+                    else "DFLASH draft CUDA graph initialized after worker setup."
+                )
+                logger.info(message)
 
     @property
     def spec_v2_attn_backends(self) -> tuple:
@@ -118,7 +232,9 @@ class DFlashWorkerV2(DFlashWorker):
         ]
         self._accept_bonus_buffer_cap = new_cap
 
-    def _next_accept_bonus_buffers(self, bs: int) -> tuple[
+    def _next_accept_bonus_buffers(
+        self, bs: int
+    ) -> tuple[
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
@@ -142,6 +258,11 @@ class DFlashWorkerV2(DFlashWorker):
         if sampling_info is None or sampling_info.is_all_greedy:
             return
 
+        if self.selector is not None and not is_dflash_sampling_verify_available():
+            raise RuntimeError(
+                "DFlash2 non-greedy decoding requires the speculative sampling kernel."
+            )
+
         if (
             not is_dflash_sampling_verify_available()
             and not self._warned_sampling_fallback
@@ -161,6 +282,7 @@ class DFlashWorkerV2(DFlashWorker):
         lm_head,
         draft_tokens: torch.Tensor,
         can_run_graph: bool = False,
+        sampling_info=None,
     ) -> None:
         """Populate the target verification chain from draft hidden states.
 
@@ -173,12 +295,22 @@ class DFlashWorkerV2(DFlashWorker):
                 "DFLASH draft forward width must match its verify width, got "
                 f"{draft_hidden.shape[1]} and {self.block_size}."
             )
-        draft_next = self._greedy_sample_from_vocab_parallel_head(
-            hidden_states=draft_hidden[:, 1:, :].reshape(
-                -1, draft_hidden.shape[-1]
-            ),
-            lm_head=lm_head,
-        ).view(draft_hidden.shape[0], int(self.block_size) - 1)
+        if self._selector_graph_sampler is not None and can_run_graph:
+            draft_next = self._selector_graph_sampler.out[: draft_hidden.shape[0]]
+            if sampling_info is not None and not sampling_info.is_all_greedy:
+                self._selector_sample = (
+                    self._selector_graph_sampler.candidate_out[: draft_hidden.shape[0]],
+                    self._selector_graph_sampler.q_out[: draft_hidden.shape[0]],
+                )
+            else:
+                self._selector_sample = None
+        else:
+            draft_next = self._propose_dflash_block(
+                draft_hidden=draft_hidden,
+                block_ids=block_ids,
+                lm_head=lm_head,
+                sampling_info=sampling_info,
+            )
         draft_tokens[:, 0].copy_(block_ids[:, 0])
         draft_tokens[:, 1:].copy_(draft_next)
 
@@ -406,9 +538,9 @@ class DFlashWorkerV2(DFlashWorker):
         positions = positions_2d.reshape(-1)
         draft_positions = positions_2d[:, :draft_forward_size].reshape(-1)
         verify_out_cache_loc = verify_out_cache_loc_2d.reshape(-1)
-        draft_out_cache_loc = verify_out_cache_loc_2d[
-            :, :draft_forward_size
-        ].reshape(-1)
+        draft_out_cache_loc = verify_out_cache_loc_2d[:, :draft_forward_size].reshape(
+            -1
+        )
 
         seq_lens_cpu = self._draft_seq_lens_cpu_buf[:bs]
         if self.use_compact_draft_cache:
@@ -480,6 +612,11 @@ class DFlashWorkerV2(DFlashWorker):
             capture_hidden_mode=CaptureHiddenMode.NULL,
         )
 
+        if self._selector_graph_sampler is not None:
+            self._selector_graph_sampler.stage_sampling_params(
+                bs=bs, sampling_info=batch.sampling_info
+            )
+
         with torch.inference_mode():
             draft_out = self.draft_model_runner.forward(forward_batch)
         draft_logits_output = draft_out.logits_output
@@ -496,6 +633,7 @@ class DFlashWorkerV2(DFlashWorker):
             lm_head=lm_head,
             draft_tokens=draft_tokens,
             can_run_graph=draft_out.can_run_graph,
+            sampling_info=batch.sampling_info,
         )
 
         # --- 2) Target verify.
@@ -568,6 +706,12 @@ class DFlashWorkerV2(DFlashWorker):
                 max_top_k=draft_input.max_top_k,
                 uniform_top_k_value=draft_input.uniform_top_k_value,
                 sampling_positions=positions_2d[:, 0],
+                selector_candidate_ids=(
+                    None if self._selector_sample is None else self._selector_sample[0]
+                ),
+                selector_q_rows=(
+                    None if self._selector_sample is None else self._selector_sample[1]
+                ),
             )
             accept_len, bonus = synchronize_dflash_sampling_results(
                 correct_len=accept_len,
