@@ -16,6 +16,7 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
+| `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | — | — | — | — | 118.1 tok/s warm short decode; 79.2 tok/s at 70K; ~60 tok/s steady at 200K‡ |
 | `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
 | `Qwen/Qwen3.6-27B-FP8` | DFlash-16, FP16 KV | 2,774 tok/s | 154.0 tok/s | 3,128 tok/s | 126.2 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen36_27b_fp8_tp_scaling_20260802/README.md) |
 | `Qwen/Qwen3.6-27B` | FP16, DFlash-16 | 3,261 tok/s | 101.2 tok/s | 3,631 tok/s | 86.6 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
@@ -29,7 +30,10 @@ Target-only and MTP modes are also supported where commands are provided
 below. †Laguna prefill comes from the retained DFlash sweep; its later Marlin
 selector changed low-token-count decode and left effective prefill unchanged
 within normal cold-run variation. The Laguna decode columns are the later tuned
-block-8 results.
+block-8 results. ‡The DFlash2 figures are single-request bring-up measurements
+on synthetic prompts. The 70K request reused 69,952 cached prompt tokens; the
+200K figure is the scheduler's steady decode rate. They validate the long-context
+path but are not directly comparable with the cold 1K/25K sweep columns.
 
 ## Install on the host
 
@@ -346,6 +350,69 @@ output tokens. It is not an E5M2 result:
 Across the complete 1K-to-25K sweep, TP4 is 1.81x faster for prefill and
 1.44x faster for decode by geometric mean. See the
 [full 13-point benchmark](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md).
+
+### Qwen3.8-27B-FP8 with DFlash2
+
+The published DFlash2 checkpoint uses block size 8: one anchor plus seven
+proposed tokens. Its selector top-k of 16 is the number of candidates scored at
+each proposal position, not the proposal length.
+
+```bash
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_ENABLE_SPEC_V2=1 \
+SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+sglang serve \
+  --trust-remote-code \
+  --model-path Qwen/Qwen3.8-27B-FP8 \
+  --dtype float16 \
+  --kv-cache-dtype fp8_e5m2 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.75 \
+  --context-length 262144 \
+  --max-total-tokens 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --mamba-full-memory-ratio 0.1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 1 \
+  --cuda-graph-bs 1 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.8-27B-DFlash2 \
+  --speculative-dflash-block-size 8 \
+  --speculative-draft-model-quantization unquant \
+  --speculative-draft-window-size 2048 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
+The V100 path keeps the target KV cache in E5M2 but uses FP16 for the much
+smaller five-layer draft cache. Both the DFlash2 candidate selector and draft
+forward are captured in the CUDA graph. Block 16 can be A/B tested by changing
+only `--speculative-dflash-block-size 8` to `16`; this is outside the checkpoint's
+published block-8 configuration and should be selected by measured output
+throughput rather than acceptance length alone.
+
+Bring-up results on four V100-SXM2-32GB GPUs, TP4, E5M2 target KV, CUDA graphs,
+and 256 or 512 greedy output tokens:
+
+| Input/workload | Context handling | Output throughput | Average commit length |
+| --- | --- | ---: | ---: |
+| Short prompt, warmed | Warm graph and kernels | 118.1 tok/s | 3.66 |
+| 4K periodic synthetic prompt | Full prompt included in client time | 121.5 tok/s end-to-end | 7.11 |
+| 70K periodic synthetic prompt | 69,952 prompt tokens reused | 79.2 tok/s end-to-end | 4.13 |
+| 200K periodic synthetic prompt | Steady scheduler decode intervals | ~60 tok/s | 4.45 |
+
+Acceptance is workload-dependent. The synthetic rows validate graph capture,
+long-context KV operation, and selector stability; use the same prompt corpus
+for block-8 versus block-16 comparisons.
 
 ### Qwen3.6-27B-FP8 with DFlash
 
