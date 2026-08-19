@@ -114,8 +114,14 @@ class AWQConfig(QuantizationConfig):
             raise NotImplementedError(
                 'NPU hardware does not support "get_min_capability" feature.'
             )
-        else:
-            return 75
+        if _is_cuda and torch.cuda.is_available():
+            from sglang.srt.hardware_backend.gpu.quantization.awq_kernels import (
+                can_use_sm70_turbomind_awq,
+            )
+
+            if can_use_sm70_turbomind_awq():
+                return 70
+        return 75
 
     @staticmethod
     def get_config_filenames() -> List[str]:

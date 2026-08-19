@@ -1,8 +1,8 @@
 """Software FP8 helpers for Volta attention kernels.
 
-SM70 can store E4M3 values, but PTX/Triton cannot use the native E4M3 operand
-type on this architecture.  V100 attention kernels therefore receive the
-cache as raw uint8 bytes, decode to FP32, and use FP16 tensor-core MMA.
+SM70 can store FP8 bytes, but PTX/Triton cannot use native FP8 operand types on
+this architecture. V100 attention kernels therefore receive the cache as raw
+uint8 bytes, decode to FP32, and use FP16 tensor-core MMA.
 """
 
 import torch
@@ -27,6 +27,31 @@ def fp8_e4m3fn_to_fp32(raw):
         exponent.to(tl.float32) - 7.0
     )
     return sign * tl.where(exponent == 0, subnormal, normal)
+
+
+@triton.jit
+def fp8_e5m2_to_fp32(raw):
+    """Decode raw IEEE E5M2 bytes, including subnormals.
+
+    SGLang's SM70 cache writer saturates finite FP16 inputs, so attention does
+    not encounter the exponent-31 Inf/NaN encodings in normal operation.
+    """
+    raw = raw.to(tl.int32)
+    sign = tl.where((raw & 0x80) != 0, -1.0, 1.0)
+    exponent = (raw >> 2) & 0x1F
+    mantissa = raw & 0x03
+    subnormal = mantissa.to(tl.float32) * (2.0**-16)
+    normal = (1.0 + mantissa.to(tl.float32) * 0.25) * tl.exp2(
+        exponent.to(tl.float32) - 15.0
+    )
+    return sign * tl.where(exponent == 0, subnormal, normal)
+
+
+@triton.jit
+def fp8_sm70_to_fp32(raw, is_e5m2: tl.constexpr):
+    if is_e5m2:
+        return fp8_e5m2_to_fp32(raw)
+    return fp8_e4m3fn_to_fp32(raw)
 
 
 @triton.jit

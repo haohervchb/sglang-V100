@@ -68,6 +68,10 @@ assert gptq_repack is not None, (
 assert awq_repack is not None, "marlin_v100 AWQ repack is missing"
 assert _load_sm70_turbomind_fp8_ops(), "TurboMind SM70 FP8 ops are missing"
 assert _load_sm70_ops(), "TurboMind SM70 FP16 MoE ops are missing"
+assert hasattr(torch.ops.sglang_sm70_turbomind, "awq_dequantize_out"), (
+    "TurboMind SM70 exact AWQ dequantizer is missing; rebuild against "
+    "1Cat-vLLM v1.3.0"
+)
 
 # Exercise the exact W8A16 block-FP8 operator used by Qwen3.6-27B-FP8.
 torch.manual_seed(7)
@@ -258,5 +262,6 @@ print("SM70 kernel:", sgl_kernel.common_ops.__file__)
 print("SM70 Marlin repack: registered")
 print("SM70 TurboMind FP8: registered")
 print("SM70 TurboMind FP16 MoE: registered")
+print("SM70 TurboMind exact AWQ dequantizer: registered")
 print("NCCL:", NCCLLibrary().ncclGetVersion())
 PY

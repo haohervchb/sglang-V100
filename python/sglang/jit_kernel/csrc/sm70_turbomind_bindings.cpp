@@ -15,10 +15,17 @@ torch::Tensor awq_gemm_sm70(
 void awq_gemm_sm70_out(
     torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
     int64_t, int64_t, int64_t, bool);
+void awq_sm70_dequantize_out(
+    torch::Tensor, torch::Tensor, torch::Tensor, int64_t);
+void fp8_sm70_dequantize_out(
+    torch::Tensor, torch::Tensor, torch::Tensor, int64_t);
 std::vector<torch::Tensor> sglang_sm70_f16_prepare(torch::Tensor);
 void fp8_gemm_sm70_out(
     torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
     int64_t, int64_t, int64_t, bool);
+void fp8_gemm_sm70_prefill_dispatch_out(
+    torch::Tensor, int64_t, torch::Tensor, torch::Tensor, torch::Tensor,
+    int64_t, int64_t, int64_t, bool, int64_t);
 std::vector<torch::Tensor> awq_moe_build_strided_ptrs(
     torch::Tensor, torch::Tensor, int64_t, int64_t, int64_t);
 void awq_moe_gemm_sm70_out(
@@ -30,8 +37,18 @@ void sm70_f16_moe_gemm_sm70_out(
     torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, int64_t,
     int64_t, int64_t, bool);
 int64_t moe_permute_sort_workspace_size(int64_t, int64_t);
+void sm70_fp8_e5m2_cache_write(
+    torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor,
+    std::optional<torch::Tensor>, std::optional<torch::Tensor>);
 
 TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
+  ops.def(
+      "fp8_e5m2_cache_write(Tensor key, Tensor value, Tensor(a!) key_cache, "
+      "Tensor(b!) value_cache, Tensor locations, Tensor? k_scale, "
+      "Tensor? v_scale) -> ()");
+  ops.impl(
+      "fp8_e5m2_cache_write", torch::kCUDA,
+      &sm70_fp8_e5m2_cache_write);
   ops.def(
       "awq_prepare(Tensor qweight, Tensor scales, Tensor qzeros, "
       "int group_size, bool interleave) -> Tensor[]");
@@ -51,6 +68,18 @@ TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
       "int group_size, int k_ld, int q_ld, bool gated_silu) -> ()");
   ops.impl("fp8_gemm", torch::kCUDA, &fp8_gemm_sm70_out);
   ops.def(
+      "fp8_dequantize_out(Tensor(a!) out, Tensor qweight, Tensor scales, "
+      "int group_size) -> ()");
+  ops.impl(
+      "fp8_dequantize_out", torch::kCUDA, &fp8_sm70_dequantize_out);
+  ops.def(
+      "fp8_prefill_dispatch(Tensor(a!) out, int dense_weight_ptr, "
+      "Tensor input, Tensor qweight, Tensor scales, int group_size, "
+      "int k_ld, int q_ld, bool gated_silu, int min_prefill_m) -> ()");
+  ops.impl(
+      "fp8_prefill_dispatch", torch::kCUDA,
+      &fp8_gemm_sm70_prefill_dispatch_out);
+  ops.def(
       "awq_gemm(Tensor input, Tensor qweight, Tensor scales, int group_size, "
       "int k_ld, int q_ld) -> Tensor");
   ops.impl("awq_gemm", torch::kCUDA, &awq_gemm_sm70);
@@ -59,6 +88,10 @@ TORCH_LIBRARY(sglang_sm70_turbomind, ops) {
       "Tensor scales, int group_size, int k_ld, int q_ld, "
       "bool gated_silu) -> ()");
   ops.impl("awq_gemm_out", torch::kCUDA, &awq_gemm_sm70_out);
+  ops.def(
+      "awq_dequantize_out(Tensor(a!) out, Tensor qweight, Tensor scales, "
+      "int group_size) -> ()");
+  ops.impl("awq_dequantize_out", torch::kCUDA, &awq_sm70_dequantize_out);
   ops.def(
       "build_ptrs(Tensor weights, Tensor scales, int k_ld, int q_ld, "
       "int num_experts) -> Tensor[]");

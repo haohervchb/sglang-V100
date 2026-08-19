@@ -1,8 +1,8 @@
 diff --git a/flash-attention-v100/flash_attn_v100/flash_attn_interface.py b/flash-attention-v100/flash_attn_v100/flash_attn_interface.py
-index df765d137..db361fe61 100644
+index a28f7571e..ad0dc4814 100644
 --- a/flash-attention-v100/flash_attn_v100/flash_attn_interface.py
 +++ b/flash-attention-v100/flash_attn_v100/flash_attn_interface.py
-@@ -15,6 +15,7 @@ try:
+@@ -16,6 +16,7 @@ try:
  except ImportError:
      FakeTensor = None
  
@@ -11,10 +11,10 @@ index df765d137..db361fe61 100644
  VALID_DECODE_PARTITION_SIZES = (256, 512, 1024)
  _decode_plan_cache = {}
 diff --git a/flash-attention-v100/kernel/flash_decode_paged.cu b/flash-attention-v100/kernel/flash_decode_paged.cu
-index 112d41557..c9828c0f3 100644
+index f336475a3..ecc003e6f 100644
 --- a/flash-attention-v100/kernel/flash_decode_paged.cu
 +++ b/flash-attention-v100/kernel/flash_decode_paged.cu
-@@ -244,6 +244,58 @@ __device__ __forceinline__ uint4 fp8_e5m2_vector_to_half8(
+@@ -434,6 +434,58 @@ __device__ __forceinline__ uint4 fp8_e5m2_vector_to_half8(const uint64_t raw) {
        fp8_e5m2_pair_to_half2_bits(static_cast<uint16_t>(raw >> 48)));
  }
  
@@ -73,7 +73,7 @@ index 112d41557..c9828c0f3 100644
  template <int BLOCK_SIZE, bool CONTIGUOUS_HKV1_LAYOUT,
            int KV_DTYPE = flash_v100::KV_CACHE_DTYPE_FP16>
  __device__ __forceinline__ uint4 load_xqa_tc_kv_vector(
-@@ -289,12 +341,17 @@ __device__ __forceinline__ uint4 load_xqa_tc_kv_vector(
+@@ -479,12 +531,17 @@ __device__ __forceinline__ uint4 load_xqa_tc_kv_vector(
    if constexpr (KV_DTYPE == flash_v100::KV_CACHE_DTYPE_FP16) {
      const uint4* cache_vec = reinterpret_cast<const uint4*>(kv_cache);
      return __ldg(&cache_vec[physical_offset / 8 + vec_col]);
@@ -94,27 +94,68 @@ index 112d41557..c9828c0f3 100644
    }
  }
  
-@@ -1718,7 +1775,7 @@ void launch_flash_attention_decode_paged_xqa_tc_256_wide(
+@@ -2158,7 +2215,8 @@ void launch_flash_attention_decode_paged_xqa_tc_256_wide(
      const at::Tensor& active_num_partitions, const float softmax_scale,
      const float k_scale, const float v_scale, const int launch_num_partitions,
      const bool use_split_reduce, const int split_reduce_dim_tile,
--    cudaStream_t stream) {
-+    const int kv_dtype_code, cudaStream_t stream) {
+-    cudaStream_t stream, const int route_seq_len_begin = 0,
++    const int kv_dtype_code, cudaStream_t stream,
++    const int route_seq_len_begin = 0,
+     const int route_seq_len_end = 0, const int route_seq_len_final = 0,
+     const bool launch_reduce = true) {
    const int batch_size = q.size(0);
-   const int num_heads_q = q.size(1);
-   const int num_heads_kv = k_cache.size(2);
-@@ -1760,7 +1817,9 @@ void launch_flash_attention_decode_paged_xqa_tc_256_wide(
-             softmax_scale, k_scale, v_scale);                                  \
-   } while (0)
- 
--  if (k_cache.scalar_type() == at::kByte) {
-+  if (kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP8_E4M3) {
+@@ -2212,7 +2270,9 @@ void launch_flash_attention_decode_paged_xqa_tc_256_wide(
+     TORCH_CHECK(k_cache.scalar_type() == at::kByte,
+                 "Paired XQA loads require FP8 E5M2 KV cache");
+     LAUNCH_XQA_PARTITION(flash_v100::KV_CACHE_DTYPE_FP8_E5M2);
+-  } else if (k_cache.scalar_type() == at::kByte) {
++  } else if (kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP8_E4M3) {
 +    LAUNCH_XQA_PARTITION(flash_v100::KV_CACHE_DTYPE_FP8_E4M3);
 +  } else if (kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP8_E5M2) {
      LAUNCH_XQA_PARTITION(flash_v100::KV_CACHE_DTYPE_FP8_E5M2);
    } else {
      LAUNCH_XQA_PARTITION(flash_v100::KV_CACHE_DTYPE_FP16);
-@@ -2120,8 +2179,9 @@ at::Tensor flash_attention_decode_paged_xqa(
+@@ -2246,6 +2306,39 @@ void launch_flash_attention_decode_paged_xqa_tc_256_wide(
+   C10_CUDA_KERNEL_LAUNCH_CHECK();
+ }
+ 
++// Preserve all of the release's fp16/E5M2-specialized call sites. E4M3 is
++// dispatched explicitly below so it cannot be mistaken for E5M2 merely
++// because both caches use byte storage.
++template <int PARTITION_SIZE, int GROUP_SIZE, bool PADDED_SMEM,
++          int NUM_THREADS = kXQATC256WideThreads, int MIN_BLOCKS_PER_SM = 1,
++          int BLOCK_SIZE = 0, bool CONTIGUOUS_HKV1_LAYOUT = false,
++          bool ALIGNED_PADDED_SMEM = false,
++          int SEQ_LEN_ROUTE = kXQARouteAllSeqLens, bool QK_SW_PIPELINE = false,
++          bool PARTITION_PAGE_IDS = false, bool E5M2_PAIR_LOAD = false>
++void launch_flash_attention_decode_paged_xqa_tc_256_wide(
++    const at::Tensor& q, const at::Tensor& k_cache, const at::Tensor& v_cache,
++    at::Tensor& out, const at::Tensor& block_table, const at::Tensor& seq_lens,
++    at::Tensor& tmp_out, at::Tensor& max_logits, at::Tensor& exp_sums,
++    const at::Tensor& active_num_partitions, const float softmax_scale,
++    const float k_scale, const float v_scale, const int launch_num_partitions,
++    const bool use_split_reduce, const int split_reduce_dim_tile,
++    cudaStream_t stream, const int route_seq_len_begin = 0,
++    const int route_seq_len_end = 0, const int route_seq_len_final = 0,
++    const bool launch_reduce = true) {
++  const int kv_dtype_code = k_cache.scalar_type() == at::kByte
++                                ? flash_v100::KV_CACHE_DTYPE_FP8_E5M2
++                                : flash_v100::KV_CACHE_DTYPE_FP16;
++  launch_flash_attention_decode_paged_xqa_tc_256_wide<
++      PARTITION_SIZE, GROUP_SIZE, PADDED_SMEM, NUM_THREADS, MIN_BLOCKS_PER_SM,
++      BLOCK_SIZE, CONTIGUOUS_HKV1_LAYOUT, ALIGNED_PADDED_SMEM, SEQ_LEN_ROUTE,
++      QK_SW_PIPELINE, PARTITION_PAGE_IDS, E5M2_PAIR_LOAD>(
++      q, k_cache, v_cache, out, block_table, seq_lens, tmp_out, max_logits,
++      exp_sums, active_num_partitions, softmax_scale, k_scale, v_scale,
++      launch_num_partitions, use_split_reduce, split_reduce_dim_tile,
++      kv_dtype_code, stream, route_seq_len_begin, route_seq_len_end,
++      route_seq_len_final, launch_reduce);
++}
++
+ void launch_flash_attention_decode_paged_xqa_tc_256_staged(
+     const at::Tensor& q, const at::Tensor& k_cache, const at::Tensor& v_cache,
+     at::Tensor& out, const at::Tensor& block_table, const at::Tensor& seq_lens,
+@@ -2576,8 +2669,9 @@ at::Tensor flash_attention_decode_paged_xqa(
    TORCH_CHECK(q.dtype() == torch::kFloat16, "q must be fp16");
    const int kv_dtype_code = kv_cache_dtype_code_from_string(kv_cache_dtype);
    TORCH_CHECK(kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP16 ||
@@ -125,7 +166,7 @@ index 112d41557..c9828c0f3 100644
    if (kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP16) {
      TORCH_CHECK(k_cache.dtype() == torch::kFloat16 &&
                      v_cache.dtype() == torch::kFloat16,
-@@ -2129,7 +2189,7 @@ at::Tensor flash_attention_decode_paged_xqa(
+@@ -2585,7 +2679,7 @@ at::Tensor flash_attention_decode_paged_xqa(
    } else {
      TORCH_CHECK(
          k_cache.dtype() == torch::kUInt8 && v_cache.dtype() == torch::kUInt8,
@@ -134,7 +175,7 @@ index 112d41557..c9828c0f3 100644
    }
    TORCH_CHECK(k_scale > 0.f && v_scale > 0.f,
                "XQA K/V scales must be positive");
-@@ -2266,13 +2326,13 @@ at::Tensor flash_attention_decode_paged_xqa(
+@@ -2836,13 +2930,13 @@ at::Tensor flash_attention_decode_paged_xqa(
                                                            GROUP_SIZE, true>(   \
            q, k_cache, v_cache, out, block_table, seq_lens, tmp_out,            \
            max_logits, exp_sums, active_num_partitions, softmax_scale, k_scale, \
@@ -150,7 +191,26 @@ index 112d41557..c9828c0f3 100644
      }                                                                          \
    } while (0)
  
-@@ -2302,21 +2362,21 @@ at::Tensor flash_attention_decode_paged_xqa(
+@@ -2864,6 +2958,18 @@ at::Tensor flash_attention_decode_paged_xqa(
+     }                                                                    \
+   } while (0)
+ 
++  if (kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP8_E4M3) {
++    if (q_per_kv == 4) {
++      DISPATCH_PARTITION(4);
++    } else if (q_per_kv == 6) {
++      DISPATCH_PARTITION(6);
++    } else {
++      DISPATCH_PARTITION(8);
++    }
++    C10_CUDA_KERNEL_LAUNCH_CHECK();
++    return out;
++  }
++
+   if (use_e5m2_g6_dual_cta) {
+     launch_flash_attention_decode_paged<
+         256, 256, flash_v100::KV_CACHE_DTYPE_FP8_E5M2, kXQARouteShortSeqLens>(
+@@ -3051,21 +3157,21 @@ at::Tensor flash_attention_decode_paged_xqa(
              q, k_cache, v_cache, out, block_table, seq_lens, tmp_out,
              max_logits, exp_sums, active_num_partitions, softmax_scale, k_scale,
              v_scale, launch_num_partitions, use_split_reduce,
@@ -175,7 +235,7 @@ index 112d41557..c9828c0f3 100644
        }
      } else if (block16_layout_mode == 2) {
        launch_flash_attention_decode_paged_xqa_tc_256_wide<
-@@ -2324,35 +2384,35 @@ at::Tensor flash_attention_decode_paged_xqa(
+@@ -3073,35 +3179,35 @@ at::Tensor flash_attention_decode_paged_xqa(
            q, k_cache, v_cache, out, block_table, seq_lens, tmp_out, max_logits,
            exp_sums, active_num_partitions, softmax_scale, k_scale, v_scale,
            launch_num_partitions, use_split_reduce, split_reduce_dim_tile,
@@ -216,3 +276,98 @@ index 112d41557..c9828c0f3 100644
      }
    } else if (q_per_kv == 4) {
      DISPATCH_PARTITION(4);
+
+diff --git a/flash-attention-v100/kernel/flash_decode_paged.cu b/flash-attention-v100/kernel/flash_decode_paged.cu
+--- a/flash-attention-v100/kernel/flash_decode_paged.cu
++++ b/flash-attention-v100/kernel/flash_decode_paged.cu
+@@ -2789,9 +2789,16 @@ at::Tensor flash_attention_decode_paged_xqa(
+       k_cache.size(2) > 0 &&
+       kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP8_E5M2 &&
+       xqa_mtp5_dual_cta_enabled();
++  const bool is_block16_contiguous_hkv1_layout =
++      k_cache.size(1) == 16 && k_cache.size(2) == 1 &&
++      k_cache.stride(0) == 4096 && k_cache.stride(1) == 256 &&
++      k_cache.stride(2) == 256 && k_cache.stride(3) == 1 &&
++      v_cache.stride(0) == 4096 && v_cache.stride(1) == 256 &&
++      v_cache.stride(2) == 256 && v_cache.stride(3) == 1;
+   const bool use_e5m2_g6_dual_cta =
+       q.size(0) == 1 && q_per_kv == 6 && partition_size == 256 &&
+-      k_cache.size(1) >= 256 && k_cache.size(1) % 16 == 0 &&
++      ((k_cache.size(1) >= 256 && k_cache.size(1) % 16 == 0) ||
++       is_block16_contiguous_hkv1_layout) &&
+       k_cache.size(2) == 1 && k_cache.scalar_type() == at::kByte &&
+       kv_dtype_code == flash_v100::KV_CACHE_DTYPE_FP8_E5M2 &&
+       !decode_partition_size_overridden() && xqa_e5m2_g6_dual_cta_enabled() &&
+@@ -2820,9 +2827,14 @@ at::Tensor flash_attention_decode_paged_xqa(
+                          ->multiProcessorCount)
+           : 0;
+   const bool use_e5m2_partition_page_ids =
+-      use_e5m2_g6_dual_cta && xqa_e5m2_partition_page_ids_enabled();
++      use_e5m2_g6_dual_cta && !is_block16_contiguous_hkv1_layout &&
++      xqa_e5m2_partition_page_ids_enabled();
++  const bool use_e5m2_block16_pair_load =
++      use_e5m2_g6_dual_cta && is_block16_contiguous_hkv1_layout &&
++      xqa_e5m2_pair_load_enabled();
+   const bool use_e5m2_pair_load =
+-      use_e5m2_partition_page_ids && xqa_e5m2_pair_load_enabled();
++      (use_e5m2_partition_page_ids || use_e5m2_block16_pair_load) &&
++      xqa_e5m2_pair_load_enabled();
+   const bool use_g6_dual_cta =
+       use_g6_p1024_auto || use_g6_p1024_sawtooth || use_mtp5_dual_cta ||
+       use_e5m2_g6_dual_cta ||
+@@ -2832,11 +2844,7 @@ at::Tensor flash_attention_decode_paged_xqa(
+                                 (use_g6_dual_cta && xqa_split_reduce_enabled());
+   const bool supports_block16_index = use_g6_dual_cta && k_cache.size(1) == 16;
+   const bool supports_block16_contiguous_layout =
+-      supports_block16_index && k_cache.size(2) == 1 &&
+-      k_cache.stride(0) == 4096 && k_cache.stride(1) == 256 &&
+-      k_cache.stride(2) == 256 && k_cache.stride(3) == 1 &&
+-      v_cache.stride(0) == 4096 && v_cache.stride(1) == 256 &&
+-      v_cache.stride(2) == 256 && v_cache.stride(3) == 1;
++      supports_block16_index && is_block16_contiguous_hkv1_layout;
+   const bool use_block784_index =
+       use_g6_dual_cta && k_cache.size(1) == 784 && xqa_block784_index_enabled();
+   const bool use_aligned_padded_smem = use_padded_smem && use_block784_index &&
+@@ -2977,7 +2985,15 @@ at::Tensor flash_attention_decode_paged_xqa(
+         exp_sums, active_num_partitions, softmax_scale, launch_num_partitions,
+         k_scale, v_scale, window_size_left, window_size_right, stream,
+         e5m2_scalar_xqa_seq_len, 0, 0, false);
+-    if (use_e5m2_pair_load) {
++    if (use_e5m2_block16_pair_load) {
++      launch_flash_attention_decode_paged_xqa_tc_256_wide<
++          256, 6, true, kXQATC256WideThreads, 1, 16, true, false,
++          kXQARouteP1024SawtoothMid, false, false, true>(
++          q, k_cache, v_cache, out, block_table, seq_lens, tmp_out, max_logits,
++          exp_sums, active_num_partitions, softmax_scale, k_scale, v_scale,
++          launch_num_partitions, false, split_reduce_dim_tile, stream,
++          e5m2_scalar_xqa_seq_len, e5m2_p1024_begin, 0, false);
++    } else if (use_e5m2_pair_load) {
+       launch_flash_attention_decode_paged_xqa_tc_256_wide<
+           256, 6, true, kXQATC256WideThreads, 1, 0, false, false,
+           kXQARouteP1024SawtoothMid, false, true, true>(
+@@ -3002,7 +3018,24 @@ at::Tensor flash_attention_decode_paged_xqa(
+           launch_num_partitions, false, split_reduce_dim_tile, stream,
+           e5m2_scalar_xqa_seq_len, e5m2_p1024_begin, 0, false);
+     }
+-    if (use_e5m2_partition_page_ids) {
++    if (use_e5m2_block16_pair_load) {
++      launch_flash_attention_decode_paged_xqa_tc_256_wide<
++          1024, 6, false, kXQATC256WideThreads, 1, 16, true, false,
++          kXQARouteP1024SawtoothMid, false, false, true>(
++          q, k_cache, v_cache, out, block_table, seq_lens, tmp_out,
++          max_logits, exp_sums, active_num_partitions, softmax_scale, k_scale,
++          v_scale, e5m2_p1024_one_cta_launch_num_partitions, false,
++          split_reduce_dim_tile, stream, e5m2_p1024_begin,
++          e5m2_g6_dual_cta_seq_len, 0, false);
++      launch_flash_attention_decode_paged_xqa_tc_256_wide<
++          1024, 6, false, kXQATCG6DualCtaThreads, 2, 16, true, false,
++          kXQARouteLongSeqLens, false, false, true>(
++          q, k_cache, v_cache, out, block_table, seq_lens, tmp_out,
++          max_logits, exp_sums, active_num_partitions, softmax_scale, k_scale,
++          v_scale, e5m2_p1024_launch_num_partitions, false,
++          split_reduce_dim_tile, stream, e5m2_g6_dual_cta_seq_len, 0, 0,
++          false);
++    } else if (use_e5m2_partition_page_ids) {
+       if (use_e5m2_pair_load) {
+         launch_flash_attention_decode_paged_xqa_tc_256_wide<
+             1024, 6, false, kXQATC256WideThreads, 1, 0, false, false,

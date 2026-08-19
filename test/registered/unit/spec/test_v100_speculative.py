@@ -19,6 +19,7 @@ from sglang.srt.layers.attention.flash_attn_v100_backend import (
     _dflash_target_xqa_requested,
     _get_native_paged_attention_params,
     _is_dflash_draft_native_shape_supported,
+    _long_decode_xqa_requested,
     _should_skip_triton_prefill,
 )
 from sglang.srt.layers.radix_attention import AttentionType
@@ -86,6 +87,110 @@ def test_dflash_target_xqa_rejects_invalid_override(monkeypatch):
 
     with pytest.raises(ValueError, match="must be a boolean value"):
         _dflash_target_xqa_requested()
+
+
+def test_long_decode_xqa_defaults_on(monkeypatch):
+    monkeypatch.delenv("SGLANG_V100_LONG_DECODE_XQA", raising=False)
+
+    assert _long_decode_xqa_requested() is True
+
+
+@pytest.mark.parametrize(("value", "expected"), [("yes", True), ("off", False)])
+def test_long_decode_xqa_explicit_override(monkeypatch, value, expected):
+    monkeypatch.setenv("SGLANG_V100_LONG_DECODE_XQA", value)
+
+    assert _long_decode_xqa_requested() is expected
+
+
+def test_long_decode_xqa_rejects_invalid_override(monkeypatch):
+    monkeypatch.setenv("SGLANG_V100_LONG_DECODE_XQA", "sometimes")
+
+    with pytest.raises(ValueError, match="must be a boolean value"):
+        _long_decode_xqa_requested()
+
+
+@pytest.mark.skipif(
+    not torch.cuda.is_available() or torch.cuda.get_device_capability() != (7, 0),
+    reason="native long decode requires an NVIDIA V100",
+)
+def test_long_decode_xqa_builds_page_table_from_triton_token_order(monkeypatch):
+    flash_attn_v100 = pytest.importorskip("flash_attn_v100")
+    monkeypatch.setenv("VLLM_FLASH_V100_XQA_G6_DUAL_CTA", "1")
+    monkeypatch.setenv("VLLM_FLASH_V100_XQA_BLOCK16_LAYOUT", "2")
+    monkeypatch.setenv("VLLM_FLASH_V100_XQA_SPLIT_REDUCE", "1")
+    torch.manual_seed(37)
+    seq_len = 32768
+    page_size = 16
+    num_pages = seq_len // page_size
+    k_cache = torch.randn(
+        num_pages,
+        page_size,
+        1,
+        256,
+        dtype=torch.float16,
+        device="cuda",
+    ).mul_(0.1)
+    v_cache = torch.randn_like(k_cache).mul_(0.1)
+    block_table = torch.randperm(
+        num_pages, dtype=torch.int32, device="cuda"
+    ).view(1, -1)
+    token_offsets = torch.arange(page_size, dtype=torch.int32, device="cuda")
+    kv_indices = (
+        block_table.view(-1, 1) * page_size + token_offsets.view(1, -1)
+    ).reshape(-1)
+    seq_lens = torch.tensor([seq_len], dtype=torch.int32, device="cuda")
+    q = torch.randn(1, 6 * 256, dtype=torch.float16, device="cuda").mul_(0.1)
+
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._long_decode_xqa_enabled = True
+    backend.page_size = page_size
+    backend.max_context_len = seq_len
+    backend._xqa_decode = flash_attn_v100.flash_attn_decode_paged_xqa
+    backend._xqa_decode_page_table = torch.empty(
+        1, num_pages, dtype=torch.int32, device="cuda"
+    )
+    backend._xqa_decode_active_num_partitions = torch.ones(
+        1, dtype=torch.int32, device="cuda"
+    )
+    backend._triton = SimpleNamespace(
+        forward_metadata=SimpleNamespace(kv_indices=kv_indices)
+    )
+    backend.token_to_kv_pool = SimpleNamespace(
+        get_key_buffer=lambda _layer_id: k_cache,
+        get_value_buffer=lambda _layer_id: v_cache,
+    )
+    layer = SimpleNamespace(
+        layer_id=0,
+        tp_q_head_num=6,
+        tp_k_head_num=1,
+        qk_head_dim=256,
+        v_head_dim=256,
+        scaling=256**-0.5,
+        k_scale=None,
+        v_scale=None,
+        sliding_window_size=-1,
+        xai_temperature_len=-1,
+        logit_cap=0.0,
+    )
+    forward_batch = SimpleNamespace(seq_lens=seq_lens, out_cache_loc=None)
+
+    assert backend._can_use_long_decode_xqa(q, layer, sinks=None)
+    actual = backend._forward_decode_xqa(
+        q, None, None, layer, forward_batch, save_kv_cache=False
+    )
+    expected = flash_attn_v100.flash_attn_decode_paged_xqa(
+        q.view(1, 6, 256),
+        k_cache,
+        v_cache,
+        block_table,
+        seq_lens,
+        softmax_scale=layer.scaling,
+        kv_cache_dtype="auto",
+        max_seq_len_hint=seq_len,
+        partition_size_hint=256,
+    )
+
+    torch.testing.assert_close(actual.view_as(expected), expected, rtol=0, atol=0)
 
 
 def test_dflash_normalizes_target_tensors_to_loaded_weight_dtype():
@@ -807,6 +912,7 @@ def test_v100_native_attention_uses_per_layer_dflash_mask(attn_type, window, exp
         (8, 2, 128, torch.float8_e4m3fn, True),  # TP4 E4M3
         (16, 4, 128, torch.float8_e4m3fn, False),  # TP2 E4M3 guard
         (10, 2, 128, torch.float16, True),  # Qwen3.8 DSpark GQA-5
+        (10, 2, 128, torch.float8_e5m2, True),  # compact DSpark KV
         (16, 2, 128, torch.float16, True),
         (16, 4, 256, torch.float16, False),
         (0, 0, 128, torch.float16, False),
@@ -822,6 +928,145 @@ def test_v100_native_dflash_draft_shape_support(
     )
 
     assert _is_dflash_draft_native_shape_supported(layer, kv_dtype) is expected
+
+
+def test_v100_e5m2_target_verify_uses_p256_native_xqa(monkeypatch):
+    monkeypatch.delenv("SGLANG_V100_NATIVE_LINEAR_VERIFY", raising=False)
+    captured = {}
+
+    def fake_xqa(q, k_cache, v_cache, page_table, seq_lens, **kwargs):
+        captured.update(
+            q=q,
+            k_cache=k_cache,
+            v_cache=v_cache,
+            page_table=page_table,
+            seq_lens=seq_lens,
+            kwargs=kwargs,
+        )
+        kwargs["out"].zero_()
+
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.page_size = 16
+    backend.max_context_len = 262144
+    backend._uses_sm70_fp8_kv = True
+    backend._uses_sm70_e4m3_kv = False
+    backend._uses_sm70_e5m2_kv = True
+    backend._target_xqa_enabled = False
+    backend._target_e5m2_xqa_enabled = True
+    backend._xqa_e4m3_supported = False
+    backend._xqa_decode = fake_xqa
+    backend._paged_decode = None
+    backend._wmma_decode = None
+    backend._fp8_prefill_scratch_enabled = False
+    backend._fp8_verify_k_scratch = None
+    backend._fp8_verify_v_scratch = None
+    backend._fp8_verify_page_table = None
+    backend._fp8_verify_kv_indptr = None
+    backend._fp8_verify_logical_indices = None
+    backend.model_runner = SimpleNamespace(
+        is_draft_worker=False,
+        spec_algorithm=SimpleNamespace(
+            is_dflash_family=lambda: True,
+            is_eagle=lambda: False,
+        ),
+        server_args=SimpleNamespace(speculative_eagle_topk=1),
+    )
+    k_cache = torch.zeros(4, 16, 1, 256, dtype=torch.float8_e5m2)
+    v_cache = torch.zeros_like(k_cache)
+    backend.token_to_kv_pool = SimpleNamespace(
+        get_kv_buffer=lambda _layer_id: (k_cache, v_cache)
+    )
+    rows = 7
+    backend.forward_metadata = SimpleNamespace(
+        page_table=torch.tensor([[0, 1, 2, 3]], dtype=torch.int32),
+        seq_lens=torch.tensor([64], dtype=torch.int32),
+        query_start_loc=torch.tensor([0, rows], dtype=torch.int32),
+        prefix_kv_lens=torch.tensor([57], dtype=torch.int32),
+        causal=True,
+        swa_page_table=None,
+        smallq_page_table=torch.zeros(rows, 4, dtype=torch.int32),
+        smallq_swa_page_table=None,
+        smallq_seq_lens=torch.arange(58, 65, dtype=torch.int32),
+        smallq_active_num_partitions=torch.tensor([1], dtype=torch.int32),
+        smallq_max_seq_len=64,
+    )
+    layer = SimpleNamespace(
+        layer_id=0,
+        is_cross_attention=False,
+        tp_q_head_num=6,
+        tp_k_head_num=1,
+        head_dim=256,
+        scaling=256**-0.5,
+        k_scale=None,
+        v_scale=None,
+        sliding_window_size=-1,
+    )
+    forward_batch = SimpleNamespace(
+        forward_mode=_ForwardMode(target_verify=True),
+        out_cache_loc=None,
+    )
+
+    output = backend.forward_extend(
+        torch.randn(rows, 6 * 256, dtype=torch.float16),
+        None,
+        None,
+        layer,
+        forward_batch,
+        save_kv_cache=False,
+    )
+
+    assert output.shape == (rows, 6 * 256)
+    assert captured["k_cache"].dtype == torch.uint8
+    assert captured["v_cache"].dtype == torch.uint8
+    assert captured["kwargs"]["kv_cache_dtype"] == "fp8_e5m2"
+    assert captured["kwargs"]["partition_size_hint"] == 256
+    assert captured["kwargs"]["active_num_partitions"].item() == 1
+
+
+def test_v100_e5m2_target_metadata_counts_p256_partitions():
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend.device = "cpu"
+    backend.page_size = 16
+    backend._max_pages = 5000
+    backend._target_e5m2_xqa_enabled = True
+    backend.model_runner = SimpleNamespace(is_draft_worker=False)
+    backend.req_to_token = torch.arange(80000, dtype=torch.int64).view(1, -1)
+    backend.token_to_kv_pool = SimpleNamespace()
+
+    metadata = backend._build_extend_metadata(
+        req_pool_indices=torch.tensor([0], dtype=torch.int64),
+        seq_lens=torch.tensor([65543], dtype=torch.int32),
+        extend_seq_lens=torch.tensor([7], dtype=torch.int32),
+        extend_prefix_lens=torch.tensor([65536], dtype=torch.int32),
+        causal=True,
+        build_smallq=True,
+    )
+
+    assert metadata.smallq_active_num_partitions.item() == 257
+    assert metadata.smallq_seq_lens.tolist() == list(range(65537, 65544))
+
+
+def test_v100_e5m2_prefill_also_builds_partial_chunk_triton_metadata():
+    backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
+    backend._uses_sm70_fp8_kv = True
+    backend._uses_sm70_e4m3_kv = False
+    backend._uses_sm70_e5m2_kv = True
+    backend._fp8_prefill_scratch_enabled = True
+    backend.model_runner = SimpleNamespace(is_draft_worker=False)
+    backend._triton = Mock()
+    backend._build_extend_metadata = Mock(return_value="native-metadata")
+    forward_batch = SimpleNamespace(
+        forward_mode=ForwardMode.EXTEND,
+        req_pool_indices="req-pool-indices",
+        seq_lens=torch.tensor([32769], dtype=torch.int32),
+        extend_prefix_lens=torch.tensor([32768], dtype=torch.int32),
+        extend_seq_lens=torch.tensor([1], dtype=torch.int32),
+    )
+
+    backend.init_forward_metadata(forward_batch)
+
+    assert backend.forward_metadata == "native-metadata"
+    backend._triton.init_forward_metadata.assert_called_once_with(forward_batch)
 
 
 def test_v100_native_extend_builds_distinct_swa_page_table():
@@ -1016,10 +1261,15 @@ def test_v100_triton_allocates_prefill_metadata_for_speculation(
 def test_v100_speculative_extend_delegates_to_triton(mode):
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend._uses_sm70_fp8_kv = False
+    backend._uses_sm70_e4m3_kv = False
+    backend._uses_sm70_e5m2_kv = False
+    backend._fp8_prefill_scratch_enabled = False
+    backend._target_e5m2_xqa_enabled = False
     backend.model_runner = SimpleNamespace(
         is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: False,
+            is_dflash_family=lambda: False,
             is_eagle=lambda: False,
         ),
         server_args=SimpleNamespace(speculative_eagle_topk=1),
@@ -1057,6 +1307,8 @@ def test_v100_mtp_linear_verify_builds_native_causal_metadata(monkeypatch):
     monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend._uses_sm70_fp8_kv = False
+    backend._uses_sm70_e4m3_kv = False
+    backend._uses_sm70_e5m2_kv = False
     backend.model_runner = SimpleNamespace(
         is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
@@ -1095,6 +1347,8 @@ def test_v100_dflash_verify_builds_native_causal_metadata(monkeypatch):
     monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", True)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend._uses_sm70_fp8_kv = False
+    backend._uses_sm70_e4m3_kv = False
+    backend._uses_sm70_e5m2_kv = False
     backend.model_runner = SimpleNamespace(
         is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
@@ -1133,10 +1387,13 @@ def test_v100_dflash_verify_uses_triton_when_tilelang_is_unavailable(monkeypatch
     monkeypatch.setattr(flash_attn_v100_backend, "_use_tilelang", False)
     backend = FlashAttnV100Backend.__new__(FlashAttnV100Backend)
     backend._uses_sm70_fp8_kv = False
+    backend._uses_sm70_e4m3_kv = False
+    backend._uses_sm70_e5m2_kv = False
     backend.model_runner = SimpleNamespace(
         is_draft_worker=False,
         spec_algorithm=SimpleNamespace(
             is_dflash=lambda: True,
+            is_dflash_family=lambda: True,
             is_eagle=lambda: False,
         ),
         server_args=SimpleNamespace(speculative_eagle_topk=1),
@@ -1188,6 +1445,7 @@ def test_v100_ai_bond_fallback_uses_supported_full_attention_signature(monkeypat
     backend._fp8_prefill_scratch_enabled = False
     backend._fp8_verify_k_scratch = None
     backend._target_xqa_enabled = False
+    backend._target_e5m2_xqa_enabled = False
     backend.page_size = 16
     backend.model_runner = SimpleNamespace(
         is_draft_worker=False,
@@ -1266,6 +1524,7 @@ def test_v100_native_extend_selects_swa_page_table(monkeypatch):
     backend._fp8_prefill_scratch_enabled = False
     backend._fp8_verify_k_scratch = None
     backend._target_xqa_enabled = False
+    backend._target_e5m2_xqa_enabled = False
     backend.page_size = 16
     backend.model_runner = SimpleNamespace(
         is_draft_worker=False,

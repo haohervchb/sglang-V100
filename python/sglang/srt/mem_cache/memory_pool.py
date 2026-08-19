@@ -1136,6 +1136,32 @@ class MHATokenToKVPool(KVCache):
             layer_id = layer_id_override
         else:
             layer_id = layer.layer_id
+        if (
+            self.dtype == torch.float8_e5m2
+            and self.store_dtype == torch.uint8
+            and cache_k.dtype == torch.float16
+            and cache_v.dtype == torch.float16
+        ):
+            from sglang.jit_kernel.sm70_fp8_kv import (
+                write_fp8_e5m2_cache_sm70,
+            )
+
+            maybe_detect_oob(
+                loc,
+                0,
+                self.k_buffer[layer_id - self.start_layer].shape[0],
+                "set_kv_buffer E5M2 native writer",
+            )
+            if write_fp8_e5m2_cache_sm70(
+                cache_k,
+                cache_v,
+                self.k_buffer[layer_id - self.start_layer],
+                self.v_buffer[layer_id - self.start_layer],
+                loc,
+                k_scale,
+                v_scale,
+            ):
+                return
         if cache_k.dtype != self.dtype:
             if k_scale is not None:
                 cache_k.div_(k_scale)

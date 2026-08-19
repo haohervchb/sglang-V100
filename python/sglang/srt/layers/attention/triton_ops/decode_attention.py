@@ -26,7 +26,7 @@ import torch
 import triton
 import triton.language as tl
 
-from sglang.srt.layers.attention.triton_ops.fp8_sm70 import fp8_e4m3fn_to_fp32
+from sglang.srt.layers.attention.triton_ops.fp8_sm70 import fp8_sm70_to_fp32
 from sglang.srt.utils import is_hip
 
 _is_hip = is_hip()
@@ -80,6 +80,7 @@ def _fwd_kernel_stage1(
     Lv: tl.constexpr,
     xai_temperature_len: tl.constexpr,
     SM70_FP8_KV: tl.constexpr,
+    SM70_FP8_E5M2: tl.constexpr,
 ):
     cur_batch = tl.program_id(0)
     cur_head = tl.program_id(1)
@@ -134,7 +135,7 @@ def _fwd_kernel_stage1(
                 other=0.0,
             )
             if SM70_FP8_KV:
-                k = fp8_e4m3fn_to_fp32(k).to(tl.float16)
+                k = fp8_sm70_to_fp32(k, SM70_FP8_E5M2).to(tl.float16)
             qk = tl.sum(q[None, :] * k, 1)
             qk *= sm_scale_withk
 
@@ -157,7 +158,7 @@ def _fwd_kernel_stage1(
                 other=0.0,
             )
             if SM70_FP8_KV:
-                v = fp8_e4m3fn_to_fp32(v).to(tl.float16)
+                v = fp8_sm70_to_fp32(v, SM70_FP8_E5M2).to(tl.float16)
 
             n_e_max = tl.maximum(tl.max(qk, 0), e_max)
             re_scale = tl.exp(e_max - n_e_max)
@@ -207,6 +208,7 @@ def _decode_att_m_fwd(
     logit_cap,
     xai_temperature_len=-1,
     sm70_fp8_kv=False,
+    sm70_fp8_e5m2=False,
 ):
     BLOCK = _BLOCK
     # [TODO] work around SGPR limit on MI3xx
@@ -262,6 +264,7 @@ def _decode_att_m_fwd(
         Lk=Lk,
         Lv=Lv,
         SM70_FP8_KV=sm70_fp8_kv,
+        SM70_FP8_E5M2=sm70_fp8_e5m2,
     )
 
 
@@ -300,6 +303,7 @@ def _fwd_grouped_kernel_stage1(
     HAS_MLA: tl.constexpr = False,
     USE_PDL: tl.constexpr = False,
     SM70_FP8_KV: tl.constexpr = False,
+    SM70_FP8_E5M2: tl.constexpr = False,
 ):
     cur_batch = tl.program_id(0)
     cur_head_id = tl.program_id(1)
@@ -379,7 +383,7 @@ def _fwd_grouped_kernel_stage1(
                 other=0.0,
             )
             if SM70_FP8_KV:
-                k = fp8_e4m3fn_to_fp32(k).to(tl.float16)
+                k = fp8_sm70_to_fp32(k, SM70_FP8_E5M2).to(tl.float16)
             qk = tl.dot(q_k, k)
             if BLOCK_DPE > 0:
                 offs_buf_kpe = kv_loc[None, :] * stride_buf_kbs + base_offs_kpe
@@ -389,7 +393,7 @@ def _fwd_grouped_kernel_stage1(
                     other=0.0,
                 )
                 if SM70_FP8_KV:
-                    kpe = fp8_e4m3fn_to_fp32(kpe).to(tl.float16)
+                    kpe = fp8_sm70_to_fp32(kpe, SM70_FP8_E5M2).to(tl.float16)
                 qk += tl.dot(qpe, kpe.to(qpe.dtype))
             qk *= sm_scale_withk
 
@@ -412,7 +416,7 @@ def _fwd_grouped_kernel_stage1(
                     other=0.0,
                 )
                 if SM70_FP8_KV:
-                    v = fp8_e4m3fn_to_fp32(v).to(tl.float16)
+                    v = fp8_sm70_to_fp32(v, SM70_FP8_E5M2).to(tl.float16)
 
             n_e_max = tl.maximum(tl.max(qk, 1), e_max)
             re_scale = tl.exp(e_max - n_e_max)
@@ -468,6 +472,7 @@ def _decode_grouped_att_m_fwd(
     has_mla=False,
     use_pdl=False,
     sm70_fp8_kv=False,
+    sm70_fp8_e5m2=False,
 ):
     BLOCK = _BLOCK_GROUPED
     Lk = k_buffer.shape[-1]
@@ -543,6 +548,7 @@ def _decode_grouped_att_m_fwd(
         HAS_MLA=has_mla,
         USE_PDL=use_pdl,
         SM70_FP8_KV=sm70_fp8_kv,
+        SM70_FP8_E5M2=sm70_fp8_e5m2,
         **extra_kargs,
     )
 
@@ -692,6 +698,7 @@ def decode_attention_fwd_normal(
     sinks=None,
     xai_temperature_len=-1,
     sm70_fp8_kv=False,
+    sm70_fp8_e5m2=False,
 ):
     _decode_att_m_fwd(
         q,
@@ -707,6 +714,7 @@ def decode_attention_fwd_normal(
         logit_cap,
         xai_temperature_len,
         sm70_fp8_kv,
+        sm70_fp8_e5m2,
     )
     _decode_softmax_reducev_fwd(
         attn_logits,
@@ -741,6 +749,7 @@ def decode_attention_fwd_grouped(
     has_mla=False,
     use_pdl=False,
     sm70_fp8_kv=False,
+    sm70_fp8_e5m2=False,
 ):
     _decode_grouped_att_m_fwd(
         q,
@@ -758,6 +767,7 @@ def decode_attention_fwd_grouped(
         has_mla=has_mla,
         use_pdl=use_pdl,
         sm70_fp8_kv=sm70_fp8_kv,
+        sm70_fp8_e5m2=sm70_fp8_e5m2,
     )
     _decode_softmax_reducev_fwd(
         attn_logits,
@@ -798,7 +808,12 @@ def decode_attention_fwd(
     assert q.shape[0] <= kv_indptr.shape[0] - 1
     assert q.shape[0] <= attn_logits.shape[0]
 
-    sm70_fp8_kv = (
+    sm70_fp8_e5m2 = (
+        _is_sm70
+        and k_buffer.dtype == torch.float8_e5m2
+        and v_buffer.dtype == torch.float8_e5m2
+    )
+    sm70_fp8_kv = sm70_fp8_e5m2 or (
         _is_sm70
         and k_buffer.dtype == torch.float8_e4m3fn
         and v_buffer.dtype == torch.float8_e4m3fn
@@ -830,6 +845,7 @@ def decode_attention_fwd(
             sinks=sinks,
             xai_temperature_len=xai_temperature_len,
             sm70_fp8_kv=sm70_fp8_kv,
+            sm70_fp8_e5m2=sm70_fp8_e5m2,
         )
     else:
         # GQA/MQA/MLA
@@ -852,4 +868,5 @@ def decode_attention_fwd(
             has_mla=has_mla,
             use_pdl=use_pdl,
             sm70_fp8_kv=sm70_fp8_kv,
+            sm70_fp8_e5m2=sm70_fp8_e5m2,
         )

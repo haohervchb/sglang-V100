@@ -8,10 +8,11 @@ the paged KV cache as ``[num_pages, page_size, num_kv_heads, head_dim]``
 Native prefix handling is via ``prefix_kv_lens`` — no ragged+paged+merge_state
 double-kernel, no FlattenKV, no FlashInfer wrapper ``plan()`` CPU overhead.
 
-Decode (forward_decode): delegated to sglang's ``TritonAttnBackend``, which
-carries the GooseLLM-derived SM70 split-K tuning. The ai-bond ``decode_fwd``
-kernel is intentionally not used (it produces inf/NaN exp_sums); GooseLLM
-itself runs Triton/tilelang for decode for the same reason.
+Decode (forward_decode): the exact Qwen TP4 H6/Hkv1/D256 FP16 shape uses
+1Cat's grouped XQA kernel with its Volta-specific operand movement. Other
+shapes retain sglang's GooseLLM-derived Triton SM70 split-K path. The old
+ai-bond ``decode_fwd`` kernel is intentionally not used (it produces inf/NaN
+exp_sums).
 
 The KV cache layout is shared with the Triton decode path (which views the 4D
 cache as flat 3D — see ``triton_backend._flatten_paged_kv_cache``).
@@ -49,11 +50,17 @@ _paged_decode = None
 _wmma_decode = None
 _xqa_decode_loaded = False
 _xqa_e4m3_supported = False
+_fp8_e5m2_paged_kv_to_fp16 = None
+
+_E5M2_PREFILL_BRIDGE_PAGE_SIZE = 784
 
 
 def _should_skip_triton_prefill(model_runner: "ModelRunner") -> bool:
     """Keep baseline decode lean while allocating metadata needed by spec verify."""
-    uses_sm70_fp8_kv = model_runner.kv_cache_dtype == torch.float8_e4m3fn
+    uses_sm70_fp8_kv = model_runner.kv_cache_dtype in (
+        torch.float8_e4m3fn,
+        torch.float8_e5m2,
+    )
     return not (model_runner.spec_algorithm.is_speculative() or uses_sm70_fp8_kv)
 
 
@@ -165,6 +172,7 @@ def _load_xqa_decode():
     """Load 1Cat's SM70 paged decode kernels when they are installed."""
     global _paged_decode, _wmma_decode, _xqa_decode
     global _xqa_decode_loaded, _xqa_e4m3_supported
+    global _fp8_e5m2_paged_kv_to_fp16
     if _xqa_decode_loaded:
         return _xqa_decode, _xqa_e4m3_supported, _wmma_decode
     _xqa_decode_loaded = True
@@ -176,6 +184,11 @@ def _load_xqa_decode():
             flash_attn_decode_paged_xqa_available,
             flash_attn_interface,
         )
+        try:
+            from flash_attn_v100 import fp8_e5m2_paged_kv_to_fp16
+        except ImportError:
+            fp8_e5m2_paged_kv_to_fp16 = None
+        _fp8_e5m2_paged_kv_to_fp16 = fp8_e5m2_paged_kv_to_fp16
 
         if not flash_attn_decode_paged_xqa_available():
             return None, False, flash_attn_decode_paged_wmma
@@ -220,6 +233,26 @@ def _dflash_target_xqa_requested() -> bool:
     ):
         raise ValueError(
             "SGLANG_V100_DFLASH_TARGET_XQA must be a boolean value, "
+            f"got {value!r}."
+        )
+    return value in ("1", "true", "on", "yes")
+
+
+def _long_decode_xqa_requested() -> bool:
+    """Enable the measured page-16 G6/D256 native decode specialization."""
+    value = os.environ.get("SGLANG_V100_LONG_DECODE_XQA", "1").strip().lower()
+    if value not in (
+        "0",
+        "false",
+        "off",
+        "no",
+        "1",
+        "true",
+        "on",
+        "yes",
+    ):
+        raise ValueError(
+            "SGLANG_V100_LONG_DECODE_XQA must be a boolean value, "
             f"got {value!r}."
         )
     return value in ("1", "true", "on", "yes")
@@ -279,7 +312,19 @@ class FlashAttnV100Backend(AttentionBackend):
         self.req_to_token = model_runner.req_to_token_pool.req_to_token
         self.token_to_kv_pool = model_runner.token_to_kv_pool
         self.skip_prefill = skip_prefill
-        self._uses_sm70_fp8_kv = model_runner.kv_cache_dtype == torch.float8_e4m3fn
+        self._uses_sm70_e4m3_kv = (
+            model_runner.kv_cache_dtype == torch.float8_e4m3fn
+        )
+        self._uses_sm70_e5m2_kv = model_runner.kv_cache_dtype == torch.float8_e5m2
+        self._uses_sm70_fp8_kv = (
+            self._uses_sm70_e4m3_kv or self._uses_sm70_e5m2_kv
+        )
+        (
+            self._xqa_decode,
+            self._xqa_e4m3_supported,
+            self._wmma_decode,
+        ) = _load_xqa_decode()
+        self._paged_decode = _paged_decode
         fp8_prefill_scratch = (
             os.environ.get("SGLANG_V100_FP8_PREFILL_SCRATCH", "1").strip().lower()
         )
@@ -302,22 +347,45 @@ class FlashAttnV100Backend(AttentionBackend):
             and fp8_prefill_scratch in ("1", "true", "on", "yes")
             and model_runner.model_config.head_dim
             == model_runner.model_config.v_head_dim
+            and (
+                self._uses_sm70_e4m3_kv
+                or _fp8_e5m2_paged_kv_to_fp16 is not None
+            )
         )
-        (
-            self._xqa_decode,
-            self._xqa_e4m3_supported,
-            self._wmma_decode,
-        ) = _load_xqa_decode()
-        self._paged_decode = _paged_decode
+        self._long_decode_xqa_enabled = (
+            _long_decode_xqa_requested() and self._xqa_decode is not None
+        )
+        if self._long_decode_xqa_enabled:
+            # These are the accepted page-16 settings from an isolated V100
+            # sweep. Preserve explicit user overrides for diagnosis/rollback.
+            os.environ.setdefault("VLLM_FLASH_V100_XQA_G6_DUAL_CTA", "1")
+            os.environ.setdefault("VLLM_FLASH_V100_XQA_BLOCK16_LAYOUT", "2")
+            os.environ.setdefault("VLLM_FLASH_V100_XQA_SPLIT_REDUCE", "1")
+            logger.info(
+                "SM70 decode: enabled native G6/D256 page-16 XQA "
+                "(dual CTA, contiguous block layout, split reducer)."
+            )
         target_xqa_requested = _dflash_target_xqa_requested()
         self._target_xqa_enabled = (
             target_xqa_requested
+            and self._uses_sm70_e4m3_kv
             and self._xqa_decode is not None
             and self._xqa_e4m3_supported
         )
+        # 1Cat's optimized quantized-KV contract on Volta is E5M2. Unlike the
+        # E4M3 verifier (where grouped TileLang can be faster), E5M2 must use
+        # the native byte-decoding XQA path for Qwen3.8's GQA-6/D256 target.
+        # The generic Triton fallback below remains available for unsupported
+        # shapes and explicit native-linear-verify opt-out.
+        self._target_e5m2_xqa_enabled = (
+            self._uses_sm70_e5m2_kv
+            and self._xqa_decode is not None
+            and model_runner.spec_algorithm.is_dflash_family()
+            and not model_runner.is_draft_worker
+        )
         if (
             target_xqa_requested
-            and self._uses_sm70_fp8_kv
+            and self._uses_sm70_e4m3_kv
             and model_runner.spec_algorithm.is_dflash_family()
             and not model_runner.is_draft_worker
             and not self._target_xqa_enabled
@@ -335,8 +403,8 @@ class FlashAttnV100Backend(AttentionBackend):
             model_runner.spec_algorithm.is_dflash_family()
             and not model_runner.is_draft_worker
         ):
-            if self._target_xqa_enabled:
-                target_verifier = "independent-row XQA"
+            if self._target_xqa_enabled or self._target_e5m2_xqa_enabled:
+                target_verifier = "independent-row native XQA"
             elif _use_tilelang:
                 target_verifier = "grouped TileLang block verifier"
             else:
@@ -364,6 +432,15 @@ class FlashAttnV100Backend(AttentionBackend):
         self._cg_smallq_swa_page_table: Optional[torch.Tensor] = None
         self._cg_smallq_seq_lens: Optional[torch.Tensor] = None
         self._cg_smallq_active_num_partitions: Optional[torch.Tensor] = None
+        self._xqa_decode_page_table = torch.empty(
+            1,
+            self._max_pages,
+            dtype=torch.int32,
+            device=self.device,
+        )
+        self._xqa_decode_active_num_partitions = torch.ones(
+            1, dtype=torch.int32, device=self.device
+        )
         self._fp8_verify_k_scratch: Optional[torch.Tensor] = None
         self._fp8_verify_v_scratch: Optional[torch.Tensor] = None
         self._fp8_verify_page_table: Optional[torch.Tensor] = None
@@ -375,6 +452,12 @@ class FlashAttnV100Backend(AttentionBackend):
         self._fp8_prefill_page_capacity = 0
         self._fp8_prefill_head_shape: Optional[tuple[int, int]] = None
         self._fp8_prefill_scratch_logged = False
+        self._e5m2_prefill_k_scratch: Optional[torch.Tensor] = None
+        self._e5m2_prefill_v_scratch: Optional[torch.Tensor] = None
+        self._e5m2_prefill_page_table: Optional[torch.Tensor] = None
+        self._e5m2_prefill_page_capacity = 0
+        self._e5m2_prefill_head_shape: Optional[tuple[int, int]] = None
+        self._e5m2_prefill_scratch_logged = False
 
         # Older FlashAttention-V100 builds do not provide direct E4M3 XQA.
         # Retain the exact FP16-scratch verifier for those builds and for
@@ -402,7 +485,7 @@ class FlashAttnV100Backend(AttentionBackend):
             verify_scratch_enabled
             and not self._target_xqa_enabled
             and not _use_tilelang
-            and self._uses_sm70_fp8_kv
+            and self._uses_sm70_e4m3_kv
             and model_runner.spec_algorithm.is_dflash_family()
             and not model_runner.is_draft_worker
             and max_running_requests == 1
@@ -501,6 +584,87 @@ class FlashAttnV100Backend(AttentionBackend):
             self._fp8_prefill_logical_pages[:total_pages],
         )
 
+    def _can_use_e5m2_prefill_bridge(
+        self,
+        q: torch.Tensor,
+        layer: "RadixAttention",
+        forward_mode,
+    ) -> bool:
+        """Bound the 1Cat E5M2 bridge to its measured Qwen3.8 TP4 lane."""
+        return (
+            self._uses_fp8_prefill_scratch(forward_mode)
+            and self._uses_sm70_e5m2_kv
+            and _fp8_e5m2_paged_kv_to_fp16 is not None
+            and self.page_size == V100_PAGE_SIZE
+            # The exact Split-D D256 operator accepts 64-token-aligned Q; the
+            # adapter uses 1Cat-style causal-safe padding for short tails.
+            # Keep tiny chunks on Triton, but admit both a 4000-token request
+            # and 1Cat's much faster 15680-token V100 prefill geometry.
+            and q.shape[0] >= 3920
+            and q.dtype == torch.float16
+            and layer.tp_q_head_num == 6
+            and layer.tp_k_head_num == 1
+            and layer.qk_head_dim == 256
+            and layer.v_head_dim == 256
+            and not layer.is_cross_attention
+            and layer.attn_type != AttentionType.ENCODER_ONLY
+            and (
+                layer.sliding_window_size is None
+                or layer.sliding_window_size < 0
+            )
+            and getattr(layer, "logit_cap", None) in (None, 0, 0.0)
+            and not torch.cuda.is_current_stream_capturing()
+        )
+
+    def _ensure_e5m2_prefill_bridge_scratch(
+        self,
+        required_pages: int,
+        num_kv_heads: int,
+        head_dim: int,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        head_shape = (num_kv_heads, head_dim)
+        if self._e5m2_prefill_head_shape != head_shape:
+            self._e5m2_prefill_k_scratch = None
+            self._e5m2_prefill_v_scratch = None
+            self._e5m2_prefill_page_table = None
+            self._e5m2_prefill_page_capacity = 0
+            self._e5m2_prefill_head_shape = head_shape
+
+        if self._e5m2_prefill_page_capacity < required_pages:
+            capacity = 1 << (max(1, required_pages) - 1).bit_length()
+            shape = (
+                capacity,
+                _E5M2_PREFILL_BRIDGE_PAGE_SIZE,
+                num_kv_heads,
+                head_dim,
+            )
+            self._e5m2_prefill_k_scratch = torch.empty(
+                shape, dtype=torch.float16, device=self.device
+            )
+            self._e5m2_prefill_v_scratch = torch.empty_like(
+                self._e5m2_prefill_k_scratch
+            )
+            self._e5m2_prefill_page_table = torch.arange(
+                capacity, dtype=torch.int32, device=self.device
+            ).unsqueeze(0)
+            self._e5m2_prefill_page_capacity = capacity
+
+        assert self._e5m2_prefill_k_scratch is not None
+        assert self._e5m2_prefill_v_scratch is not None
+        assert self._e5m2_prefill_page_table is not None
+        if not self._e5m2_prefill_scratch_logged:
+            logger.info(
+                "SM70 E5M2 KV prefill: expanding active paged KV once into "
+                "a reusable FP16 logical workspace (page=%d).",
+                _E5M2_PREFILL_BRIDGE_PAGE_SIZE,
+            )
+            self._e5m2_prefill_scratch_logged = True
+        return (
+            self._e5m2_prefill_k_scratch,
+            self._e5m2_prefill_v_scratch,
+            self._e5m2_prefill_page_table,
+        )
+
     # ------------------------------------------------------------------
     # Metadata construction
     # ------------------------------------------------------------------
@@ -540,7 +704,12 @@ class FlashAttnV100Backend(AttentionBackend):
                 "SGLANG_V100_NATIVE_LINEAR_VERIFY must be a boolean value, "
                 f"got {native_verify!r}."
             )
-        if self._uses_sm70_fp8_kv:
+        if self._uses_sm70_e5m2_kv:
+            return (
+                self._target_e5m2_xqa_enabled
+                and self.page_size == V100_PAGE_SIZE
+            )
+        if self._uses_sm70_e4m3_kv:
             return (
                 self.model_runner.spec_algorithm.is_dflash_family()
                 and self.page_size == V100_PAGE_SIZE
@@ -567,6 +736,17 @@ class FlashAttnV100Backend(AttentionBackend):
             spec_algorithm.is_eagle()
             and self.model_runner.server_args.speculative_eagle_topk <= 1
         )
+
+    def _smallq_partition_size(self) -> int:
+        """Workspace partition envelope for native linear verification.
+
+        The 1Cat E5M2 GQA-6/D256 XQA graph captures the largest p256 envelope
+        and selects p256/p1024 from device-side sequence lengths. Other
+        verifier kernels retain their established p1024 decomposition.
+        """
+        if self._target_e5m2_xqa_enabled and not self.model_runner.is_draft_worker:
+            return 256
+        return 1024
 
     def _build_extend_metadata(
         self,
@@ -682,8 +862,9 @@ class FlashAttnV100Backend(AttentionBackend):
             smallq_seq_lens = (
                 repeated_prefix_lens + token_indices - repeated_query_starts + 1
             ).contiguous()
+            partition_size = self._smallq_partition_size()
             smallq_active_num_partitions = torch.tensor(
-                [max(1, (max_seq_len + 1023) // 1024)],
+                [max(1, (max_seq_len + partition_size - 1) // partition_size)],
                 dtype=torch.int32,
                 device=self.device,
             )
@@ -739,7 +920,13 @@ class FlashAttnV100Backend(AttentionBackend):
             build_smallq=self._uses_native_linear_verify(mode),
         )
         self.forward_metadata = md
-        if self._uses_sm70_fp8_kv and self._uses_native_linear_verify(mode):
+        if self._uses_sm70_fp8_kv and (
+            self._uses_native_linear_verify(mode)
+            # Full aligned E5M2 chunks use the native bridge, but the final
+            # partial chunk deliberately falls back to Triton. Build both
+            # metadata views so a 32K+1 prompt cannot reach Triton with None.
+            or self._uses_sm70_e5m2_kv
+        ):
             self._triton.init_forward_metadata(forward_batch)
 
     # ------------------------------------------------------------------
@@ -1012,7 +1199,10 @@ class FlashAttnV100Backend(AttentionBackend):
         self._cg_smallq_seq_lens[:num_smallq_rows].copy_(
             repeated_prefix_lens + smallq_offsets
         )
-        self._cg_smallq_active_num_partitions.fill_(max(1, (max_len + 1023) // 1024))
+        partition_size = self._smallq_partition_size()
+        self._cg_smallq_active_num_partitions.fill_(
+            max(1, (max_len + partition_size - 1) // partition_size)
+        )
         self.forward_metadata = FlashAttnV100ExtendMetadata(
             page_table=self._cg_page_table[:bs],
             seq_lens=self._cg_seq_lens[:bs],
@@ -1054,6 +1244,118 @@ class FlashAttnV100Backend(AttentionBackend):
     # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
+    def _can_use_long_decode_xqa(
+        self,
+        q: torch.Tensor,
+        layer: "RadixAttention",
+        sinks,
+    ) -> bool:
+        if not self._long_decode_xqa_enabled or q.shape[0] != 1:
+            return False
+        if (
+            self.page_size != V100_PAGE_SIZE
+            or layer.tp_q_head_num != 6
+            or layer.tp_k_head_num != 1
+            or layer.qk_head_dim != 256
+            or layer.v_head_dim != 256
+            or q.dtype != torch.float16
+            or sinks is not None
+            or layer.xai_temperature_len > 0
+            or (
+                layer.sliding_window_size is not None
+                and layer.sliding_window_size >= 0
+            )
+            or getattr(layer, "logit_cap", None) not in (None, 0, 0.0)
+        ):
+            return False
+
+        k_cache = self.token_to_kv_pool.get_key_buffer(layer.layer_id)
+        v_cache = self.token_to_kv_pool.get_value_buffer(layer.layer_id)
+        return (
+            k_cache.dtype in (torch.float16, torch.float8_e5m2)
+            and v_cache.dtype == k_cache.dtype
+            and k_cache.ndim == 4
+            and v_cache.ndim == 4
+            and k_cache.shape[1:] == (V100_PAGE_SIZE, 1, 256)
+            and v_cache.shape[1:] == (V100_PAGE_SIZE, 1, 256)
+            and k_cache.stride(-1) == 1
+            and v_cache.stride(-1) == 1
+        )
+
+    def _forward_decode_xqa(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        layer: "RadixAttention",
+        forward_batch: "ForwardBatch",
+        save_kv_cache: bool,
+    ) -> torch.Tensor:
+        """Run native page-16 XQA using Triton's already-built KV ordering."""
+        q = q.reshape(-1, layer.tp_q_head_num * layer.qk_head_dim)
+        out = torch.empty_like(q)
+
+        if save_kv_cache:
+            self.token_to_kv_pool.set_kv_buffer(
+                layer,
+                forward_batch.out_cache_loc,
+                k,
+                v,
+                layer.k_scale,
+                layer.v_scale,
+            )
+
+        # For B=1, Triton's logical token list is also an inexpensive source
+        # for the native page table: every 16th slot is a logical page start.
+        # Eager metadata is runtime-sized; CUDA-graph metadata is capacity-sized,
+        # which intentionally fixes the launch grid while seq_lens controls the
+        # number of active partitions on device.
+        kv_indices = self._triton.forward_metadata.kv_indices
+        token_capacity = min(kv_indices.numel(), self.max_context_len)
+        page_starts = kv_indices[:token_capacity:V100_PAGE_SIZE]
+        page_table = self._xqa_decode_page_table[:, : page_starts.numel()]
+        torch.div(
+            page_starts,
+            V100_PAGE_SIZE,
+            rounding_mode="floor",
+            out=page_table.view(-1),
+        )
+
+        seq_lens = forward_batch.seq_lens[:1]
+        torch.add(
+            seq_lens,
+            255,
+            out=self._xqa_decode_active_num_partitions,
+        )
+        torch.div(
+            self._xqa_decode_active_num_partitions,
+            256,
+            rounding_mode="floor",
+            out=self._xqa_decode_active_num_partitions,
+        )
+        k_cache = self.token_to_kv_pool.get_key_buffer(layer.layer_id)
+        v_cache = self.token_to_kv_pool.get_value_buffer(layer.layer_id)
+        e5m2_kv = k_cache.dtype == torch.float8_e5m2
+        k_scale = layer.k_scale_float if layer.k_scale is not None else 1.0
+        v_scale = layer.v_scale_float if layer.v_scale is not None else 1.0
+        self._xqa_decode(
+            q.view(1, 6, 256),
+            k_cache.view(torch.uint8) if e5m2_kv else k_cache,
+            v_cache.view(torch.uint8) if e5m2_kv else v_cache,
+            page_table,
+            seq_lens,
+            softmax_scale=layer.scaling,
+            out=out.view(1, 6, 256),
+            kv_cache_dtype="fp8_e5m2" if e5m2_kv else "auto",
+            k_scale=k_scale,
+            v_scale=v_scale,
+            window_size=(-1, -1),
+            workspace_seq_capacity_hint=page_starts.numel() * V100_PAGE_SIZE,
+            active_num_partitions=self._xqa_decode_active_num_partitions,
+            partition_size_hint=256,
+        )
+        return out
+
     def forward_decode(
         self,
         q: torch.Tensor,
@@ -1064,6 +1366,16 @@ class FlashAttnV100Backend(AttentionBackend):
         save_kv_cache: bool = True,
         **kwargs,
     ):
+        sinks = kwargs.get("sinks")
+        if self._can_use_long_decode_xqa(q, layer, sinks):
+            return self._forward_decode_xqa(
+                q,
+                k,
+                v,
+                layer,
+                forward_batch,
+                save_kv_cache,
+            )
         return self._triton.forward_decode(
             q, k, v, layer, forward_batch, save_kv_cache=save_kv_cache, **kwargs
         )
@@ -1078,11 +1390,19 @@ class FlashAttnV100Backend(AttentionBackend):
         save_kv_cache: bool = True,
         **kwargs,
     ):
+        use_fp8_prefill_scratch = self._uses_fp8_prefill_scratch(
+            forward_batch.forward_mode
+        ) and (
+            not self._uses_sm70_e5m2_kv
+            or self._can_use_e5m2_prefill_bridge(
+                q, layer, forward_batch.forward_mode
+            )
+        )
         if (
             (
                 self._uses_sm70_fp8_kv
                 and not self._uses_native_linear_verify(forward_batch.forward_mode)
-                and not self._uses_fp8_prefill_scratch(forward_batch.forward_mode)
+                and not use_fp8_prefill_scratch
             )
             or (
                 forward_batch.forward_mode.is_target_verify()
@@ -1108,9 +1428,7 @@ class FlashAttnV100Backend(AttentionBackend):
             else forward_batch.encoder_out_cache_loc
         )
         if save_kv_cache and k is not None:
-            preserve_extend_kv = self._uses_fp8_prefill_scratch(
-                forward_batch.forward_mode
-            )
+            preserve_extend_kv = use_fp8_prefill_scratch
             self.token_to_kv_pool.set_kv_buffer(
                 layer,
                 cache_loc,
@@ -1154,8 +1472,12 @@ class FlashAttnV100Backend(AttentionBackend):
             )
 
         prefill_page_table = None
+        prefill_block_size = self.page_size
+        prefill_k_scale = layer.k_scale_float if layer.k_scale is not None else 1.0
+        prefill_v_scale = layer.v_scale_float if layer.v_scale is not None else 1.0
+        logical_dense_kv = False
         if (
-            self._uses_fp8_prefill_scratch(forward_batch.forward_mode)
+            use_fp8_prefill_scratch
             and k_cache.dtype == torch.float8_e4m3fn
             and k_cache.shape == v_cache.shape
             and k_cache.shape[2:]
@@ -1217,6 +1539,49 @@ class FlashAttnV100Backend(AttentionBackend):
             k_cache = scratch_k
             v_cache = scratch_v
             prefill_page_table = logical_pages.view(batch_size, pages_per_sequence)
+            logical_dense_kv = True
+        elif (
+            use_fp8_prefill_scratch
+            and self._uses_sm70_e5m2_kv
+            and k_cache.dtype == torch.float8_e5m2
+            and k_cache.shape == v_cache.shape
+            and k_cache.shape[2:] == (layer.tp_k_head_num, layer.head_dim)
+        ):
+            # 1Cat's vectorized bridge resolves the physical page table and
+            # converts every active E5M2 value exactly once. The resulting
+            # logical FP16 workspace feeds the dense Split-D kernel directly.
+            seq_len = md.smallq_max_seq_len
+            active_input_pages = (seq_len + self.page_size - 1) // self.page_size
+            active_page_table = md.page_table[:, :active_input_pages]
+            input_capacity = active_input_pages * self.page_size
+            required_pages = (
+                input_capacity + _E5M2_PREFILL_BRIDGE_PAGE_SIZE - 1
+            ) // _E5M2_PREFILL_BRIDGE_PAGE_SIZE
+            scratch_k, scratch_v, logical_pages = (
+                self._ensure_e5m2_prefill_bridge_scratch(
+                    required_pages,
+                    layer.tp_k_head_num,
+                    layer.head_dim,
+                )
+            )
+            assert _fp8_e5m2_paged_kv_to_fp16 is not None
+            _fp8_e5m2_paged_kv_to_fp16(
+                k_cache.view(torch.uint8),
+                v_cache.view(torch.uint8),
+                active_page_table,
+                md.seq_lens,
+                scratch_k,
+                scratch_v,
+                prefill_k_scale,
+                prefill_v_scale,
+            )
+            k_cache = scratch_k
+            v_cache = scratch_v
+            prefill_page_table = logical_pages
+            prefill_block_size = _E5M2_PREFILL_BRIDGE_PAGE_SIZE
+            prefill_k_scale = 1.0
+            prefill_v_scale = 1.0
+            logical_dense_kv = True
 
         verify_page_table = None
         if (
@@ -1319,7 +1684,13 @@ class FlashAttnV100Backend(AttentionBackend):
                 self._paged_decode is not None
                 if self.model_runner.is_draft_worker
                 else target_wmma
-                or (self._target_xqa_enabled and self._xqa_decode is not None)
+                or (
+                    (
+                        self._target_xqa_enabled
+                        or self._target_e5m2_xqa_enabled
+                    )
+                    and self._xqa_decode is not None
+                )
             )
             and self._uses_native_linear_verify(forward_batch.forward_mode)
             and md.smallq_page_table is not None
@@ -1347,10 +1718,26 @@ class FlashAttnV100Backend(AttentionBackend):
                     k_cache.dtype == torch.float8_e4m3fn
                     and (self.model_runner.is_draft_worker or self._xqa_e4m3_supported)
                 )
+                or (
+                    k_cache.dtype == torch.float8_e5m2
+                    and (
+                        self.model_runner.is_draft_worker
+                        or self._target_e5m2_xqa_enabled
+                    )
+                )
             )
         )
         if use_smallq_decode:
-            fp8_kv = k_cache.dtype == torch.float8_e4m3fn
+            fp8_kv = k_cache.dtype in (
+                torch.float8_e4m3fn,
+                torch.float8_e5m2,
+            )
+            if k_cache.dtype == torch.float8_e5m2:
+                kv_cache_dtype = "fp8_e5m2"
+            elif k_cache.dtype == torch.float8_e4m3fn:
+                kv_cache_dtype = "fp8_e4m3"
+            else:
+                kv_cache_dtype = "auto"
             sliding_window_size = (
                 int(layer.sliding_window_size)
                 if layer.sliding_window_size is not None
@@ -1388,7 +1775,7 @@ class FlashAttnV100Backend(AttentionBackend):
                     md.smallq_seq_lens,
                     softmax_scale=layer.scaling,
                     out=out,
-                    kv_cache_dtype="fp8_e4m3" if fp8_kv else "auto",
+                    kv_cache_dtype=kv_cache_dtype,
                     k_scale=(layer.k_scale_float if layer.k_scale is not None else 1.0),
                     v_scale=(layer.v_scale_float if layer.v_scale is not None else 1.0),
                     window_size=(
@@ -1399,7 +1786,7 @@ class FlashAttnV100Backend(AttentionBackend):
                     max_seq_len_hint=max(1, md.smallq_max_seq_len),
                     workspace_seq_capacity_hint=self.max_context_len,
                     active_num_partitions=md.smallq_active_num_partitions,
-                    partition_size_hint=1024,
+                    partition_size_hint=self._smallq_partition_size(),
                 )
             return out.reshape(num_tokens, layer.tp_q_head_num * layer.head_dim)
 
@@ -1409,7 +1796,7 @@ class FlashAttnV100Backend(AttentionBackend):
         )
         paged_kwargs = dict(
             out=out,
-            block_size=self.page_size,
+            block_size=prefill_block_size,
             softmax_scale=layer.scaling,
             causal=causal,
             num_kv_heads=layer.tp_k_head_num,
@@ -1420,8 +1807,10 @@ class FlashAttnV100Backend(AttentionBackend):
                 linear_verify=self._uses_native_linear_verify(
                     forward_batch.forward_mode
                 ),
-                k_scale=(layer.k_scale_float if layer.k_scale is not None else 1.0),
-                v_scale=(layer.v_scale_float if layer.v_scale is not None else 1.0),
+                k_scale=prefill_k_scale,
+                v_scale=prefill_v_scale,
+                max_seq_len_hint=getattr(md, "smallq_max_seq_len", None),
+                logical_dense_kv=logical_dense_kv,
             )
         elif sliding_window_size >= 0:
             # init_forward_metadata normally routes DFlash/SWA verification to
