@@ -20,6 +20,30 @@ _OPS_AVAILABLE = False
 
 _PREFILL_BACKENDS = ("auto", "turbomind", "fp16")
 
+# --- Opt-in SM70 QPN8 decode backend (W8A16, M<=8) ----------------------
+# Adapted from v100-skinny's QPN8 kernel for our block-wise [N/128][K/128]
+# fp32 scale checkpoint format. Packed codes + per-K-block scales are built
+# once at weight load; decode GEMMs (M<=8) route to the QPN8 kernel instead
+# of the TurboMind fp8_gemm when enabled. Non-gated exact-dense TP4 shapes
+# only (the fused gate/up path stays on TurboMind).
+_QPN8_SRC_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "jit_kernel"
+    / "csrc"
+    / "sm70_fp8_qpn8_decode.cu"
+)
+_QPN8_EXT = None
+_QPN8_EXACT_DENSE_SHAPES = {
+    "down_proj": (5120, 4352),
+    "gate_up_proj": (8704, 5120),
+    "in_proj_qkvz": (4096, 5120),
+    "out_proj": (5120, 1536),
+    "o_proj": (5120, 1536),
+}
+_QPN8_SPLITK = 16
+_QPN8_NACC = 1
+_KORDER8 = [0, 2, 4, 6, 1, 3, 5, 7, 8, 10, 12, 14, 9, 11, 13, 15]
+
 # Qwen3.8-27B-FP8 TP4 shapes admitted by 1Cat's real-weight, bitwise gates.
 # The TurboMind tensors have already been converted to logical KxN here.
 _SM70_FP8_PREFILL_DENSE_MIN_M = 3920
@@ -72,6 +96,103 @@ def _env_flag(name: str, default: str) -> bool:
     if value not in ("0", "false", "off", "no", "1", "true", "on", "yes"):
         raise ValueError(f"{name} must be a boolean value, got {value!r}.")
     return value in ("1", "true", "on", "yes")
+
+
+def _get_sm70_fp8_decode_qpn8_enabled() -> bool:
+    return _env_flag("SGLANG_SM70_FP8_DECODE_QPN8", "0")
+
+
+def _load_sm70_qpn8_ops():
+    """Lazy-load the standalone SM70 QPN8 decode extension (JIT-built)."""
+    global _QPN8_EXT
+    if _QPN8_EXT is not None:
+        return _QPN8_EXT
+    if not _QPN8_SRC_PATH.is_file():
+        raise RuntimeError(
+            f"SM70 QPN8 decode source not found: {_QPN8_SRC_PATH}"
+        )
+    if not torch.cuda.is_available() or torch.cuda.get_device_capability() != (7, 0):
+        raise RuntimeError("SM70 QPN8 decode requires an NVIDIA SM70 GPU.")
+    from torch.utils.cpp_extension import load_inline
+
+    build_directory = os.environ.get(
+        "SGLANG_SM70_QPN8_BUILD_DIR", "/tmp/sglang_qpn8_build"
+    )
+    os.makedirs(build_directory, exist_ok=True)
+    _QPN8_EXT = load_inline(
+        name="sglang_sm70_qpn8_v100",
+        cpp_sources="",
+        cuda_sources=_QPN8_SRC_PATH.read_text(),
+        functions=None,
+        is_python_module=True,
+        verbose=False,
+        build_directory=build_directory,
+        extra_cuda_cflags=["-O3", "--expt-relaxed-constexpr"],
+    )
+    logger.info_once(
+        "SM70 (V100): QPN8 decode extension loaded from %s.",
+        _QPN8_SRC_PATH,
+    )
+    return _QPN8_EXT
+
+
+def _qpn8_prepack(w8: torch.Tensor) -> torch.Tensor:
+    """(N,K) uint8 -> [tile N/32][group K/16][lane 32][16B] contiguous codes."""
+    n, k = w8.shape
+    dev = w8.device
+    tiles, groups = n // 32, k // 16
+    lane = torch.arange(32, device=dev)
+    col = ((lane >> 2) & 3) * 8 + (lane & 3) + ((lane & 16) > 0).long() * 4
+    korder = torch.tensor(_KORDER8, device=dev)
+    g = torch.arange(groups, device=dev)
+    kidx = g.view(groups, 1) * 16 + korder.view(1, 16)
+    ncol = torch.arange(tiles, device=dev).view(tiles, 1) * 32 + col.view(1, 32)
+    out = w8[ncol.view(tiles, 1, 32, 1).expand(tiles, groups, 32, 16),
+             kidx.view(1, groups, 1, 16).expand(tiles, groups, 32, 16)]
+    return out.contiguous().view(-1)
+
+
+def _qpn8_gscales(scale_inv: torch.Tensor, k: int) -> torch.Tensor:
+    """[N/128][K/128] fp32 -> half[K/128][N/32], decoder's *256 folded."""
+    nb, kb = scale_inv.shape
+    gs = scale_inv.t().reshape(k // 128, nb) * 256.0
+    gs = gs.repeat_interleave(4, dim=1).to(torch.float16).contiguous()
+    return gs
+
+
+def _is_sm70_fp8_qpn8_exact_dense_layer(layer: torch.nn.Module) -> bool:
+    if getattr(layer, "tp_size", 1) != 4:
+        return False
+    suffix = getattr(layer, "prefix", "").rsplit(".", 1)[-1]
+    expected = _QPN8_EXACT_DENSE_SHAPES.get(suffix)
+    return expected is not None and tuple(layer.weight.shape) == expected
+
+
+def _maybe_prepare_sm70_fp8_qpn8(layer: torch.nn.Module) -> None:
+    if not _get_sm70_fp8_decode_qpn8_enabled():
+        return
+    if not _is_sm70_fp8_qpn8_exact_dense_layer(layer):
+        return
+    weight = layer.weight.data
+    scales = layer.weight_scale_inv.data.to(torch.float32).contiguous()
+    n, k = weight.shape
+    if n % 128 or k % 128:
+        return
+    ext = _load_sm70_qpn8_ops()
+    raw = weight.view(torch.uint8).contiguous()  # already [N,K]
+    layer.sm70_fp8_qpn8_codes = _qpn8_prepack(raw)
+    layer.sm70_fp8_qpn8_gscales = _qpn8_gscales(scales, k)
+    layer.sm70_fp8_qpn8_shape = (k, n)
+    layer.sm70_fp8_qpn8_gated = (
+        getattr(layer, "prefix", "").rsplit(".", 1)[-1] == "gate_up_proj"
+    )
+    layer.sm70_fp8_qpn8_ready = True
+    logger.info_once(
+        "SM70 (V100): QPN8 decode backend prepared for %s K=%d N=%d.",
+        getattr(layer, "prefix", "?"),
+        k,
+        n,
+    )
 
 
 def _is_sm70_fp8_prefill_exact_dense_layer(layer: torch.nn.Module) -> bool:
@@ -180,6 +301,10 @@ def prepare_sm70_turbomind_fp8_linear(layer: torch.nn.Module) -> None:
     if getattr(layer, "weight_block_size", None) != [128, 128]:
         raise RuntimeError("SM70 TurboMind FP8 requires weight_block_size=[128, 128].")
 
+    # QPN8 decode codes must be captured from the raw checkpoint weight before
+    # the TurboMind repack replaces it.
+    _maybe_prepare_sm70_fp8_qpn8(layer)
+
     weight = layer.weight.data
     scales = layer.weight_scale_inv.data.to(torch.float32).contiguous()
     logical_widths = getattr(layer, "logical_widths", None)
@@ -236,35 +361,55 @@ def apply_sm70_turbomind_fp8_linear(
     x_2d = x.reshape(-1, x.shape[-1])
     if x_2d.stride(-1) != 1:
         x_2d = x_2d.contiguous()
-    out_2d = torch.empty(
-        (x_2d.shape[0], layer.output_size_per_partition),
-        dtype=x.dtype,
-        device=x.device,
-    )
-    if _use_sm70_fp8_prefill_dispatch(layer) and x_2d.dtype == torch.float16:
-        torch.ops.sglang_sm70_turbomind.fp8_prefill_dispatch(
-            out_2d,
-            layer.sm70_fp8_prefill_exact_dense_workspace_ptr,
+    k, n = layer.sm70_fp8_qpn8_shape if getattr(
+        layer, "sm70_fp8_qpn8_ready", False
+    ) else (None, layer.output_size_per_partition)
+    m = x_2d.shape[0]
+    if (
+        getattr(layer, "sm70_fp8_qpn8_ready", False)
+        and x_2d.dtype == torch.float16
+        and 0 < m <= 8
+        and x_2d.shape[-1] == k
+    ):
+        out_2d = _load_sm70_qpn8_ops().qpn8_linear(
             x_2d,
-            layer.weight,
-            layer.weight_scale_inv,
-            128,
-            layer.sm70_fp8_k_ld,
-            layer.sm70_fp8_q_ld,
-            False,
-            layer.sm70_fp8_prefill_min_tokens,
+            layer.sm70_fp8_qpn8_codes,
+            layer.sm70_fp8_qpn8_gscales,
+            n,
+            k,
+            _QPN8_SPLITK,
+            _QPN8_NACC,
         )
     else:
-        torch.ops.sglang_sm70_turbomind.fp8_gemm(
-            out_2d,
-            x_2d,
-            layer.weight,
-            layer.weight_scale_inv,
-            128,
-            layer.sm70_fp8_k_ld,
-            layer.sm70_fp8_q_ld,
-            False,
+        out_2d = torch.empty(
+            (m, layer.output_size_per_partition),
+            dtype=x.dtype,
+            device=x.device,
         )
+        if _use_sm70_fp8_prefill_dispatch(layer) and x_2d.dtype == torch.float16:
+            torch.ops.sglang_sm70_turbomind.fp8_prefill_dispatch(
+                out_2d,
+                layer.sm70_fp8_prefill_exact_dense_workspace_ptr,
+                x_2d,
+                layer.weight,
+                layer.weight_scale_inv,
+                128,
+                layer.sm70_fp8_k_ld,
+                layer.sm70_fp8_q_ld,
+                False,
+                layer.sm70_fp8_prefill_min_tokens,
+            )
+        else:
+            torch.ops.sglang_sm70_turbomind.fp8_gemm(
+                out_2d,
+                x_2d,
+                layer.weight,
+                layer.weight_scale_inv,
+                128,
+                layer.sm70_fp8_k_ld,
+                layer.sm70_fp8_q_ld,
+                False,
+            )
     if getattr(layer, "sm70_fp8_gated_silu", False):
         # The packed weight is interleaved for the fused epilogue. Preserve the
         # ordinary linear contract when a caller does not request fusion.
@@ -291,6 +436,29 @@ def apply_sm70_turbomind_fp8_fused_silu_and_mul(
     if x_2d.stride(-1) != 1:
         x_2d = x_2d.contiguous()
     out_features = layer.output_size_per_partition // 2
+    k, n = layer.sm70_fp8_qpn8_shape if getattr(
+        layer, "sm70_fp8_qpn8_gated", False
+    ) else (None, None)
+    m = x_2d.shape[0]
+    if (
+        getattr(layer, "sm70_fp8_qpn8_gated", False)
+        and x_2d.dtype == torch.float16
+        and 0 < m <= 8
+        and x_2d.shape[-1] == k
+    ):
+        gate_up = _load_sm70_qpn8_ops().qpn8_linear(
+            x_2d,
+            layer.sm70_fp8_qpn8_codes,
+            layer.sm70_fp8_qpn8_gscales,
+            n,
+            k,
+            _QPN8_SPLITK,
+            _QPN8_NACC,
+        )
+        gate = gate_up[:, :out_features]
+        up = gate_up[:, out_features:]
+        fused = torch.nn.functional.silu(gate) * up
+        return fused.reshape(*x.shape[:-1], out_features)
     out_2d = torch.empty(
         (x_2d.shape[0], out_features),
         dtype=x.dtype,
