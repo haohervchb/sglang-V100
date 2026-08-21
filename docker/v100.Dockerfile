@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       build-essential ca-certificates cmake curl git g++-12 libnuma-dev \
-      ninja-build pkg-config protobuf-compiler python3.12 python3.12-dev \
+      ninja-build patch pkg-config protobuf-compiler python3.12 python3.12-dev \
       python3-pip python3-venv \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python3 \
@@ -123,11 +123,32 @@ COPY python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp \
      /opt/sglang/python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp
 COPY python/sglang/jit_kernel/csrc/sm70_fp16_moe_gemm.cu \
      /opt/sglang/python/sglang/jit_kernel/csrc/sm70_fp16_moe_gemm.cu
+COPY python/sglang/jit_kernel/csrc/sm70_fp8_e5m2_cache.cu \
+     /opt/sglang/python/sglang/jit_kernel/csrc/sm70_fp8_e5m2_cache.cu
 RUN --mount=type=cache,target=/root/.cache/torch_extensions,sharing=locked \
     export MAX_JOBS="$(v100-safe-jobs)" \
     && export SGLANG_1CAT_VLLM_ROOT=/opt/deps/1cat-vllm \
     && export SGLANG_1CAT_CUTLASS_ROOT=/opt/deps/cutlass-1cat \
     && python /opt/sglang/scripts/build_sm70_turbomind.py
+
+# 1Cat's exact dense D256 prefill operators (split-D/gather/split-KV3). 1Cat
+# applies its two v1.3.0 patches to zhinianqin/flash-attention-v100 with GNU
+# `patch --batch --forward -p1 -l` (loose whitespace), so the strict `git
+# apply` used elsewhere here must not be used on these patches.
+COPY scripts/build_sm70_fa2_d256.py /opt/sglang/scripts/build_sm70_fa2_d256.py
+RUN git clone --filter=blob:none https://github.com/zhinianqin/flash-attention-v100.git \
+      /opt/deps/flash-attention-v100-fa2 \
+    && git -C /opt/deps/flash-attention-v100-fa2 checkout --detach \
+      c2eda5e6115b98c3ba4bfd181570668742eece22 \
+    && git -C /opt/deps/flash-attention-v100-fa2 submodule update --init --recursive csrc/cutlass \
+    && patch -d /opt/deps/flash-attention-v100-fa2 --batch --forward -p1 -l \
+      -i /opt/deps/1cat-vllm/cmake/patches/sm70_flash_attn_d256_pipeline.patch \
+    && patch -d /opt/deps/flash-attention-v100-fa2 --batch --forward -p1 -l \
+      -i /opt/deps/1cat-vllm/cmake/patches/sm70_flash_attn_d256_splitkv3.patch
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    export MAX_JOBS="$(v100-safe-jobs)" \
+    && export SGLANG_SM70_FA2_ROOT=/opt/deps/flash-attention-v100-fa2 \
+    && python /opt/sglang/scripts/build_sm70_fa2_d256.py
 
 # Only this source tree invalidates the sglang-kernel layer. The context ignores
 # all local .so/build outputs, preventing the stale-binary bug from the host.
@@ -189,10 +210,12 @@ marlin = [
     marlin_dir / "_sm70_marlin_v100_moe.abi3.so",
 ]
 turbomind = marlin_dir / "_sm70_turbomind_v100.so"
+fa2_d256 = marlin_dir / "_sm70_fa2_d256.so"
 native_attention = list(site.glob("flash_attn_v100_cuda*.so"))
 grpc_core = list(Path("/opt/sglang/python/sglang/srt/grpc").glob("_core*.so"))
 assert len(native_attention) == 1, native_attention
 assert len(grpc_core) == 1, grpc_core
+assert fa2_d256.is_file(), fa2_d256
 assert Path("/opt/deps/flashinfer-sm70/flashinfer/sampling.py").is_file()
 from flash_attn_v100 import flash_attn_interface
 assert flash_attn_interface.FLASH_ATTN_V100_XQA_E4M3_SUPPORTED is True
@@ -212,7 +235,12 @@ def validate_sm70(binary, required_strings):
 validate_sm70(common_ops[0], ["all_reduce", "gptq_gemm", "causal_conv1d_fwd"])
 validate_sm70(marlin[0], ["marlin_gemm"])
 validate_sm70(marlin[1], ["moe_wna16_marlin_gemm"])
-validate_sm70(turbomind, ["fp8_gemm", "f16_moe_gemm"])
+validate_sm70(turbomind, ["fp8_gemm", "f16_moe_gemm", "fp8_e5m2_cache_write"])
+validate_sm70(fa2_d256, [
+    "sm70_d256_splitd_n32_dense_fwd",
+    "sm70_d256_splitd_n32_dense_splitkv3_fwd",
+    "sm70_d256_splitd_n32_paged_fwd",
+])
 validate_sm70(native_attention[0], ["decode_paged_xqa_fwd"])
 print("SM70 build artifacts validated")
 PY
