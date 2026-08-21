@@ -414,6 +414,60 @@ Acceptance is workload-dependent. The synthetic rows validate graph capture,
 long-context KV operation, and selector stability; use the same prompt corpus
 for block-8 versus block-16 comparisons.
 
+#### Serve DFlash2 in Docker
+
+Build (or pull) the container image as shown in the
+[Docker section](#docker), then launch the same DFlash2 workload in a
+container. The image bakes in the V100 defaults (`NCCL_P2P_LEVEL=NVL`,
+`SGLANG_MAMBA_CONV_DTYPE=float16`, `SGLANG_MAMBA_SSM_DTYPE=float16`); the
+remaining flags are passed explicitly.
+
+```bash
+docker rm -f v100-dflash2 2>/dev/null
+
+docker run --rm --name v100-dflash2 \
+  --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -e HF_TOKEN="${HF_TOKEN:-}" \
+  -e FLASHINFER_DISABLE_VERSION_CHECK=1 \
+  -e SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+  -e SGLANG_ENABLE_SPEC_V2=1 \
+  -e SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
+  sglang-v100:latest \
+  --trust-remote-code \
+  --model-path Qwen/Qwen3.8-27B-FP8 \
+  --dtype float16 \
+  --kv-cache-dtype fp8_e5m2 \
+  --attention-backend flash_attn_v100 \
+  --tensor-parallel-size 4 \
+  --host 0.0.0.0 \
+  --port 8082 \
+  --mem-fraction-static 0.75 \
+  --context-length 262144 \
+  --max-total-tokens 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --mamba-full-memory-ratio 0.1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --cuda-graph-max-bs 1 \
+  --cuda-graph-bs 1 \
+  --enable-nccl-nvls \
+  --speculative-algorithm DFLASH \
+  --speculative-draft-model-path z-lab/Qwen3.8-27B-DFlash2 \
+  --speculative-dflash-block-size 8 \
+  --speculative-draft-model-quantization unquant \
+  --speculative-draft-window-size 2048 \
+  --reasoning-parser qwen3 \
+  --tool-call-parser qwen3_coder
+```
+
+`--network host` is required for TP4 NCCL on the tested single-node host.
+Startup takes several minutes (weight load plus CUDA-graph capture), and the
+first request after boot hits a one-time kernel/JIT warmup. The >128K prefill
+path uses the native D256 split-D operator that is compiled into this image;
+host and container were measured within 0.2% of each other at 131K and 200K.
+
 ### Qwen3.6-27B-FP8 with DFlash
 
 ```bash
