@@ -16,8 +16,10 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
-| `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | — | — | — | — | 118.1 tok/s warm short decode; 79.2 tok/s at 70K; ~60 tok/s steady at 200K‡ |
+| `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; 79.2 tok/s at 70K; ~60 tok/s steady at 200K; [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
+| `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
+| `Qwen/Qwen3.8-27B` | DSpark-7, FP16 KV | 2,020 tok/s | 73.6 tok/s | 3,001 tok/s | 74.5 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dspark_v100_20260821/README.md) |
 | `Qwen/Qwen3.6-27B-FP8` | DFlash-16, FP16 KV | 2,774 tok/s | 154.0 tok/s | 3,128 tok/s | 126.2 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen36_27b_fp8_tp_scaling_20260802/README.md) |
 | `Qwen/Qwen3.6-27B` | FP16, DFlash-16 | 3,261 tok/s | 101.2 tok/s | 3,631 tok/s | 86.6 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
 | `Qwen/Qwen3.6-35B-A3B` | FP16, DFlash-16 | 4,240 tok/s | 150.1 tok/s | 12,258 tok/s | 136.4 tok/s | [35B optimization results](https://github.com/haohervchb/sglang-V100/commit/7b8615f26e) |
