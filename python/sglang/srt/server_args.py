@@ -178,6 +178,8 @@ ATTENTION_BACKEND_CHOICES = [
     "tokenspeed_mla",
     "trtllm_mha",
     "dual_chunk_flash_attn",
+    "tilelang_fa_v100",
+    # Compatibility alias for older V100 launch commands.
     "flash_attn_v100",
     # AMD specific
     "aiter",
@@ -288,7 +290,7 @@ MAMBA_SCHEDULER_STRATEGY_CHOICES = ["auto", "no_buffer", "extra_buffer"]
 
 MAMBA_BACKEND_CHOICES = ["triton", "flashinfer"]
 
-LINEAR_ATTN_KERNEL_BACKEND_CHOICES = ["triton", "cutedsl", "flashinfer"]
+LINEAR_ATTN_KERNEL_BACKEND_CHOICES = ["triton", "tilelang", "cutedsl", "flashinfer"]
 
 
 # Allow external code to add more choices
@@ -1319,10 +1321,8 @@ class ServerArgs:
                 self.disable_piecewise_cuda_graph = True
 
     def _handle_sm70_backends(self):
-        # V100 (SM70): prefer the vendored TileLang paged prefill backend and
-        # keep the ai-bond extension as its native fallback.  Do not gate the
-        # backend on flash_attn_v100_cuda: a lean installation can run the
-        # preferred TileLang path without importing that fallback.
+        # V100 (SM70): use SGLang's packaged TileLang attention kernels. No
+        # separately installed FlashAttention-V100 extension is required.
         if not is_cuda():
             return
         if get_device_sm() != 70:
@@ -1335,13 +1335,17 @@ class ServerArgs:
                     paged_forward,
                 )
             except Exception:
-                try:
-                    import flash_attn_v100_cuda  # noqa: F401
-                except Exception:
-                    return
-            self.attention_backend = "flash_attn_v100"
-            logger.info("SM70 (V100): auto-selecting 'flash_attn_v100'.")
-        if self.attention_backend == "flash_attn_v100" and self.page_size is None:
+                return
+            self.attention_backend = "tilelang_fa_v100"
+            logger.info("SM70 (V100): auto-selecting 'tilelang_fa_v100'.")
+        if (
+            self.attention_backend
+            in (
+                "tilelang_fa_v100",
+                "flash_attn_v100",
+            )
+            and self.page_size is None
+        ):
             self.page_size = 16
             logger.info("SM70 (V100): auto-setting page_size=16.")
 

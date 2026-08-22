@@ -29,11 +29,8 @@ from pathlib import Path
 
 import torch
 import flashinfer.sampling as flashinfer_sampling
-import flash_attn_v100
-import flash_attn_v100_cuda
 import sgl_kernel
 from flashinfer.sampling import top_k_top_p_sampling_from_probs
-from flash_attn_v100 import flash_attn_interface
 from sglang.srt.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from sglang.srt.function_call.base_format_detector import get_model_structural_tag
 from sglang.srt.layers.quantization.marlin_utils import (
@@ -57,8 +54,6 @@ assert torch.version.cuda == "12.8", torch.version.cuda
 assert torch.cuda.is_available()
 assert torch.cuda.get_device_capability(0) == (7, 0)
 assert "/sm70/" in sgl_kernel.common_ops.__file__.replace("\\", "/")
-assert flash_attn_v100.flash_attn_decode_paged_xqa_available()
-assert flash_attn_interface.FLASH_ATTN_V100_XQA_E4M3_SUPPORTED is True
 assert NCCLLibrary().ncclGetRawVersion() == 22705
 gptq_repack, awq_repack = _sm70_marlin_v100_repack_ops()
 assert gptq_repack is not None, (
@@ -69,8 +64,8 @@ assert awq_repack is not None, "marlin_v100 AWQ repack is missing"
 assert _load_sm70_turbomind_fp8_ops(), "TurboMind SM70 FP8 ops are missing"
 assert _load_sm70_ops(), "TurboMind SM70 FP16 MoE ops are missing"
 assert hasattr(torch.ops.sglang_sm70_turbomind, "awq_dequantize_out"), (
-    "TurboMind SM70 exact AWQ dequantizer is missing; rebuild against "
-    "1Cat-vLLM v1.3.0"
+    "TurboMind SM70 exact AWQ dequantizer is missing; rebuild against the "
+    "pinned, attributed TurboMind source subset"
 )
 
 # Exercise the exact W8A16 block-FP8 operator used by Qwen3.6-27B-FP8.
@@ -256,8 +251,7 @@ torch.cuda.synchronize()
 
 print("SGLang V100 environment is ready:", torch.__version__)
 print("FlashInfer SM70 sampling:", sampling_path)
-print("Native attention:", flash_attn_v100_cuda.__file__)
-print("E4M3 XQA: registered")
+print("Attention: SGLang TileLang SM70 package")
 print("SM70 kernel:", sgl_kernel.common_ops.__file__)
 print("SM70 Marlin repack: registered")
 print("SM70 TurboMind FP8: registered")

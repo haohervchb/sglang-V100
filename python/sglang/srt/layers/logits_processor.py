@@ -15,6 +15,7 @@
 
 import dataclasses
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -24,6 +25,7 @@ from torch import nn
 from triton.language.extra import libdevice
 
 from sglang.srt.distributed import (
+    get_tp_group,
     get_tensor_model_parallel_world_size,
     tensor_model_parallel_all_gather,
 )
@@ -68,12 +70,60 @@ _is_npu = is_npu()
 _is_cpu = is_cpu()
 
 
+def _v100_greedy_tp_top1_enabled() -> bool:
+    value = os.environ.get("SGLANG_V100_GREEDY_TP_TOP1", "0").strip().lower()
+    if value not in ("0", "false", "off", "no", "1", "true", "on", "yes"):
+        raise ValueError("SGLANG_V100_GREEDY_TP_TOP1 must be a boolean value")
+    return value in ("1", "true", "on", "yes")
+
+
+def _is_strict_greedy_forward_batch(forward_batch: ForwardBatch) -> bool:
+    """Return whether top-1 can bypass every full-vocabulary consumer."""
+
+    if not _v100_greedy_tp_top1_enabled() or forward_batch.is_prefill_only:
+        return False
+    mode = forward_batch.forward_mode
+    if mode.is_target_verify() or not (mode.is_decode() or mode.is_extend()):
+        return False
+    spec_algorithm = forward_batch.spec_algorithm
+    if spec_algorithm is not None and not spec_algorithm.is_none():
+        return False
+    sampling = forward_batch.sampling_info
+    if sampling is None or not sampling.is_all_greedy:
+        return False
+    if forward_batch.return_logprob:
+        return False
+    if forward_batch.top_logprobs_nums and any(forward_batch.top_logprobs_nums):
+        return False
+    if forward_batch.token_ids_logprobs and any(forward_batch.token_ids_logprobs):
+        return False
+    if sampling.grammars and any(grammar is not None for grammar in sampling.grammars):
+        return False
+    if sampling.has_custom_logit_processor or sampling.logit_bias is not None:
+        return False
+    if sampling.vocab_mask is not None or sampling.apply_mask_func is not None:
+        return False
+    if sampling.acc_additive_penalties is not None:
+        return False
+    if sampling.acc_scaling_penalties is not None:
+        return False
+    if (
+        sampling.penalizer_orchestrator is not None
+        and sampling.penalizer_orchestrator.is_required
+    ):
+        return False
+    return True
+
+
 @dataclasses.dataclass
 class LogitsProcessorOutput:
     ## Part 1: This part will be assigned in python/sglang/srt/layers/logits_processor.py::LogitsProcessor
     # The logits of the next tokens.       shape: [#seq, vocab_size]
     # Can be None for certain prefill-only requests (e.g., multi-item scoring) that don't need next token generation
     next_token_logits: Optional[torch.Tensor]
+    # Strict-greedy TP shortcut. When set, no complete vocabulary logits were
+    # materialized and ModelRunner.sample returns these exact global token IDs.
+    greedy_token_ids: Optional[torch.Tensor] = None
     # Used by speculative decoding (EAGLE)
     # The last hidden layers
     hidden_states: Optional[torch.Tensor] = None
@@ -151,6 +201,7 @@ class LogitsMetadata:
 
     # Whether this batch is prefill-only (no token generation needed)
     is_prefill_only: bool = False
+    use_greedy_tp_top1: bool = False
 
     mm_input_embeds: Optional[torch.Tensor] = None
 
@@ -197,6 +248,7 @@ class LogitsMetadata:
             extend_input_logprob_token_ids_gpu=forward_batch.extend_input_logprob_token_ids_gpu,
             padded_static_len=forward_batch.padded_static_len,
             is_prefill_only=forward_batch.is_prefill_only,
+            use_greedy_tp_top1=_is_strict_greedy_forward_batch(forward_batch),
             global_num_tokens_gpu=forward_batch.global_num_tokens_gpu,
             dp_local_start_pos=forward_batch.dp_local_start_pos,
             dp_local_num_tokens=forward_batch.dp_local_num_tokens,
@@ -341,6 +393,19 @@ class LogitsProcessor(nn.Module):
         )
         del hidden_states
 
+        if self._can_use_greedy_tp_top1(pruned_states, lm_head, logits_metadata):
+            sampled_states = (
+                pruned_states[sample_indices]
+                if sample_indices is not None
+                else pruned_states
+            )
+            return LogitsProcessorOutput(
+                next_token_logits=None,
+                greedy_token_ids=self._get_greedy_tp_top1(sampled_states, lm_head),
+                hidden_states=hidden_states_to_store,
+                mm_input_embeds=logits_metadata.mm_input_embeds,
+            )
+
         if not logits_metadata.extend_return_logprob:
             # Compute logits for both input and sampled tokens.
             logits = self._get_logits(pruned_states, lm_head, logits_metadata)
@@ -400,6 +465,79 @@ class LogitsProcessor(nn.Module):
             input_token_ids_logprobs_idx=logprobs_result.input_token_ids_logprobs_idx,
             mm_input_embeds=logits_metadata.mm_input_embeds,
         )
+
+    def _can_use_greedy_tp_top1(
+        self,
+        hidden_states: torch.Tensor,
+        lm_head: VocabParallelEmbedding,
+        logits_metadata: LogitsMetadata,
+    ) -> bool:
+        """Check the remaining model/layout requirements for the shortcut."""
+
+        if not logits_metadata.use_greedy_tp_top1:
+            return False
+        if (
+            hidden_states.device.type != "cuda"
+            or torch.cuda.get_device_capability(hidden_states.device) != (7, 0)
+            or hidden_states.dtype != torch.float16
+        ):
+            return False
+        if (
+            get_tensor_model_parallel_world_size() <= 1
+            or not self.do_tensor_parallel_all_gather
+            or self.do_tensor_parallel_all_gather_dp_attn
+            or self.use_attn_tp_group
+        ):
+            return False
+        if (
+            self.use_fp32_lm_head
+            or self.return_full_logits
+            or self.logit_scale is not None
+            or self.final_logit_softcapping is not None
+            or logits_metadata.next_token_logits_buffer is not None
+        ):
+            return False
+        if not hasattr(lm_head, "weight") or hasattr(lm_head, "apply_lora"):
+            return False
+        weight = lm_head.weight
+        shard = getattr(lm_head, "shard_indices", None)
+        return (
+            weight.device == hidden_states.device
+            and weight.dtype == torch.float16
+            and weight.ndim == 2
+            and shard is not None
+            and getattr(lm_head, "num_added_embeddings", 0) == 0
+            and shard.num_org_elements > 0
+            and weight.shape[0] >= shard.num_org_elements
+        )
+
+    def _get_greedy_tp_top1(
+        self,
+        hidden_states: torch.Tensor,
+        lm_head: VocabParallelEmbedding,
+    ) -> torch.Tensor:
+        """Exchange one exact top-1 candidate per tensor-parallel rank."""
+
+        shard = lm_head.shard_indices
+        valid_rows = shard.num_org_elements
+        local_logits = torch.matmul(hidden_states, lm_head.weight[:valid_rows].T)
+        local_values, local_indices = torch.max(local_logits, dim=-1)
+        global_ids = local_indices + shard.org_vocab_start_index
+
+        # FP32 represents Qwen's token IDs exactly. Packing value/id together
+        # turns the full-vocabulary all-gather into one tiny collective.
+        candidates = torch.stack((local_values.float(), global_ids.float()), dim=-1)
+        gathered = (
+            get_tp_group()
+            .all_gather(candidates, dim=-1)
+            .reshape(
+                candidates.shape[0],
+                get_tensor_model_parallel_world_size(),
+                2,
+            )
+        )
+        best_rank = gathered[..., 0].argmax(dim=-1, keepdim=True)
+        return torch.gather(gathered[..., 1], 1, best_rank).squeeze(1).long()
 
     def _get_pruned_states(
         self,

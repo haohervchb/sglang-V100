@@ -144,6 +144,8 @@ def create_dsv4_backend(runner):
 
         logger.info("Using DeepseekV4AttnBackend for dsv4 attention backend (CUDA).")
         return DeepseekV4AttnBackend(runner)
+
+
 @register_attention_backend("triton")
 def create_triton_backend(runner):
     assert not runner.model_config.is_encoder_decoder, (
@@ -156,10 +158,11 @@ def create_triton_backend(runner):
     return TritonAttnBackend(runner)
 
 
-@register_attention_backend("flash_attn_v100")
-def create_flash_attn_v100_backend(runner):
+@register_attention_backend("tilelang_fa_v100")
+def create_tilelang_fa_v100_backend(runner):
+    """Primary name for SGLang's self-contained SM70 TileLang backend."""
     assert not runner.model_config.is_encoder_decoder, (
-        "Cross attention is not supported in the flash_attn_v100 backend."
+        "Cross attention is not supported in the tilelang_fa_v100 backend."
     )
 
     from sglang.srt.layers.attention.flash_attn_v100_backend import (
@@ -168,6 +171,11 @@ def create_flash_attn_v100_backend(runner):
 
     return FlashAttnV100Backend(runner)
 
+
+@register_attention_backend("flash_attn_v100")
+def create_flash_attn_v100_backend(runner):
+    """Compatibility alias for launch commands created before the rename."""
+    return create_tilelang_fa_v100_backend(runner)
 
 
 @register_attention_backend("torch_native")

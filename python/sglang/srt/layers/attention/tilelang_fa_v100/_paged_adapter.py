@@ -10,21 +10,24 @@ import warnings
 import torch
 
 from ._kernels_paged import get_paged_kernel
+from ._kernels_paged_decode import get_paged_decode_kernels
 from ._kernels_paged_verify import VERIFY_Q_BLOCK, get_paged_verify_kernels
 
 warnings.filterwarnings("ignore", message="Field.*duplicates an ancestor field")
 
-_FP8_E4M3FN_LUT = {}
+_FP8_LUTS = {}
 
 # One reusable dense page buffer per CUDA stream.  Stream-local ownership makes
 # reuse ordered without a host synchronization and avoids races when a process
 # drives more than one model stream.
 _D256_DENSE_WORKSPACES = {}
-_D256_TAIL_WORKSPACES = {}
 _D256_GATHER_OOM_WARNED = False
+_BFLA_APPROXIMATE_WARNED = False
 
 _D256_GATHER_MIN_QUERY_TOKENS = 3920
 _D256_GATHER_MIN_CONTEXT = 8192
+_BFLA_MASK_BLOCK_N = 256
+_BFLA_POOL_GROUP = 64
 
 
 def _env_flag(name, default):
@@ -61,14 +64,10 @@ def _should_use_d256_gather(
     # A bridge workspace has already paid the page-resolution cost and is
     # physically logical/dense. Use Split-D from the first full 4096-token
     # chunk; the 8K threshold only amortizes page-16 index_select gathers.
-    # 1Cat's production path admits arbitrary q lengths and tail-pads them to
-    # 64. SGLang's preferred 15680-token chunk is already aligned; 3920 is the
+    # The native kernel admits arbitrary q lengths and tail-pads them to 64.
+    # SGLang's preferred 15680-token chunk is already aligned; 3920 is the
     # exact-FP8 projection cutoff and also covers a measured 4000-token prompt.
-    min_context = (
-        num_tokens
-        if logical_dense_kv
-        else _D256_GATHER_MIN_CONTEXT
-    )
+    min_context = num_tokens if logical_dense_kv else _D256_GATHER_MIN_CONTEXT
     return (
         _env_flag("SGLANG_V100_PREFILL_D256_GATHER", "1")
         and batch == 1
@@ -105,26 +104,113 @@ def _get_d256_dense_workspace(k_cache, v_cache, required_pages):
     return workspace
 
 
-def _get_d256_tail_workspace(q, k, v, required_tokens):
-    """Return stream-ordered padding buffers for an unaligned Q tail."""
-    stream = torch.cuda.current_stream(q.device)
-    key = (
-        q.device.index,
-        stream.cuda_stream,
-        q.shape[1:],
-        k.shape[1:],
-        q.dtype,
+def _build_bfla_mask(q, k, prefix_kv_len, heads_kv):
+    """Build a conservative training-free block mask for the opt-in BFLA path.
+
+    A 256-token block is represented by four mean-pooled 64-token groups. For
+    each GQA head, the maximum group-to-group dot product ranks visible
+    KV blocks. Mean pooling makes selector work O(Q_blocks * KV_blocks * D)
+    rather than flattening 64 tokens and effectively paying attention-like
+    work before attention. Keeping the mask query-head-specific avoids
+    inflating a 10% selection into roughly 47% after unioning six GQA heads.
+    The selector keeps block zero and a configurable local window. It is
+    approximate whenever ``KEEP_RATIO < 1``.
+    """
+    mask_block = int(
+        os.environ.get("SGLANG_V100_BFLA_MASK_BLOCK_N", _BFLA_MASK_BLOCK_N)
     )
-    workspace = _D256_TAIL_WORKSPACES.get(key)
-    if workspace is None or workspace[0].shape[0] < required_tokens:
-        capacity = 1 << (required_tokens - 1).bit_length()
-        workspace = (
-            torch.empty((capacity, *q.shape[1:]), dtype=q.dtype, device=q.device),
-            torch.empty((capacity, *k.shape[1:]), dtype=k.dtype, device=k.device),
-            torch.empty((capacity, *v.shape[1:]), dtype=v.dtype, device=v.device),
+    if mask_block <= 0 or mask_block % _BFLA_POOL_GROUP:
+        raise ValueError(
+            "SGLANG_V100_BFLA_MASK_BLOCK_N must be a positive multiple of 64"
         )
-        _D256_TAIL_WORKSPACES[key] = workspace
-    return workspace
+    keep_ratio = float(os.environ.get("SGLANG_V100_BFLA_KEEP_RATIO", "1.0"))
+    if not 0 < keep_ratio <= 1:
+        raise ValueError("SGLANG_V100_BFLA_KEEP_RATIO must be in (0, 1]")
+    if keep_ratio < 1 and not _env_flag("SGLANG_V100_BFLA_ALLOW_APPROXIMATE", "0"):
+        raise ValueError(
+            "BFLA KEEP_RATIO < 1 changes attention semantics; set "
+            "SGLANG_V100_BFLA_ALLOW_APPROXIMATE=1 after validating retrieval "
+            "quality for the deployment workload"
+        )
+    local_blocks = max(0, int(os.environ.get("SGLANG_V100_BFLA_LOCAL_BLOCKS", "8")))
+    query_tokens, heads, dim = q.shape
+    kv_tokens = k.shape[0]
+    query_blocks = math.ceil(query_tokens / mask_block)
+    kv_blocks = math.ceil(kv_tokens / mask_block)
+    groups = mask_block // _BFLA_POOL_GROUP
+
+    q_block_end = torch.clamp(
+        prefix_kv_len
+        + (torch.arange(query_blocks, device=q.device) + 1) * mask_block
+        - 1,
+        max=kv_tokens - 1,
+    )
+    k_block_start = torch.arange(kv_blocks, device=q.device) * mask_block
+    causal = k_block_start[None, :] <= q_block_end[:, None]
+    if keep_ratio >= 1:
+        return causal.unsqueeze(0).expand(heads, -1, -1).to(torch.int32)
+
+    q_padded = torch.zeros(
+        query_blocks * mask_block,
+        heads,
+        dim,
+        device=q.device,
+        dtype=q.dtype,
+    )
+    k_padded = torch.zeros(
+        kv_blocks * mask_block,
+        heads_kv,
+        dim,
+        device=k.device,
+        dtype=k.dtype,
+    )
+    q_padded[:query_tokens].copy_(q)
+    k_padded[:kv_tokens].copy_(k)
+    q_groups = (
+        q_padded.view(query_blocks, groups, _BFLA_POOL_GROUP, heads, dim)
+        .mean(dim=2)
+        .permute(2, 0, 1, 3)
+    )
+    k_groups = (
+        k_padded.view(kv_blocks, groups, _BFLA_POOL_GROUP, heads_kv, dim)
+        .mean(dim=2)
+        .permute(2, 0, 1, 3)
+    )
+
+    group_size = heads // heads_kv
+    keep = torch.zeros(
+        heads,
+        query_blocks,
+        kv_blocks,
+        dtype=torch.bool,
+        device=q.device,
+    )
+    topk_count = max(1, min(kv_blocks, math.ceil(kv_blocks * keep_ratio)))
+    for kv_head in range(heads_kv):
+        q_group = q_groups[kv_head * group_size : (kv_head + 1) * group_size]
+        score = torch.einsum("hqgd,krd->hqkgr", q_group, k_groups[kv_head]).amax(
+            dim=(-1, -2)
+        )
+        score.masked_fill_(~causal.unsqueeze(0), float("-inf"))
+        selected = torch.topk(score.float(), topk_count, dim=-1).indices
+        per_head = torch.zeros_like(score, dtype=torch.bool)
+        per_head.scatter_(-1, selected, True)
+        keep[kv_head * group_size : (kv_head + 1) * group_size] = (
+            per_head & causal.unsqueeze(0)
+        )
+
+    query_abs_block = torch.div(
+        prefix_kv_len + torch.arange(query_blocks, device=q.device) * mask_block,
+        mask_block,
+        rounding_mode="floor",
+    )
+    key_blocks = torch.arange(kv_blocks, device=q.device)
+    local = (key_blocks[None, :] <= query_abs_block[:, None]) & (
+        key_blocks[None, :] >= query_abs_block[:, None] - local_blocks
+    )
+    keep |= local.unsqueeze(0) & causal.unsqueeze(0)
+    keep[:, :, 0] = True
+    return keep.to(torch.int32).contiguous()
 
 
 def _run_d256_gathered_dense(
@@ -140,7 +226,6 @@ def _run_d256_gathered_dense(
 ):
     """Gather logical pages once, then run exact N32 dense attention."""
     from ._kernels_dense_d256 import get_dense_prefix_d256_kernel
-    from ._native_d256 import run_native_dense_d256
 
     active_pages = (max_seq_len + k_cache.shape[1] - 1) // k_cache.shape[1]
     if logical_dense_kv:
@@ -160,60 +245,59 @@ def _run_d256_gathered_dense(
 
     dense_k = dense_k_pages[:active_pages].flatten(0, 1)[:max_seq_len]
     dense_v = dense_v_pages[:active_pages].flatten(0, 1)[:max_seq_len]
-    use_native = _env_flag("SGLANG_V100_PREFILL_D256_NATIVE", "1")
-    use_splitkv3 = (
-        _env_flag("SGLANG_V100_PREFILL_D256_SPLITKV3", "0")
+    use_bfla = (
+        _env_flag("SGLANG_V100_BFLA_PREFILL", "0")
+        and q.shape[0] >= 4096
         and max_seq_len >= 32768
     )
-    if use_native:
-        native_q = q
-        native_k = dense_k
-        native_v = dense_v
-        result_start = 0
-        if q.shape[0] % 64 != 0:
-            padded_q_tokens = ((q.shape[0] + 63) // 64) * 64
-            padded_q, padded_k, padded_v = _get_d256_tail_workspace(
-                q, dense_k, dense_v, padded_q_tokens
-            )
-            if padded_q_tokens <= dense_k.shape[0] and dense_k.shape[0] % 32 == 0:
-                # FlashAttention's causal mask is bottom-right aligned. Prefix
-                # padding Q preserves the original Q/K alignment when K is
-                # already long enough, exactly as in 1Cat's bridge path.
-                result_start = padded_q_tokens - q.shape[0]
-                padded_q[:result_start].zero_()
-                padded_q[result_start:padded_q_tokens].copy_(q)
-                native_q = padded_q[:padded_q_tokens]
-            elif q.shape[0] == dense_k.shape[0]:
-                # A full 4000-token prompt has no prefix space for left Q
-                # padding. Append inert Q/K/V rows instead; causal outputs for
-                # every original row are unchanged because the padding is
-                # strictly after them.
-                padded_q[: q.shape[0]].copy_(q)
-                padded_k[: dense_k.shape[0]].copy_(dense_k)
-                padded_v[: dense_v.shape[0]].copy_(dense_v)
-                padded_q[q.shape[0] : padded_q_tokens].zero_()
-                padded_k[dense_k.shape[0] : padded_q_tokens].zero_()
-                padded_v[dense_v.shape[0] : padded_q_tokens].zero_()
-                native_q = padded_q[:padded_q_tokens]
-                native_k = padded_k[:padded_q_tokens]
-                native_v = padded_v[:padded_q_tokens]
-        native_result = run_native_dense_d256(
-            native_q,
-            native_k,
-            native_v,
-            softmax_scale,
-            splitkv3=use_splitkv3,
+    if use_bfla:
+        global _BFLA_APPROXIMATE_WARNED
+        from ._kernels_dense_d256_sparse import (
+            get_dense_prefix_d256_sparse_kernel,
         )
-        if native_result is not None:
-            return native_result[result_start : result_start + q.shape[0]]
 
-    if use_splitkv3:
+        mask = _build_bfla_mask(
+            q,
+            dense_k,
+            max_seq_len - num_tokens,
+            heads_kv,
+        )
+        if (
+            float(os.environ.get("SGLANG_V100_BFLA_KEEP_RATIO", "1.0")) < 1
+            and not _BFLA_APPROXIMATE_WARNED
+        ):
+            warnings.warn(
+                "Approximate BFLA prefill is enabled. Validate retrieval and "
+                "long-context quality before production use.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            _BFLA_APPROXIMATE_WARNED = True
+        sparse = get_dense_prefix_d256_sparse_kernel(
+            q.shape[1],
+            heads_kv,
+            mask.shape[1],
+            mask.shape[2],
+            int(os.environ.get("SGLANG_V100_BFLA_MASK_BLOCK_N", _BFLA_MASK_BLOCK_N)),
+        )
+        return sparse(
+            q,
+            dense_k,
+            dense_v,
+            max_seq_len - num_tokens,
+            softmax_scale,
+            mask,
+        )
+    split_kv = int(os.environ.get("SGLANG_V100_PREFILL_D256_SPLIT_KV", "1"))
+    if split_kv < 1:
+        raise ValueError("SGLANG_V100_PREFILL_D256_SPLIT_KV must be >= 1")
+    if split_kv > 1 and max_seq_len >= 32768:
         from ._kernels_dense_d256_splitkv import (
             get_dense_prefix_d256_splitkv3_kernels,
         )
 
         partial, merge = get_dense_prefix_d256_splitkv3_kernels(
-            q.shape[1], heads_kv
+            q.shape[1], heads_kv, splits=split_kv
         )
         partial_o, partial_max, partial_sum = partial(
             q,
@@ -239,14 +323,109 @@ def _run_d256_gathered_dense(
     )
 
 
-def _get_fp8_e4m3fn_lut(device):
-    key = str(device)
-    lut = _FP8_E4M3FN_LUT.get(key)
+def _get_fp8_lut(device, dtype):
+    key = (str(device), dtype)
+    lut = _FP8_LUTS.get(key)
     if lut is None:
-        raw = torch.arange(256, dtype=torch.uint8, device=device)
-        lut = raw.view(torch.float8_e4m3fn).to(torch.float16)
-        _FP8_E4M3FN_LUT[key] = lut
+        if dtype is None:
+            # The native verifier keeps a stable ABI for FP16 and FP8 KV.
+            # This operand is compile-time dead for FP16, but TileLang still
+            # requires a correctly shaped tensor at the call boundary.
+            lut = torch.zeros(256, dtype=torch.float16, device=device)
+        else:
+            raw = torch.arange(256, dtype=torch.uint8, device=device)
+            lut = raw.view(dtype).to(torch.float16)
+        _FP8_LUTS[key] = lut
     return lut
+
+
+def _get_fp8_e4m3fn_lut(device):
+    return _get_fp8_lut(device, torch.float8_e4m3fn)
+
+
+def grouped_decode_forward(
+    q,
+    k_cache,
+    v_cache,
+    page_table,
+    seq_lens,
+    *,
+    softmax_scale,
+    k_scale=1.0,
+    v_scale=1.0,
+):
+    """Run the exact grouped TileLang q=1 split-KV decoder."""
+    batch, heads, dim = q.shape
+    heads_kv = k_cache.shape[2]
+    fp8_kv = k_cache.dtype in (torch.float8_e4m3fn, torch.float8_e5m2)
+    if v_cache.dtype != k_cache.dtype:
+        raise ValueError("K and V cache dtypes must match for grouped decode.")
+    partial, combine, _ = get_paged_decode_kernels(
+        batch=batch,
+        heads=heads,
+        heads_kv=heads_kv,
+        dim=dim,
+        page_size=k_cache.shape[1],
+        num_pages=k_cache.shape[0],
+        max_blocks=page_table.shape[1],
+        fp8_kv=fp8_kv,
+        e5m2_kv=k_cache.dtype == torch.float8_e5m2,
+    )
+    if fp8_kv:
+        lut = _get_fp8_lut(q.device, k_cache.dtype)
+        k_cache = k_cache.view(torch.uint8)
+        v_cache = v_cache.view(torch.uint8)
+    else:
+        # The LUT is an ABI placeholder in the FP16 specialization.
+        lut = torch.empty(256, dtype=torch.float16, device=q.device)
+    seq_lens = seq_lens.to(dtype=torch.int32)
+    partial_o, partial_lse = partial(
+        q,
+        k_cache,
+        v_cache,
+        lut,
+        page_table,
+        seq_lens,
+        float(softmax_scale),
+        float(k_scale),
+        float(v_scale),
+    )
+    return combine(partial_o, partial_lse, seq_lens)
+
+
+def gather_fp8_paged_kv(
+    k_cache,
+    v_cache,
+    page_table,
+    seq_lens,
+    k_output,
+    v_output,
+):
+    """Resolve and decode logical FP8 pages into caller-owned FP16 buffers."""
+    from ._kernels_fp8_bridge import get_fp8_paged_gather_kernel
+
+    if k_cache.dtype not in (torch.float8_e4m3fn, torch.float8_e5m2):
+        raise ValueError("gather_fp8_paged_kv expects E4M3 or E5M2 cache")
+    if v_cache.dtype != k_cache.dtype:
+        raise ValueError("K and V cache dtypes must match")
+    batch, max_blocks = page_table.shape
+    kernel = get_fp8_paged_gather_kernel(
+        batch,
+        k_cache.shape[2],
+        k_cache.shape[3],
+        k_cache.shape[1],
+        k_cache.shape[0],
+        max_blocks,
+    )
+    kernel(
+        k_cache.view(torch.uint8),
+        v_cache.view(torch.uint8),
+        _get_fp8_lut(k_cache.device, k_cache.dtype),
+        page_table.to(dtype=torch.int32),
+        seq_lens.to(dtype=torch.int32),
+        k_output,
+        v_output,
+    )
 
 
 def paged_forward(
@@ -281,8 +460,10 @@ def paged_forward(
     num_blocks = k_cache.shape[0]
     max_blocks = block_table.shape[1]
     fp8_kv = (
-        k_cache.dtype == torch.float8_e4m3fn and v_cache.dtype == torch.float8_e4m3fn
+        k_cache.dtype in (torch.float8_e4m3fn, torch.float8_e5m2)
+        and v_cache.dtype == k_cache.dtype
     )
+    fp8_dtype = k_cache.dtype if fp8_kv else None
     if max_seq_len_hint is None:
         max_seq_len_hint = int(seq_lens.max().item()) if B > 0 else 0
 
@@ -320,7 +501,7 @@ def paged_forward(
             q,
             k_cache,
             v_cache,
-            _get_fp8_e4m3fn_lut(q.device),
+            _get_fp8_lut(q.device, fp8_dtype),
             block_table,
             seq_lens,
             query_start_loc,

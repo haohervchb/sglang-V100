@@ -40,7 +40,7 @@ services:
       - --quantization
       - gptq_marlin
       - --attention-backend
-      - flash_attn_v100
+      - tilelang_fa_v100
       - --tensor-parallel-size
       - "4"
       - --host

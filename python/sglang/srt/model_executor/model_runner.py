@@ -3663,6 +3663,15 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         Returns:
             A list of next_token_ids
         """
+        if logits_output.greedy_token_ids is not None:
+            # The logits processor admitted this path only when there are no
+            # penalties, masks, logprobs, custom processors, or speculative
+            # consumers. The IDs are the exact global argmax after exchanging
+            # one local candidate per TP rank.
+            next_token_ids = logits_output.greedy_token_ids
+            self.maybe_update_ngram_token_table(next_token_ids, forward_batch)
+            return next_token_ids
+
         self._preprocess_logits(logits_output, forward_batch.sampling_info)
 
         # Sample the next tokens

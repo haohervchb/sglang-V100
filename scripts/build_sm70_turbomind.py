@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Build the optional 1Cat/LMDeploy TurboMind SM70 extension.
+"""Build the optional LMDeploy/1Cat TurboMind SM70 extension.
 
 Run this with the same Python/Torch environment used to serve SGLang:
 
     conda run -n sglang-v100 python scripts/build_sm70_turbomind.py
 
-The 1Cat-vLLM checkout is only a source provider. The resulting private
-extension is compiled against the active Torch ABI and installed beside the
-SGLang JIT loaders, so it does not load or register 1Cat's vLLM extension.
+Only the explicitly attributed TurboMind and MoE source subtrees are needed.
+The resulting private extension is compiled against the active Torch ABI and
+installed beside the SGLang JIT loaders; no vLLM or attention package from the
+source repository is installed or imported.
 """
 
 from __future__ import annotations
@@ -19,24 +20,29 @@ from pathlib import Path
 from torch.utils.cpp_extension import load
 
 repo = Path(__file__).resolve().parents[1]
-source_root = Path(os.environ.get("SGLANG_1CAT_VLLM_ROOT", "~/1Cat-vLLM")).expanduser()
+source_root = Path(
+    os.environ.get(
+        "SGLANG_TURBOMIND_SM70_ROOT",
+        Path.home() / ".cache/sglang-v100-sources/turbomind-sm70-source",
+    )
+).expanduser()
 tm_root = source_root / "csrc" / "sm70_turbomind"
 lmdeploy = tm_root / "lmdeploy"
 cutlass_root = Path(
     os.environ.get(
-        "SGLANG_1CAT_CUTLASS_ROOT",
-        source_root / ".deps" / "cutlass-src",
+        "SGLANG_TURBOMIND_CUTLASS_ROOT",
+        Path.home() / ".cache/sglang-v100-sources/cutlass-turbomind",
     )
 ).expanduser()
 if not lmdeploy.is_dir():
     raise SystemExit(
         f"TurboMind sources not found under {tm_root}. Set "
-        "SGLANG_1CAT_VLLM_ROOT to the 1Cat-vLLM checkout."
+        "SGLANG_TURBOMIND_SM70_ROOT to the attributed source subset."
     )
 if not (cutlass_root / "include" / "cutlass" / "cutlass.h").is_file():
     raise SystemExit(
         f"CUTLASS headers not found under {cutlass_root}. Set "
-        "SGLANG_1CAT_CUTLASS_ROOT to the pinned CUTLASS checkout."
+        "SGLANG_TURBOMIND_CUTLASS_ROOT to the pinned CUTLASS checkout."
     )
 
 lmdeploy_sources = [

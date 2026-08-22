@@ -4,6 +4,6 @@ on sglang's Triton backend. Adapted for sglang's tilelang 0.1.8
 (T.GemmWarpPolicy accessor, decorator-form jit, BaseKernelAdapter patch).
 """
 
-from ._paged_adapter import paged_forward
+from ._paged_adapter import gather_fp8_paged_kv, grouped_decode_forward, paged_forward
 
-__all__ = ["paged_forward"]
+__all__ = ["gather_fp8_paged_kv", "grouped_decode_forward", "paged_forward"]

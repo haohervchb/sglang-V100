@@ -109,7 +109,7 @@ def test_dflash2_uses_existing_dflash_cli_and_checkpoint_defaults(monkeypatch):
         max_running_requests=1,
         disable_overlap_schedule=False,
         enable_mixed_chunk=False,
-        attention_backend="flash_attn_v100",
+        attention_backend="tilelang_fa_v100",
     )
 
     _handle_dflash(server_args)

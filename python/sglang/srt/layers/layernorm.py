@@ -640,6 +640,25 @@ class GemmaRMSNorm(MultiPlatformOp):
         if residual is not None:
             if post_residual_addition is not None:
                 residual = residual + post_residual_addition
+                post_residual_addition = None
+            if _is_cuda:
+                from sglang.srt.layers.tilelang_gemma_rmsnorm_sm70 import (
+                    can_use_gemma_fused_add_rmsnorm_sm70,
+                    gemma_fused_add_rmsnorm_sm70,
+                )
+
+                if can_use_gemma_fused_add_rmsnorm_sm70(
+                    x,
+                    residual,
+                    self.weight.data,
+                    post_residual_addition,
+                ):
+                    return gemma_fused_add_rmsnorm_sm70(
+                        x,
+                        residual,
+                        self.weight.data,
+                        self.variance_epsilon,
+                    )
             gemma_fused_add_rmsnorm(
                 x, residual, self.weight.data, self.variance_epsilon
             )

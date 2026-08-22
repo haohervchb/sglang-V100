@@ -879,7 +879,7 @@ class LagunaForCausalLM(nn.Module):
 
             # Compressed-tensors checkpoints can carry calibration factors for
             # an FP8 KV cache even when the active backend uses an unquantized
-            # cache (for example flash_attn_v100 with kv-cache-dtype=auto).
+            # cache (for example tilelang_fa_v100 with kv-cache-dtype=auto).
             # Load them when RadixAttention registered the corresponding
             # quantization parameters; otherwise they are optional metadata.
             if name.endswith((".self_attn.k_scale", ".self_attn.v_scale")):

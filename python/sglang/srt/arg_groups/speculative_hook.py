@@ -185,7 +185,8 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
     is_laguna_dflash_on_v100 = (
         draft_architectures is not None
         and "DFlashLagunaForCausalLM" in draft_architectures
-        and getattr(server_args, "attention_backend", None) == "flash_attn_v100"
+        and getattr(server_args, "attention_backend", None)
+        in ("tilelang_fa_v100", "flash_attn_v100")
     )
 
     if (
@@ -255,7 +256,7 @@ def _handle_dflash(server_args: "ServerArgs") -> None:
         server_args.speculative_num_draft_tokens = 8
         logger.info(
             "Using Poolside's recommended DFLASH block size 8 for Laguna with "
-            "flash_attn_v100. "
+            "the V100 TileLang backend. "
             "Override with --speculative-dflash-block-size after benchmarking "
             "acceptance on your workload."
         )

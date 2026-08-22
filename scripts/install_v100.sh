@@ -25,11 +25,9 @@ die() { printf '\n\033[1;31m[install_v100] ERROR:\033[0m %s\n' "$*" >&2; exit 1;
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPS_ROOT="${SGLANG_V100_DEPS_DIR:-$HOME/.cache/sglang-v100-sources}"
 FLASHINFER_REV="c3c40a7b90b792fc59f90f8f55c9e2de9c1b6833"
-# 1Cat-vLLM v1.3.0: D256 split-D/gather/split-KV prefill, long XQA decode,
-# and the bounded exact-dense SM70 AWQ projection path.
-ONECAT_VLLM_REV="6ada86ed64af6d1a7b3cb0f34df237fd86f06d48"
-ONECAT_CUTLASS_REV="da5e086dab31d63815acafdac9a9c5893b1c69e2"
-SM70_FA2_REV="c2eda5e6115b98c3ba4bfd181570668742eece22"
+# Pinned source revisions for the temporarily retained TurboMind component.
+TURBOMIND_SOURCE_REV="6ada86ed64af6d1a7b3cb0f34df237fd86f06d48"
+TURBOMIND_CUTLASS_REV="da5e086dab31d63815acafdac9a9c5893b1c69e2"
 
 [[ -d "$REPO_ROOT/.git" ]] || die "$REPO_ROOT is not an SGLang-V100 checkout."
 
@@ -161,6 +159,25 @@ prepare_patched_repo() {
   printf '%s\n' "$patch_fingerprint" >"$stamp_file"
 }
 
+prepare_sparse_repo() {
+  local name=$1 url=$2 rev=$3 destination=$4
+  shift 4
+
+  if [[ ! -d "$destination/.git" ]]; then
+    log "Fetching the attributed $name source subset at $rev"
+    mkdir -p "$(dirname "$destination")"
+    git clone --filter=blob:none --sparse --no-checkout "$url" "$destination"
+  elif [[ -n "$(git -C "$destination" status --porcelain)" ]]; then
+    die "$destination has local changes; move it aside or set SGLANG_V100_DEPS_DIR."
+  fi
+
+  git -C "$destination" sparse-checkout set "$@"
+  if [[ "$(git -C "$destination" rev-parse HEAD 2>/dev/null || true)" != "$rev" ]]; then
+    git -C "$destination" fetch origin "$rev"
+    git -C "$destination" checkout --detach "$rev"
+  fi
+}
+
 FLASHINFER_DIR="$DEPS_ROOT/flashinfer-sm70"
 prepare_patched_repo \
   FlashInfer https://github.com/haohervchb/flashinfer.git \
@@ -170,34 +187,25 @@ log "Installing the proven FlashInfer SM70 source"
 python -m pip uninstall -y flashinfer-python flashinfer-cubin || true
 python -m pip install --no-deps --no-build-isolation -e "$FLASHINFER_DIR"
 
-ONECAT_VLLM_DIR="$DEPS_ROOT/1cat-vllm"
-prepare_patched_repo \
-  1Cat-vLLM https://github.com/1CatAI/1Cat-vLLM.git \
-  "$ONECAT_VLLM_REV" "$ONECAT_VLLM_DIR" \
-  "$REPO_ROOT/patches/1cat-vllm-sm70-sglang.patch"
-FLASH_ATTN_V100_DIR="$ONECAT_VLLM_DIR/flash-attention-v100"
-log "Building enhanced SM70 attention with direct E4M3/E5M2 XQA and the E5M2 prefill bridge"
-python -m pip install --force-reinstall --no-deps --no-build-isolation \
-  "$FLASH_ATTN_V100_DIR"
+# Attention is implemented in this repository's TileLang package. Uninstall a
+# legacy external attention wheel from this environment if an older installer
+# put one there; do not delete any user's source checkout.
+python -m pip uninstall -y flash-attn-v100 flash_attn_v100 || true
 
-SM70_FA2_DIR="$DEPS_ROOT/flash-attention-v100-fa2"
-prepare_patched_repo \
-  "SM70 FA2" https://github.com/zhinianqin/flash-attention-v100.git \
-  "$SM70_FA2_REV" "$SM70_FA2_DIR" \
-  "$ONECAT_VLLM_DIR/cmake/patches/sm70_flash_attn_d256_pipeline.patch" \
-  "$ONECAT_VLLM_DIR/cmake/patches/sm70_flash_attn_d256_splitkv3.patch"
-log "Building 1Cat's exact dense/split-KV3 D256 prefill operators"
-SGLANG_SM70_FA2_ROOT="$SM70_FA2_DIR" \
-  python "$REPO_ROOT/scripts/build_sm70_fa2_d256.py"
+TURBOMIND_SOURCE_DIR="$DEPS_ROOT/turbomind-sm70-source"
+prepare_sparse_repo \
+  "LMDeploy/1Cat TurboMind" https://github.com/1CatAI/1Cat-vLLM.git \
+  "$TURBOMIND_SOURCE_REV" "$TURBOMIND_SOURCE_DIR" \
+  LICENSE csrc/core csrc/sm70_turbomind csrc/moe
 
-ONECAT_CUTLASS_DIR="$DEPS_ROOT/cutlass-1cat"
+TURBOMIND_CUTLASS_DIR="$DEPS_ROOT/cutlass-turbomind"
 prepare_patched_repo \
   CUTLASS https://github.com/NVIDIA/cutlass.git \
-  "$ONECAT_CUTLASS_REV" "$ONECAT_CUTLASS_DIR"
+  "$TURBOMIND_CUTLASS_REV" "$TURBOMIND_CUTLASS_DIR"
 
-log "Building the unified TurboMind SM70 block-FP8 and FP16 MoE backend"
-SGLANG_1CAT_VLLM_ROOT="$ONECAT_VLLM_DIR" \
-SGLANG_1CAT_CUTLASS_ROOT="$ONECAT_CUTLASS_DIR" \
+log "Building the attributed TurboMind SM70 block-FP8 and FP16 MoE backend"
+SGLANG_TURBOMIND_SM70_ROOT="$TURBOMIND_SOURCE_DIR" \
+SGLANG_TURBOMIND_CUTLASS_ROOT="$TURBOMIND_CUTLASS_DIR" \
   python "$REPO_ROOT/scripts/build_sm70_turbomind.py"
 
 if [[ ! -d "$HOME/cutlass/.git" ]]; then

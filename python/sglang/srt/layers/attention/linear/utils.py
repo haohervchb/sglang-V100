@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class LinearAttnKernelBackend(Enum):
     TRITON = "triton"
+    TILELANG = "tilelang"
     CUTEDSL = "cutedsl"
     FLASHINFER = "flashinfer"
     CUSTOM = "custom"
@@ -24,6 +25,9 @@ class LinearAttnKernelBackend(Enum):
 
     def is_triton(self):
         return self == LinearAttnKernelBackend.TRITON
+
+    def is_tilelang(self):
+        return self == LinearAttnKernelBackend.TILELANG
 
     def is_cutedsl(self):
         return self == LinearAttnKernelBackend.CUTEDSL

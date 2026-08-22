@@ -43,8 +43,9 @@ class DraftBackendFactory:
         backend_map = {
             "flashinfer": self._create_flashinfer_decode_backend,
             "triton": self._create_triton_decode_backend,
-            # flash_attn_v100 delegates speculative attention to Triton.  Use
-            # the matching multi-step backend for built-in MTP drafting.
+            # The V100 TileLang backend delegates multi-step built-in MTP
+            # draft attention to Triton.
+            "tilelang_fa_v100": self._create_triton_decode_backend,
             "flash_attn_v100": self._create_triton_decode_backend,
             "aiter": self._create_aiter_decode_backend,
             "fa3": self._create_fa3_decode_backend,
@@ -75,6 +76,7 @@ class DraftBackendFactory:
         backend_map = {
             "flashinfer": self._create_flashinfer_prefill_backend,
             "triton": self._create_triton_prefill_backend,
+            "tilelang_fa_v100": self._create_triton_prefill_backend,
             "flash_attn_v100": self._create_triton_prefill_backend,
             "aiter": self._create_aiter_prefill_backend,
             "fa3": self._create_fa3_prefill_backend,

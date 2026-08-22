@@ -16,6 +16,7 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
+| `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 58.2 tok/s | 3,714 tok/s | 50.8 tok/s | **4K: 4,137/57.6; 70K: 2,980/38.8; 128K: 2,356/30.0 tok/s**; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
 | `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; 79.2 tok/s at 70K; ~60 tok/s steady at 200K; [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
 | `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
@@ -36,6 +37,49 @@ block-8 results. ‡The DFlash2 figures are single-request bring-up measurements
 on synthetic prompts. The 70K request reused 69,952 cached prompt tokens; the
 200K figure is the scheduler's steady decode rate. They validate the long-context
 path but are not directly comparable with the cold 1K/25K sweep columns.
+
+### Native SM70 optimization status
+
+The acceptance workload for these changes is the actual
+`Qwen/Qwen3.8-27B-FP8` checkpoint with TP4, E5M2 KV, and speculative decoding
+off. The retained cold sweep reaches 4,137 prefill tok/s at 4K and measures
+2,356/30.0 prefill/decode tok/s at 128K. The full curve and profiler breakdown
+are in the [FP8 target-only report](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md).
+The operator measurements below explain individual paths; they are not being
+used as a substitute for that FP8 end-to-end result.
+
+| Path | Measured shape | Result |
+| --- | --- | ---: |
+| Chunked GDN prefill | Qwen3.8 TP4, 2,048 tokens | 1.291 ms vs 1.745 ms Triton (1.35x) |
+| Chunked GDN prefill | Qwen3.8 TP4, 4,096 tokens | 2.547 ms vs 3.300 ms Triton (1.30x) |
+| Chunked GDN prefill | Qwen3.8 TP4, 8,192 tokens | 5.043 ms vs 6.232 ms Triton (1.24x) |
+| Mixed FP16/FP32 Gemma RMSNorm | 4,096 x 5,120 | 0.315 ms vs 1.397 ms PyTorch (4.44x) |
+| Experimental BFLA sparse attention | Q=4,096, K=32,768, D=256, 10% keep | about 9.8 ms including selection vs 23.9 ms dense (about 2.4x) |
+
+The GDN prefill dispatcher chooses the direct recurrent kernel through 1,280
+tokens and the tensor-core 64-token chunk kernel above that boundary. It
+supports packed variable-length batches, row-strided mixed QKV, indexed FP32
+state, direct output, and a column-group CTA schedule. Keep decode on Triton in
+the reference command: the native fused recurrent decoder is correct, but the
+existing Triton decoder remains faster for Qwen3.8 TP4's one-token shape.
+
+The mixed-dtype Gemma residual/RMSNorm route is automatic on SM70 for at least
+256 rows with hidden size 5,120, but only for the exact FP16 activation plus
+FP32 residual contract. Qwen3.8-27B-FP8 normally keeps this residual in FP16,
+so the 4.44x operator result is not claimed as a gain for the primary model.
+Set `SGLANG_V100_GEMMA_RMSNORM=0` for an A/B rollback. BFLA is intentionally
+disabled by default. An exact all-keep control can be enabled with
+`SGLANG_V100_BFLA_PREFILL=1`; actually dropping blocks additionally requires
+`SGLANG_V100_BFLA_ALLOW_APPROXIMATE=1` and a keep ratio such as
+`SGLANG_V100_BFLA_KEEP_RATIO=0.1`. Sparse mode changes model semantics and must
+pass retrieval and long-context quality evaluation before production use.
+
+For strictly greedy, non-speculative requests, the opt-in
+`SGLANG_V100_GREEDY_TP_TOP1=1` route exchanges only each TP rank's top candidate
+instead of gathering full-vocabulary logits. It fails closed to the ordinary
+logits path for sampling, speculative decoding, logprobs, penalties, grammar,
+custom logits processors, or logits bias. It therefore does not affect the
+official sampling benchmark.
 
 ## Install on the host
 
@@ -80,6 +124,23 @@ Create the shared model and JIT caches used by the Docker examples:
 mkdir -p "$HOME/.cache/huggingface"
 docker volume create sglang-v100-jit
 ```
+
+### Source and dependency boundary
+
+Attention, FP8 KV conversion, D256 dense/split-KV/sparse prefill, grouped
+decode, GDN, and the mixed-dtype RMSNorm fusion are implemented in this
+repository's `python/sglang/.../tilelang*` sources. Neither the host installer
+nor Docker installs 1Cat-vLLM, FlashQLA, or zhinianqin's
+FlashAttention-V100 package. The chunked GDN equations are informed by Qwen's
+MIT-licensed public FlashQLA algorithm, but the SM70 kernels and SGLang
+integration here are an independent TileLang implementation.
+
+TurboMind is the temporary exception requested for quantized GEMM and MoE.
+The installer makes a pinned sparse checkout containing only `LICENSE`,
+`csrc/core`, `csrc/sm70_turbomind`, and `csrc/moe` from
+[1CatAI/1Cat-vLLM at `6ada86e`](https://github.com/1CatAI/1Cat-vLLM/tree/6ada86ed64af6d1a7b3cb0f34df237fd86f06d48),
+then builds SGLang's private adapter against pinned NVIDIA CUTLASS. It never
+installs or imports that repository's vLLM or attention packages.
 
 ## MiniMax-H3 video and audio
 
@@ -273,7 +334,9 @@ sglang serve \
   --model-path Qwen/Qwen3.8-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e5m2 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -306,7 +369,9 @@ sglang serve \
   --model-path Qwen/Qwen3.8-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e5m2 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -372,7 +437,9 @@ sglang serve \
   --model-path Qwen/Qwen3.8-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e5m2 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -441,7 +508,9 @@ docker run --rm --name v100-dflash2 \
   --model-path Qwen/Qwen3.8-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e5m2 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -483,7 +552,7 @@ sglang serve \
   --model Qwen/Qwen3.6-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e4m3 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -516,7 +585,7 @@ SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
 sglang serve \
   --model Qwen/Qwen3.6-35B-A3B \
   --dtype float16 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -549,7 +618,7 @@ sglang serve \
   --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
   --dtype float16 \
   --quantization gptq_marlin \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -581,7 +650,7 @@ sglang serve \
   --trust-remote-code \
   --dtype float16 \
   --kv-cache-dtype auto \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --moe-runner-backend marlin \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
@@ -622,7 +691,7 @@ docker run --rm --gpus all --network host --ipc host \
   --model Qwen/Qwen3.6-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e4m3 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -668,7 +737,7 @@ sglang serve \
   --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
   --dtype float16 \
   --quantization gptq_marlin \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -692,7 +761,7 @@ sglang serve \
   --model QuantTrio/Qwen3.5-122B-A10B-AWQ \
   --dtype float16 \
   --quantization awq_marlin \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -715,7 +784,7 @@ SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
 sglang serve \
   --model Qwen/Qwen3.6-35B-A3B \
   --dtype float16 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -743,7 +812,7 @@ sglang serve \
   --model QuantTrio/Qwen3.6-35B-A3B-AWQ \
   --dtype float16 \
   --quantization awq_marlin \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -766,7 +835,7 @@ SGLANG_MAMBA_SSM_DTYPE=float16 \
 sglang serve \
   --model Qwen/Qwen3.6-27B \
   --dtype float16 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -793,7 +862,7 @@ sglang serve \
   --model Qwen/Qwen3.6-27B-FP8 \
   --dtype float16 \
   --kv-cache-dtype fp8_e4m3 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -820,7 +889,7 @@ sglang serve \
   --trust-remote-code \
   --dtype float16 \
   --kv-cache-dtype auto \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --moe-runner-backend marlin \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
@@ -851,7 +920,7 @@ SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1 \
 sglang serve \
   --model Qwen/Qwen3.6-27B \
   --dtype float16 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -884,7 +953,7 @@ sglang serve \
   --model QuantTrio/Qwen3.6-35B-A3B-AWQ \
   --dtype float16 \
   --quantization awq_marlin \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -915,7 +984,7 @@ sglang serve \
   --model Qwen/Qwen3.5-122B-A10B-GPTQ-Int4 \
   --dtype float16 \
   --quantization gptq_marlin \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \
@@ -944,7 +1013,7 @@ SGLANG_ENABLE_SPEC_V2=1 \
 sglang serve \
   --model Qwen/Qwen3.6-27B \
   --dtype float16 \
-  --attention-backend flash_attn_v100 \
+  --attention-backend tilelang_fa_v100 \
   --tensor-parallel-size 4 \
   --host 0.0.0.0 \
   --port 8082 \

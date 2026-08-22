@@ -98,26 +98,23 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     && python -m pip install --no-deps --no-build-isolation \
       -e /opt/deps/flashinfer-sm70
 
-# 1Cat carries the proven SM70 attention and TurboMind source paths. Pin the
-# v1.3.0 release and apply SGLang's E4M3-XQA compatibility patch.
-COPY patches/1cat-vllm-sm70-sglang.patch /opt/sglang/patches/
-RUN git clone --filter=blob:none https://github.com/1CatAI/1Cat-vLLM.git \
-      /opt/deps/1cat-vllm \
-    && git -C /opt/deps/1cat-vllm checkout --detach \
-      6ada86ed64af6d1a7b3cb0f34df237fd86f06d48 \
-    && git -C /opt/deps/1cat-vllm apply \
-      /opt/sglang/patches/1cat-vllm-sm70-sglang.patch
+# TurboMind is the one temporarily retained external SM70 component. Fetch
+# only its attributed source directories; never install the 1Cat vLLM or
+# attention packages and never place a full 1Cat checkout in the image.
+RUN git clone --filter=blob:none --sparse --no-checkout \
+      https://github.com/1CatAI/1Cat-vLLM.git \
+      /opt/deps/turbomind-sm70-source \
+    && git -C /opt/deps/turbomind-sm70-source sparse-checkout set \
+      LICENSE csrc/core csrc/sm70_turbomind csrc/moe \
+    && git -C /opt/deps/turbomind-sm70-source checkout --detach \
+      6ada86ed64af6d1a7b3cb0f34df237fd86f06d48
 RUN git clone --filter=blob:none https://github.com/NVIDIA/cutlass.git \
-      /opt/deps/cutlass-1cat \
-    && git -C /opt/deps/cutlass-1cat checkout --detach \
+      /opt/deps/cutlass-turbomind \
+    && git -C /opt/deps/cutlass-turbomind checkout --detach \
       da5e086dab31d63815acafdac9a9c5893b1c69e2
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    export MAX_JOBS="$(v100-safe-jobs)" \
-    && python -m pip install --no-deps --no-build-isolation \
-      /opt/deps/1cat-vllm/flash-attention-v100
 
-# Build SGLang's unified TurboMind W8A16 block-FP8 and FP16 MoE extension
-# against the pinned source and CUTLASS revision used for host validation.
+# Build SGLang's adapter for the attributed TurboMind W8A16 block-FP8 and
+# FP16 MoE source against the pinned CUTLASS revision used for host validation.
 COPY scripts/build_sm70_turbomind.py /opt/sglang/scripts/build_sm70_turbomind.py
 COPY python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp \
      /opt/sglang/python/sglang/jit_kernel/csrc/sm70_turbomind_bindings.cpp
@@ -127,28 +124,9 @@ COPY python/sglang/jit_kernel/csrc/sm70_fp8_e5m2_cache.cu \
      /opt/sglang/python/sglang/jit_kernel/csrc/sm70_fp8_e5m2_cache.cu
 RUN --mount=type=cache,target=/root/.cache/torch_extensions,sharing=locked \
     export MAX_JOBS="$(v100-safe-jobs)" \
-    && export SGLANG_1CAT_VLLM_ROOT=/opt/deps/1cat-vllm \
-    && export SGLANG_1CAT_CUTLASS_ROOT=/opt/deps/cutlass-1cat \
+    && export SGLANG_TURBOMIND_SM70_ROOT=/opt/deps/turbomind-sm70-source \
+    && export SGLANG_TURBOMIND_CUTLASS_ROOT=/opt/deps/cutlass-turbomind \
     && python /opt/sglang/scripts/build_sm70_turbomind.py
-
-# 1Cat's exact dense D256 prefill operators (split-D/gather/split-KV3). 1Cat
-# applies its two v1.3.0 patches to zhinianqin/flash-attention-v100 with GNU
-# `patch --batch --forward -p1 -l` (loose whitespace), so the strict `git
-# apply` used elsewhere here must not be used on these patches.
-COPY scripts/build_sm70_fa2_d256.py /opt/sglang/scripts/build_sm70_fa2_d256.py
-RUN git clone --filter=blob:none https://github.com/zhinianqin/flash-attention-v100.git \
-      /opt/deps/flash-attention-v100-fa2 \
-    && git -C /opt/deps/flash-attention-v100-fa2 checkout --detach \
-      c2eda5e6115b98c3ba4bfd181570668742eece22 \
-    && git -C /opt/deps/flash-attention-v100-fa2 submodule update --init --recursive csrc/cutlass \
-    && patch -d /opt/deps/flash-attention-v100-fa2 --batch --forward -p1 -l \
-      -i /opt/deps/1cat-vllm/cmake/patches/sm70_flash_attn_d256_pipeline.patch \
-    && patch -d /opt/deps/flash-attention-v100-fa2 --batch --forward -p1 -l \
-      -i /opt/deps/1cat-vllm/cmake/patches/sm70_flash_attn_d256_splitkv3.patch
-RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    export MAX_JOBS="$(v100-safe-jobs)" \
-    && export SGLANG_SM70_FA2_ROOT=/opt/deps/flash-attention-v100-fa2 \
-    && python /opt/sglang/scripts/build_sm70_fa2_d256.py
 
 # Only this source tree invalidates the sglang-kernel layer. The context ignores
 # all local .so/build outputs, preventing the stale-binary bug from the host.
@@ -197,6 +175,7 @@ RUN --mount=type=bind,source=rust/sglang-grpc,target=/mnt/sglang-grpc,ro \
 # GPU-independent artifact validation is intentionally after every expensive
 # compilation RUN, so BuildKit retains those layers if this check ever changes.
 RUN python - <<'PY'
+import importlib.util
 from pathlib import Path
 import subprocess
 
@@ -210,15 +189,15 @@ marlin = [
     marlin_dir / "_sm70_marlin_v100_moe.abi3.so",
 ]
 turbomind = marlin_dir / "_sm70_turbomind_v100.so"
-fa2_d256 = marlin_dir / "_sm70_fa2_d256.so"
-native_attention = list(site.glob("flash_attn_v100_cuda*.so"))
 grpc_core = list(Path("/opt/sglang/python/sglang/srt/grpc").glob("_core*.so"))
-assert len(native_attention) == 1, native_attention
 assert len(grpc_core) == 1, grpc_core
-assert fa2_d256.is_file(), fa2_d256
 assert Path("/opt/deps/flashinfer-sm70/flashinfer/sampling.py").is_file()
-from flash_attn_v100 import flash_attn_interface
-assert flash_attn_interface.FLASH_ATTN_V100_XQA_E4M3_SUPPORTED is True
+assert Path(
+    "/opt/sglang/python/sglang/srt/layers/attention/"
+    "tilelang_fa_v100/_kernels_paged_decode.py"
+).is_file()
+for module in ("flash_attn_v100", "flash_attn_v100_cuda", "flash_qla_v100"):
+    assert importlib.util.find_spec(module) is None, module
 
 def validate_sm70(binary, required_strings):
     binary = Path(binary)
@@ -236,12 +215,6 @@ validate_sm70(common_ops[0], ["all_reduce", "gptq_gemm", "causal_conv1d_fwd"])
 validate_sm70(marlin[0], ["marlin_gemm"])
 validate_sm70(marlin[1], ["moe_wna16_marlin_gemm"])
 validate_sm70(turbomind, ["fp8_gemm", "f16_moe_gemm", "fp8_e5m2_cache_write"])
-validate_sm70(fa2_d256, [
-    "sm70_d256_splitd_n32_dense_fwd",
-    "sm70_d256_splitd_n32_dense_splitkv3_fwd",
-    "sm70_d256_splitd_n32_paged_fwd",
-])
-validate_sm70(native_attention[0], ["decode_paged_xqa_fwd"])
 print("SM70 build artifacts validated")
 PY
 

@@ -123,9 +123,9 @@ def test_d256_gathered_dense_matches_shuffled_paged_attention(monkeypatch):
     monkeypatch.setenv("SGLANG_V100_PREFILL_D256_GATHER", "1")
     gathered, _ = _paged_adapter.paged_forward(*args, max_seq_len_hint=seq_len)
 
-    # 1Cat's native Split-D operator and the TileLang paged reference use
-    # different, mathematically equivalent FP32 reduction trees before the
-    # final FP16 narrow.
+    # The native dense and paged TileLang kernels use different,
+    # mathematically equivalent FP32 reduction trees before the final FP16
+    # narrow.
     torch.testing.assert_close(gathered, paged, rtol=1e-3, atol=5e-6)
 
 
@@ -207,10 +207,9 @@ def test_native_e5m2_cache_writer_matches_torch_conversion():
 
 
 def test_native_e5m2_paged_bridge_matches_logical_torch_gather():
-    try:
-        from flash_attn_v100 import fp8_e5m2_paged_kv_to_fp16
-    except ImportError:
-        pytest.skip("1Cat flash-attention-v100 bridge is not installed")
+    from sglang.srt.layers.attention.tilelang_fa_v100._paged_adapter import (
+        gather_fp8_paged_kv,
+    )
 
     torch.manual_seed(37)
     pages, page_size, heads, dim = 11, 16, 1, 256
@@ -220,15 +219,14 @@ def test_native_e5m2_paged_bridge_matches_logical_torch_gather():
     value = torch.randn_like(key.to(torch.float16)).to(torch.float8_e5m2)
     page_table = torch.randperm(pages, device="cuda", dtype=torch.int32).view(1, -1)
     seq_lens = torch.tensor([pages * page_size - 3], device="cuda", dtype=torch.int32)
-    output_pages = (pages * page_size + 783) // 784
     key_out = torch.empty(
-        output_pages, 784, heads, dim, device="cuda", dtype=torch.float16
+        pages, page_size, heads, dim, device="cuda", dtype=torch.float16
     )
     value_out = torch.empty_like(key_out)
 
-    fp8_e5m2_paged_kv_to_fp16(
-        key.view(torch.uint8),
-        value.view(torch.uint8),
+    gather_fp8_paged_kv(
+        key,
+        value,
         page_table,
         seq_lens,
         key_out,
