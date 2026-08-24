@@ -67,7 +67,10 @@ decode_partial_kernel(const __half* __restrict__ q,
                       const float score_scale, const float kv_scale,
                       __half* __restrict__ partial_o,
                       float* __restrict__ partial_lse) {
-  const int kv_head = blockIdx.x;   // 0 (dense D256 G6 path)
+  const int kv_head = blockIdx.x;
+  const int kv_heads = gridDim.x;
+  const int kv_stride = kDim * kv_heads;   // per-token bytes across KV heads
+  const int heads_total = kGroup * kv_heads;
   const int split_id = blockIdx.y;
   const int seq_id = blockIdx.z;
 
@@ -145,9 +148,10 @@ decode_partial_kernel(const __half* __restrict__ q,
         const int64_t base =
             page_table != nullptr
                 ? (int64_t)page_table[seq_id * max_blocks + (token >> 4)] *
-                          (kPageSize * kDim) +
-                      (int64_t)(token & (kPageSize - 1)) * kDim + d_off
-                : (int64_t)token * kDim + d_off;
+                          (kPageSize * kv_stride) +
+                      (int64_t)(token & (kPageSize - 1)) * kv_stride +
+                      kv_head * kDim + d_off
+                : (int64_t)token * kv_stride + kv_head * kDim + d_off;
         raw_k = *reinterpret_cast<const uint4*>(k_cache + base);
         raw_v = *reinterpret_cast<const uint4*>(v_cache + base);
       }
@@ -254,8 +258,10 @@ decode_partial_kernel(const __half* __restrict__ q,
   if (is_compute_warp) {
     const int r = warp;
     const float inv_l = l_row[r] > 0.f ? 1.f / l_row[r] : 0.f;
+    const int oh = kv_head * kGroup + r;
     __half* o_row = partial_o +
-                    (((int64_t)seq_id * max_splits + split_id) * kGroup + r) *
+                    (((int64_t)seq_id * max_splits + split_id) * heads_total +
+                     oh) *
                         kDim;
 #pragma unroll
     for (int j = 0; j < kPairsPerLane; ++j) {
@@ -269,7 +275,8 @@ decode_partial_kernel(const __half* __restrict__ q,
     const int r = warp;
     const float lse =
         l_row[r] > 0.f ? __log2f(l_row[r]) + m_row[r] * scale_log2 : -1.0e30f;
-    partial_lse[((int64_t)seq_id * max_splits + split_id) * kGroup + r] = lse;
+    partial_lse[((int64_t)seq_id * max_splits + split_id) * heads_total +
+                kv_head * kGroup + r] = lse;
   }
 }
 
@@ -288,8 +295,9 @@ void sm70_longctx_decode(torch::Tensor q, torch::Tensor k_cache,
   const int heads_kv = k_cache.size(2);
   const int dim = q.size(2);
   const int batch = q.size(0);
-  TORCH_CHECK(heads_kv == 1 && heads == kGroup && dim == kDim,
-              "sm70_longctx expects H6/Hkv1/D256 (TP4 GQA) layout");
+  TORCH_CHECK(heads_kv >= 1 && heads == heads_kv * kGroup && dim == kDim,
+              "sm70_longctx expects H6/D256 GQA with a full KV-head split "
+              "(TP1 Hkv4, TP2 Hkv2, TP4 Hkv1)");
   TORCH_CHECK(k_cache.scalar_type() == torch::kUInt8 &&
                   v_cache.scalar_type() == torch::kUInt8,
               "sm70_longctx expects E5M2 byte KV cache");

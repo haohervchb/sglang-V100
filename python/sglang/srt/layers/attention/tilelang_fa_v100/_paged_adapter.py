@@ -460,7 +460,7 @@ def _use_cuda_decode(*, batch, heads, heads_kv, dim, page_size, fp8_kv,
         )
     elif not fp8_kv or not e5m2_kv:
         reason = f"kv_dtype(fp8={fp8_kv},e5m2={e5m2_kv})"
-    elif heads != 6 or heads_kv != 1 or dim != 256 or page_size != PAGE_SIZE:
+    elif heads != 6 * heads_kv or dim != 256 or page_size != PAGE_SIZE:
         reason = f"shape(h={heads},hkv={heads_kv},d={dim},ps={page_size})"
     elif batch <= 0:
         reason = f"batch={batch}"
