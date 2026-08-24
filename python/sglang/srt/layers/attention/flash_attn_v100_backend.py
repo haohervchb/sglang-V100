@@ -909,15 +909,23 @@ class FlashAttnV100Backend(AttentionBackend):
 
         k_cache = self.token_to_kv_pool.get_key_buffer(layer.layer_id)
         v_cache = self.token_to_kv_pool.get_value_buffer(layer.layer_id)
+        # Accept both the 4D paged [num_pages, page_size, 1, 256] layout and the
+        # 3D flat [tokens, 1, 256] layout (viewed to 4D on entry).
+        same_dtype = v_cache.dtype == k_cache.dtype
+        fp_dtype = k_cache.dtype in (
+            torch.float16, torch.float8_e4m3fn, torch.float8_e5m2
+        )
+        layout_ok = (
+            (k_cache.ndim == 4 and v_cache.ndim == 4
+             and k_cache.shape[1:] == (V100_PAGE_SIZE, 1, 256)
+             and v_cache.shape[1:] == (V100_PAGE_SIZE, 1, 256))
+            or (k_cache.ndim == 3 and v_cache.ndim == 3
+                and k_cache.shape[1:] == (1, 256)
+                and v_cache.shape[1:] == (1, 256))
+        )
         return (
-            k_cache.dtype in (torch.float16, torch.float8_e4m3fn, torch.float8_e5m2)
-            and v_cache.dtype == k_cache.dtype
-            and k_cache.ndim == 4
-            and v_cache.ndim == 4
-            and k_cache.shape[1:] == (V100_PAGE_SIZE, 1, 256)
-            and v_cache.shape[1:] == (V100_PAGE_SIZE, 1, 256)
-            and k_cache.stride(-1) == 1
-            and v_cache.stride(-1) == 1
+            fp_dtype and same_dtype and layout_ok
+            and k_cache.stride(-1) == 1 and v_cache.stride(-1) == 1
         )
 
     def _forward_grouped_decode(

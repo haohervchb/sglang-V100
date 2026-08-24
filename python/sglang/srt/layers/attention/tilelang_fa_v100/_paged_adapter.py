@@ -343,6 +343,15 @@ def _get_fp8_e4m3fn_lut(device):
     return _get_fp8_lut(device, torch.float8_e4m3fn)
 
 
+_CUDA_DECODE_MIN_CTAS = 160
+_CUDA_DECODE_TOKENS_PER_SPLIT = 32
+
+
+def _cuda_decode_target_splits(batch, heads_kv):
+    """Split count for the CUDA partial: ~160 CTAs for good SM overlap."""
+    return max(1, math.ceil(_CUDA_DECODE_MIN_CTAS / (batch * heads_kv)))
+
+
 def grouped_decode_forward(
     q,
     k_cache,
@@ -354,18 +363,55 @@ def grouped_decode_forward(
     k_scale=1.0,
     v_scale=1.0,
 ):
-    """Run the exact grouped TileLang q=1 split-KV decoder."""
+    """Run the exact grouped q=1 split-KV decoder."""
     batch, heads, dim = q.shape
     heads_kv = k_cache.shape[2]
     fp8_kv = k_cache.dtype in (torch.float8_e4m3fn, torch.float8_e5m2)
     if v_cache.dtype != k_cache.dtype:
         raise ValueError("K and V cache dtypes must match for grouped decode.")
+    page_size = k_cache.shape[1]
+    if _use_cuda_decode(
+        batch=batch,
+        heads=heads,
+        heads_kv=heads_kv,
+        dim=dim,
+        page_size=page_size,
+        fp8_kv=fp8_kv,
+        e5m2_kv=k_cache.dtype == torch.float8_e5m2,
+    ):
+        from ._decode_cuda import sm70_cuda_decode_partial
+        from ._kernels_paged_decode import _decode_combine_kernel
+
+        max_splits = _cuda_decode_target_splits(batch, heads_kv)
+        combine = _decode_combine_kernel(
+            batch,
+            heads,
+            dim,
+            max_splits,
+            256,
+            _CUDA_DECODE_TOKENS_PER_SPLIT,
+        )
+        seq_lens = seq_lens.to(dtype=torch.int32)
+        partial_o, partial_lse = sm70_cuda_decode_partial(
+            q,
+            k_cache,
+            v_cache,
+            page_table,
+            seq_lens,
+            max_splits,
+            _CUDA_DECODE_TOKENS_PER_SPLIT,
+            softmax_scale,
+            k_scale,
+            v_scale,
+        )
+        return combine(partial_o, partial_lse, seq_lens)
+
     partial, combine, _ = get_paged_decode_kernels(
         batch=batch,
         heads=heads,
         heads_kv=heads_kv,
         dim=dim,
-        page_size=k_cache.shape[1],
+        page_size=page_size,
         num_pages=k_cache.shape[0],
         max_blocks=page_table.shape[1],
         fp8_kv=fp8_kv,
@@ -391,6 +437,37 @@ def grouped_decode_forward(
         float(v_scale),
     )
     return combine(partial_o, partial_lse, seq_lens)
+
+
+def _use_cuda_decode(*, batch, heads, heads_kv, dim, page_size, fp8_kv,
+                     e5m2_kv):
+    """Exact-shape gate for the hand-written CUDA decode partial."""
+    from ._decode_cuda import PAGE_SIZE, sm70_cuda_decode_available
+
+    reason = None
+    if not sm70_cuda_decode_available():
+        from ._decode_cuda import sm70_cuda_decode_enabled
+
+        cap = None
+        if torch.cuda.is_available():
+            try:
+                cap = torch.cuda.get_device_capability()
+            except Exception:
+                cap = "err"
+        reason = (
+            "cuda_unavailable(env=%r,cap=%r)"
+            % (sm70_cuda_decode_enabled(), cap)
+        )
+    elif not fp8_kv or not e5m2_kv:
+        reason = f"kv_dtype(fp8={fp8_kv},e5m2={e5m2_kv})"
+    elif heads != 6 or heads_kv != 1 or dim != 256 or page_size != PAGE_SIZE:
+        reason = f"shape(h={heads},hkv={heads_kv},d={dim},ps={page_size})"
+    elif batch <= 0:
+        reason = f"batch={batch}"
+    if reason is not None:
+        logger.warning("SM70 CUDA decode partial disabled: %s", reason)
+        return False
+    return True
 
 
 def gather_fp8_paged_kv(
