@@ -20,7 +20,7 @@ _OPS_AVAILABLE = False
 
 _PREFILL_BACKENDS = ("auto", "turbomind", "fp16")
 
-# --- Opt-in SM70 QPN8 decode backend (W8A16, M<=8) ----------------------
+# --- SM70 QPN8 decode backend (W8A16, M<=8, default on) ----------------
 # Adapted from v100-skinny's QPN8 kernel for our block-wise [N/128][K/128]
 # fp32 scale checkpoint format. Packed codes + per-K-block scales are built
 # once at weight load; decode GEMMs (M<=8) route to the QPN8 kernel instead
@@ -99,7 +99,9 @@ def _env_flag(name: str, default: str) -> bool:
 
 
 def _get_sm70_fp8_decode_qpn8_enabled() -> bool:
-    return _env_flag("SGLANG_SM70_FP8_DECODE_QPN8", "0")
+    # Default on for SM70 FP8 decode; set SGLANG_SM70_FP8_DECODE_QPN8=0 to
+    # fall back to the TurboMind decode GEMM path.
+    return _env_flag("SGLANG_SM70_FP8_DECODE_QPN8", "1")
 
 
 def _load_sm70_qpn8_ops():

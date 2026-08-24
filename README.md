@@ -16,8 +16,8 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
-| `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 58.2 tok/s | 3,714 tok/s | 50.8 tok/s | **4K: 4,137/57.6; 70K: 2,980/38.8; 128K: 2,356/30.0 tok/s**; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
-| `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; 79.2 tok/s at 70K; ~60 tok/s steady at 200K; [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
+| `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill: 4,137; 100K decode: 51.8; 200K decode: 45.8 tok/s** with the SM70 CUDA read-once split-KV decode partial; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
+| `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; **cold 150K: 134; cold 200K: 112 tok/s**; 79.2 tok/s at 70K (warm); [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
 | `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
 | `Qwen/Qwen3.8-27B` | DSpark-7, FP16 KV | 2,020 tok/s | 73.6 tok/s | 3,001 tok/s | 74.5 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dspark_v100_20260821/README.md) |
@@ -33,18 +33,21 @@ Target-only and MTP modes are also supported where commands are provided
 below. †Laguna prefill comes from the retained DFlash sweep; its later Marlin
 selector changed low-token-count decode and left effective prefill unchanged
 within normal cold-run variation. The Laguna decode columns are the later tuned
-block-8 results. ‡The DFlash2 figures are single-request bring-up measurements
-on synthetic prompts. The 70K request reused 69,952 cached prompt tokens; the
-200K figure is the scheduler's steady decode rate. They validate the long-context
-path but are not directly comparable with the cold 1K/25K sweep columns.
+block-8 results. ‡The DFlash2 1K/25K figures are docker single-request
+measurements. The 150K and 200K figures are clean cold-cache host runs (single
+request, freshly restarted server, zero cached prompt tokens); the older
+70K/200K bring-up rows were warm periodic-synthetic measurements. They validate
+the long-context path but are not directly comparable with the cold 1K/25K
+sweep columns.
 
 ### Native SM70 optimization status
 
 The acceptance workload for these changes is the actual
 `Qwen/Qwen3.8-27B-FP8` checkpoint with TP4, E5M2 KV, and speculative decoding
-off. The retained cold sweep reaches 4,137 prefill tok/s at 4K and measures
-2,356/30.0 prefill/decode tok/s at 128K. The full curve and profiler breakdown
-are in the [FP8 target-only report](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md).
+off. The retained cold sweep reaches 4,137 prefill tok/s at 4K; the SM70 CUDA
+read-once split-KV decode partial holds about 52 tok/s at 100K and 46 tok/s at
+200K, versus about 30 tok/s at 128K before. The full curve and profiler
+breakdown are in the [FP8 target-only report](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md).
 The operator measurements below explain individual paths; they are not being
 used as a substitute for that FP8 end-to-end result.
 
@@ -303,7 +306,14 @@ listen on port 8082.
 ### Qwen3.8-27B-FP8 target-only
 
 This is the reference command for ordinary, non-speculative decode. No
-speculative environment switch or `--speculative-*` argument is present.
+speculative environment switch or `--speculative-*` argument is present. The
+SM70 CUDA read-once split-KV decode partial and the QPN8 W8A16 decode GEMMs are
+enabled by default; set `SGLANG_V100_DECODE_CUDA=0` or
+`SGLANG_SM70_FP8_DECODE_QPN8=0` to opt out. With the CUDA partial, long-context
+decode holds about 52 tok/s at 100K and 46 tok/s at 200K, up from about
+30 tok/s at 128K before. The CUDA partial covers TP1/TP2/TP4 (the GQA ratio is
+fixed at 6:1, so tensor-parallel splits change only the per-rank KV-head
+count).
 
 ```bash
 FLASHINFER_DISABLE_VERSION_CHECK=1 \
@@ -461,10 +471,14 @@ and 256 or 512 greedy output tokens:
 | 4K periodic synthetic prompt | Full prompt included in client time | 121.5 tok/s end-to-end | 7.11 |
 | 70K periodic synthetic prompt | 69,952 prompt tokens reused | 79.2 tok/s end-to-end | 4.13 |
 | 200K periodic synthetic prompt | Steady scheduler decode intervals | ~60 tok/s | 4.45 |
+| 150K cold-cache prompt | 150,000 prompt tokens, fresh server, zero cached tokens | 134 tok/s | ~3.5 |
+| 200K cold-cache prompt | 200,000 prompt tokens, fresh server, zero cached tokens | 112 tok/s | ~3.5 |
 
 Acceptance is workload-dependent. The synthetic rows validate graph capture,
 long-context KV operation, and selector stability; use the same prompt corpus
-for block-8 versus block-16 comparisons.
+for block-8 versus block-16 comparisons. The cold-cache rows used
+`--random-input-len 150000/200000`, one request, and 256 greedy output tokens
+on a freshly restarted server.
 
 #### Serve DFlash2 in Docker
 
