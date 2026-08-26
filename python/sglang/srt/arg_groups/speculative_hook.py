@@ -481,7 +481,7 @@ def _handle_eagle_family(server_args: "ServerArgs") -> None:
     model_arch = server_args.get_model_config().hf_config.architectures[0]
     if model_arch in (
         _BUILTIN_MTP_MODEL_ARCHS | _OPTIONAL_EXTERNAL_MTP_MODEL_ARCHS
-    ):
+    ) or model_arch == "Qwen4ExpForConditionalGeneration":
         if server_args.speculative_draft_model_path is None:
             server_args.speculative_draft_model_path = server_args.model_path
             server_args.speculative_draft_model_revision = server_args.revision

@@ -198,6 +198,15 @@ class Envs:
     SGLANG_USE_MODELSCOPE = EnvBool(False)
     SGLANG_SORT_WEIGHT_FILES = EnvBool(False)
     SGLANG_DISABLED_MODEL_ARCHS = EnvTuple(tuple())
+    # Shard the Qwen4-Exp PLE n-gram embedding within each attention-TP group
+    # instead of gathering DP tokens for a global-TP lookup.
+    SGLANG_USE_ATTN_TP_NGRAM = EnvBool(False)
+    # Bitwise-exact, shape-guarded Qwen4 PLE decode fusion. Unsupported inputs
+    # and phases fall back to the original implementation.
+    SGLANG_ENABLE_QWEN4_PLE_FUSION = EnvBool(True)
+    # Select the FP8 (deep_gemm) tokenwise QSA indexer; only the BF16 reference
+    # path is ported, so setting this fails loudly instead of degrading.
+    SGLANG_QWEN_DSA_USE_FP8_INDEXER = EnvBool(False)
     SGLANG_PREFETCH_BLOCK_SIZE_MB = EnvInt(16)
     SGLANG_GEMMA_OUT_OF_PLACE_POSITION_MUTATION = EnvBool(False)
 
@@ -453,6 +462,30 @@ class Envs:
 
     # DeepGemm
     SGLANG_ENABLE_JIT_DEEPGEMM = EnvBool(True)
+    # Enable the allowlisted low-M BF16 Split-K GEMM path on Blackwell. Shapes
+    # outside the measured allowlist continue to use CuTe DSL/cuBLAS.
+    SGLANG_ENABLE_BF16_SPLITK_GEMM = EnvBool(True)
+    # Route decode-size HC mix through the fused CuTe split-K GEMM pair
+    # instead of the persistent Triton mix.
+    SGLANG_HC_MIX_CUDA = EnvBool(True)
+    # Log each distinct (m, n, k) the BF16 GEMM dispatch sees (allowlist tuning).
+    SGLANG_BF16_GEMM_LOG_SHAPES = EnvBool(False)
+    # Split the HC combine gate dot across CTAs instead of one CTA per row.
+    SGLANG_HC_COMBINE_SPLIT = EnvBool(True)
+    SGLANG_DEEPGEMM_STANDARD_LAYOUT = EnvStr("auto")
+    SGLANG_DEEPGEMM_MASKED_MEMORY_BUDGET_FRACTION = EnvFloat(0.25)
+    # Cap the DeepGEMM masked grouped-GEMM per-expert padded capacity at
+    # round_up(max(masked_m), 256) instead of round_up(rank_tokens, 256):
+    # shrinks the [num_local_experts, m, *] MoE intermediates ~4x under
+    # load imbalance (they otherwise OOM saturated --moe-runner-backend
+    # deep_gemm serving).  Costs one D2H sync per MoE layer.
+    SGLANG_OPT_DG_MASKED_M_CAP = EnvBool(False)
+    # Drop dp-attention MAX_LEN pad rows from MoE dispatch (StandardDispatcher
+    # post-translation topk_ids -> -1): pad rows otherwise run the router on
+    # stale hidden values and burn expert compute whose outputs are discarded;
+    # colliding pad top-ks also inflate the DeepGEMM masked-GEMM workspace to
+    # OOM at saturation.  Capture-safe (reads only global_num_tokens_gpu).
+    SGLANG_OPT_MASK_DP_PAD_MOE = EnvBool(False)
     SGLANG_JIT_DEEPGEMM_PRECOMPILE = EnvBool(True)
     SGLANG_JIT_DEEPGEMM_FAST_WARMUP = EnvBool(False)
     SGLANG_JIT_DEEPGEMM_COMPILE_WORKERS = EnvInt(4)
