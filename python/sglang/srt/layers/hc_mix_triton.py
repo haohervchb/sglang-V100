@@ -22,6 +22,12 @@ CUDA graph replays with the buffers back in their initial state.
 
 Row counts beyond ``_FUSED_MIX_MAX_ROWS`` (prefill) keep the
 torch.compile path, which uses proper GEMM kernels.
+
+V100 uses a separate two-kernel decode path for Qwen's exact HC shape.  The
+first kernel replaces cuBLAS's split-K down GEMV and fuses SiLU; the second
+computes the up projection by hidden coordinate and fuses sigmoid-mul-mean.
+This avoids both split-K reduction and pointwise launches without global
+barriers or atomics.
 """
 
 from __future__ import annotations
@@ -31,6 +37,114 @@ import triton
 import triton.language as tl
 
 _FUSED_MIX_MAX_ROWS = 16
+
+
+@triton.jit
+def _sm70_hc_down_gemv_kernel(
+    x_ptr,
+    w_ptr,
+    out_ptr,
+    inv_hc,
+    K: tl.constexpr,
+    BLOCK_K: tl.constexpr,
+):
+    """Single-CTA FP16 GEMV + SiLU for Qwen HC's fixed down projection."""
+    output_id = tl.program_id(0)
+    offsets = tl.arange(0, BLOCK_K)
+    acc = 0.0
+    for k_start in range(0, K, BLOCK_K):
+        k = k_start + offsets
+        x = tl.load(x_ptr + k, mask=k < K, other=0.0).to(tl.float32)
+        w = tl.load(w_ptr + output_id * K + k, mask=k < K, other=0.0).to(tl.float32)
+        acc += tl.sum(x * w, axis=0)
+    # Match F.linear's FP16 output boundary before the original divide + SiLU.
+    down = acc.to(tl.float16).to(tl.float32) * inv_hc
+    tl.store(out_ptr + output_id, down * tl.sigmoid(down))
+
+
+def sm70_hc_down_gemv_silu(
+    x: torch.Tensor, w_down: torch.Tensor, hc_count: int
+) -> torch.Tensor:
+    out = torch.empty((x.shape[0], w_down.shape[0]), dtype=x.dtype, device=x.device)
+    _sm70_hc_down_gemv_kernel[(w_down.shape[0],)](
+        x,
+        w_down,
+        out,
+        1.0 / hc_count,
+        K=x.shape[1],
+        BLOCK_K=16384,
+        num_warps=8,
+    )
+    return out
+
+
+def sm70_hc_down_gemv_silu_supported(
+    x: torch.Tensor, w_down: torch.Tensor, w_up: torch.Tensor
+) -> bool:
+    return (
+        x.is_cuda
+        and torch.cuda.get_device_capability(x.device) == (7, 0)
+        and x.dtype == torch.float16
+        and w_down.dtype == torch.float16
+        and w_up.dtype == torch.float16
+        and x.shape == (1, 10240)
+        and w_down.shape == (320, 10240)
+        and w_up.shape == (10240, 320)
+        and x.is_contiguous()
+        and w_down.is_contiguous()
+        and w_up.is_contiguous()
+    )
+
+
+@triton.jit
+def _sm70_hc_up_gemv_reduce_kernel(
+    activated_down_ptr,
+    x_ptr,
+    w_up_ptr,
+    out_ptr,
+    LOWRANK: tl.constexpr,
+    HS: tl.constexpr,
+    HC: tl.constexpr,
+    BLOCK_R: tl.constexpr,
+):
+    hidden_id = tl.program_id(0)
+    r = tl.arange(0, BLOCK_R)
+    activated_down = tl.load(activated_down_ptr + r, mask=r < LOWRANK, other=0.0).to(
+        tl.float32
+    )
+    out = 0.0
+    for branch in range(HC):
+        row = branch * HS + hidden_id
+        w = tl.load(w_up_ptr + row * LOWRANK + r, mask=r < LOWRANK, other=0.0).to(
+            tl.float32
+        )
+        up = tl.sum(activated_down * w, axis=0).to(tl.float16).to(tl.float32)
+        gate = tl.sigmoid(up)
+        x = tl.load(x_ptr + row).to(tl.float32)
+        out += gate * x
+    tl.store(out_ptr + hidden_id, out / HC)
+
+
+def sm70_hc_up_gemv_reduce(
+    activated_down: torch.Tensor,
+    x: torch.Tensor,
+    w_up: torch.Tensor,
+    hc_count: int,
+    hidden_size: int,
+) -> torch.Tensor:
+    out = torch.empty((1, hidden_size), dtype=x.dtype, device=x.device)
+    _sm70_hc_up_gemv_reduce_kernel[(hidden_size,)](
+        activated_down,
+        x,
+        w_up,
+        out,
+        LOWRANK=activated_down.shape[1],
+        HS=hidden_size,
+        HC=hc_count,
+        BLOCK_R=512,
+        num_warps=1,
+    )
+    return out
 
 
 @triton.jit

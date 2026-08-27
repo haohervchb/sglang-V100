@@ -4,7 +4,13 @@ import msgspec
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sglang.srt.layers.hc_mix_triton import fused_hc_mix, fused_hc_mix_supported
+from sglang.srt.layers.hc_mix_triton import (
+    fused_hc_mix,
+    fused_hc_mix_supported,
+    sm70_hc_down_gemv_silu,
+    sm70_hc_down_gemv_silu_supported,
+    sm70_hc_up_gemv_reduce,
+)
 
 
 class HyperConnectionConfig(msgspec.Struct, frozen=True):
@@ -241,7 +247,24 @@ class GatedResidual(HyperConnectionBase):
             hyper_input_normed = self.hc_norm(
                 hyper_input.unflatten(-1, (self.hc_count, self.hidden_size))
             ).flatten(-2)
-        if (
+        if sm70_hc_down_gemv_silu_supported(
+            hyper_input_normed,
+            self.input_mix_weight_down.weight,
+            self.input_mix_weight_up.weight,
+        ):
+            activated_mix_weight_down_out = sm70_hc_down_gemv_silu(
+                hyper_input_normed,
+                self.input_mix_weight_down.weight,
+                self.hc_count,
+            )
+            mixed_input = sm70_hc_up_gemv_reduce(
+                activated_mix_weight_down_out,
+                hyper_input_normed,
+                self.input_mix_weight_up.weight,
+                self.hc_count,
+                self.hidden_size,
+            ).to(self.params_dtype)
+        elif (
             self._jit_mix_ok
             and hyper_input_normed.is_cuda
             and hyper_input_normed.dtype in (torch.bfloat16, torch.float16)
