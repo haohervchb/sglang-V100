@@ -3,6 +3,7 @@ Page-by-page loading handles scattered physical blocks correctly.
 Kernel uses T.Parallel for per-page element-wise load (correct for non-consecutive pages).
 """
 
+import logging
 import math
 import os
 import warnings
@@ -12,6 +13,8 @@ import torch
 from ._kernels_paged import get_paged_kernel
 from ._kernels_paged_decode import get_paged_decode_kernels
 from ._kernels_paged_verify import VERIFY_Q_BLOCK, get_paged_verify_kernels
+
+logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", message="Field.*duplicates an ancestor field")
 
@@ -26,6 +29,8 @@ _BFLA_APPROXIMATE_WARNED = False
 
 _D256_GATHER_MIN_QUERY_TOKENS = 3920
 _D256_GATHER_MIN_CONTEXT = 8192
+_D256_LOGICAL_MIN_QUERY_TOKENS = 64
+_D256_TAIL_SPLIT_MIN_CONTEXT = 32768
 _BFLA_MASK_BLOCK_N = 256
 _BFLA_POOL_GROUP = 64
 
@@ -62,25 +67,52 @@ def _should_use_d256_gather(
 ):
     """Evidence-bounded policy for the exact dense D256 prefill route."""
     # A bridge workspace has already paid the page-resolution cost and is
-    # physically logical/dense. Use Split-D from the first full 4096-token
-    # chunk; the 8K threshold only amortizes page-16 index_select gathers.
-    # The native kernel admits arbitrary q lengths and tail-pads them to 64.
-    # SGLang's preferred 15680-token chunk is already aligned; 3920 is the
-    # exact-FP8 projection cutoff and also covers a measured 4000-token prompt.
+    # physically logical/dense, so small long-context tails can use the exact
+    # split-KV route without another gather. The 8K context and 3920-query
+    # thresholds still bound the physical-page index_select route.
     min_context = num_tokens if logical_dense_kv else _D256_GATHER_MIN_CONTEXT
+    logical_tail = _env_flag("SGLANG_V100_PREFILL_D256_LOGICAL_TAIL", "1")
+    min_query_tokens = (
+        _D256_LOGICAL_MIN_QUERY_TOKENS
+        if logical_dense_kv and logical_tail
+        else _D256_GATHER_MIN_QUERY_TOKENS
+    )
     return (
         _env_flag("SGLANG_V100_PREFILL_D256_GATHER", "1")
         and batch == 1
         and heads == 6
         and heads_kv == 1
         and dim == 256
-        and num_tokens >= _D256_GATHER_MIN_QUERY_TOKENS
+        and num_tokens >= min_query_tokens
         and max_seq_len >= min_context
         and causal
         and sliding_window_size < 0
         and not fp8_kv
         and fp16
     )
+
+
+def _d256_tail_split_kv(
+    *, num_tokens: int, max_seq_len: int, logical_dense_kv: bool
+) -> int:
+    """Choose enough split-KV CTAs for small long-context FP8 tail chunks."""
+    if (
+        not logical_dense_kv
+        or max_seq_len < _D256_TAIL_SPLIT_MIN_CONTEXT
+        or num_tokens > 2048
+    ):
+        return 1
+    if num_tokens <= 64:
+        return 64
+    if num_tokens <= 128:
+        return 32
+    if num_tokens <= 256:
+        return 16
+    if num_tokens <= 512:
+        return 8
+    if num_tokens <= 1024:
+        return 4
+    return 2
 
 
 def _get_d256_dense_workspace(k_cache, v_cache, required_pages):
@@ -236,12 +268,8 @@ def _run_d256_gathered_dense(
             k_cache, v_cache, active_pages
         )
         logical_pages = block_table[0, :active_pages]
-        torch.index_select(
-            k_cache, 0, logical_pages, out=dense_k_pages[:active_pages]
-        )
-        torch.index_select(
-            v_cache, 0, logical_pages, out=dense_v_pages[:active_pages]
-        )
+        torch.index_select(k_cache, 0, logical_pages, out=dense_k_pages[:active_pages])
+        torch.index_select(v_cache, 0, logical_pages, out=dense_v_pages[:active_pages])
 
     dense_k = dense_k_pages[:active_pages].flatten(0, 1)[:max_seq_len]
     dense_v = dense_v_pages[:active_pages].flatten(0, 1)[:max_seq_len]
@@ -288,9 +316,26 @@ def _run_d256_gathered_dense(
             softmax_scale,
             mask,
         )
-    split_kv = int(os.environ.get("SGLANG_V100_PREFILL_D256_SPLIT_KV", "1"))
+    split_value = (
+        os.environ.get("SGLANG_V100_PREFILL_D256_SPLIT_KV", "auto").strip().lower()
+    )
+    if split_value == "auto":
+        # The full 8K SGLang chunk already supplies hundreds of query CTAs and
+        # split-KV only adds workspace traffic. Small final chunks do not: for
+        # Q<=2K, choose powers of two so q_tiles * splits stays near 64, or
+        # 384 CTAs for the Qwen TP4 H6 shape. The capped workspace remains
+        # roughly constant (<=4096 query-split rows) across these tiers.
+        split_kv = _d256_tail_split_kv(
+            num_tokens=num_tokens,
+            max_seq_len=max_seq_len,
+            logical_dense_kv=logical_dense_kv,
+        )
+    else:
+        split_kv = int(split_value)
     if split_kv < 1:
-        raise ValueError("SGLANG_V100_PREFILL_D256_SPLIT_KV must be >= 1")
+        raise ValueError(
+            "SGLANG_V100_PREFILL_D256_SPLIT_KV must be 'auto' or an integer >= 1"
+        )
     if split_kv > 1 and max_seq_len >= 32768:
         from ._kernels_dense_d256_splitkv import (
             get_dense_prefix_d256_splitkv3_kernels,
@@ -439,8 +484,7 @@ def grouped_decode_forward(
     return combine(partial_o, partial_lse, seq_lens)
 
 
-def _use_cuda_decode(*, batch, heads, heads_kv, dim, page_size, fp8_kv,
-                     e5m2_kv):
+def _use_cuda_decode(*, batch, heads, heads_kv, dim, page_size, fp8_kv, e5m2_kv):
     """Exact-shape gate for the hand-written CUDA decode partial."""
     from ._decode_cuda import PAGE_SIZE, sm70_cuda_decode_available
 
@@ -454,10 +498,7 @@ def _use_cuda_decode(*, batch, heads, heads_kv, dim, page_size, fp8_kv,
                 cap = torch.cuda.get_device_capability()
             except Exception:
                 cap = "err"
-        reason = (
-            "cuda_unavailable(env=%r,cap=%r)"
-            % (sm70_cuda_decode_enabled(), cap)
-        )
+        reason = "cuda_unavailable(env=%r,cap=%r)" % (sm70_cuda_decode_enabled(), cap)
     elif not fp8_kv or not e5m2_kv:
         reason = f"kv_dtype(fp8={fp8_kv},e5m2={e5m2_kv})"
     elif heads != 6 * heads_kv or dim != 256 or page_size != PAGE_SIZE:
@@ -486,6 +527,9 @@ def gather_fp8_paged_kv(
     if v_cache.dtype != k_cache.dtype:
         raise ValueError("K and V cache dtypes must match")
     batch, max_blocks = page_table.shape
+    threads = int(os.environ.get("SGLANG_V100_FP8_GATHER_THREADS", "128"))
+    if threads not in (64, 128, 256):
+        raise ValueError("SGLANG_V100_FP8_GATHER_THREADS must be 64, 128, or 256")
     kernel = get_fp8_paged_gather_kernel(
         batch,
         k_cache.shape[2],
@@ -493,6 +537,8 @@ def gather_fp8_paged_kv(
         k_cache.shape[1],
         k_cache.shape[0],
         max_blocks,
+        k_cache.dtype == torch.float8_e5m2,
+        threads,
     )
     kernel(
         k_cache.view(torch.uint8),
@@ -586,23 +632,26 @@ def paged_forward(
             softmax_scale * k_scale,
         )
         result = combine(partial_o, partial_lse, seq_lens, query_start_loc)
-    elif _should_use_d256_gather(
-        batch=B,
-        heads=num_heads,
-        heads_kv=heads_kv,
-        dim=D,
-        num_tokens=num_tokens,
-        max_seq_len=max_seq_len_hint,
-        causal=causal,
-        sliding_window_size=sliding_window_size,
-        fp8_kv=fp8_kv,
-        fp16=(
-            q.dtype == torch.float16
-            and k_cache.dtype == torch.float16
-            and v_cache.dtype == torch.float16
-        ),
-        logical_dense_kv=logical_dense_kv,
-    ) and not torch.cuda.is_current_stream_capturing():
+    elif (
+        _should_use_d256_gather(
+            batch=B,
+            heads=num_heads,
+            heads_kv=heads_kv,
+            dim=D,
+            num_tokens=num_tokens,
+            max_seq_len=max_seq_len_hint,
+            causal=causal,
+            sliding_window_size=sliding_window_size,
+            fp8_kv=fp8_kv,
+            fp16=(
+                q.dtype == torch.float16
+                and k_cache.dtype == torch.float16
+                and v_cache.dtype == torch.float16
+            ),
+            logical_dense_kv=logical_dense_kv,
+        )
+        and not torch.cuda.is_current_stream_capturing()
+    ):
         global _D256_GATHER_OOM_WARNED
         try:
             result = _run_d256_gathered_dense(

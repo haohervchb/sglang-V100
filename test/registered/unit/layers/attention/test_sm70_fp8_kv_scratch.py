@@ -1,20 +1,19 @@
 import pytest
 import torch
-
 from sglang.srt.layers.attention.tilelang_fa_v100 import _paged_adapter
 from sglang.srt.layers.attention.tilelang_fa_v100._kernels_paged_verify import (
     VERIFY_MIN_TOKENS_PER_SPLIT,
     _verify_min_tokens_per_split,
-)
-from sglang.srt.layers.attention.triton_ops.fp8_sm70 import (
-    dequantize_paged_kv_e4m3_sm70,
-    store_paged_extend_kv_fp16_sm70,
 )
 from sglang.srt.layers.attention.triton_ops.decode_attention import (
     decode_attention_fwd,
 )
 from sglang.srt.layers.attention.triton_ops.extend_attention import (
     extend_attention_fwd,
+)
+from sglang.srt.layers.attention.triton_ops.fp8_sm70 import (
+    dequantize_paged_kv_e4m3_sm70,
+    store_paged_extend_kv_fp16_sm70,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -46,9 +45,7 @@ def test_d256_gather_policy_is_bounded_to_measured_shape(monkeypatch):
     )
 
     assert _paged_adapter._should_use_d256_gather(**shape)
-    assert not _paged_adapter._should_use_d256_gather(
-        **{**shape, "num_tokens": 3919}
-    )
+    assert not _paged_adapter._should_use_d256_gather(**{**shape, "num_tokens": 3919})
     assert _paged_adapter._should_use_d256_gather(
         **{
             **shape,
@@ -76,11 +73,70 @@ def test_d256_gather_policy_is_bounded_to_measured_shape(monkeypatch):
     assert not _paged_adapter._should_use_d256_gather(
         **{**shape, "sliding_window_size": 4096}
     )
-    assert not _paged_adapter._should_use_d256_gather(
-        **{**shape, "max_seq_len": 8191}
-    )
+    assert not _paged_adapter._should_use_d256_gather(**{**shape, "max_seq_len": 8191})
     assert _paged_adapter._should_use_d256_gather(
         **{**shape, "max_seq_len": 4096, "logical_dense_kv": True}
+    )
+    assert _paged_adapter._should_use_d256_gather(
+        **{
+            **shape,
+            "num_tokens": 64,
+            "max_seq_len": 32768,
+            "logical_dense_kv": True,
+        }
+    )
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_LOGICAL_TAIL", "0")
+    assert not _paged_adapter._should_use_d256_gather(
+        **{
+            **shape,
+            "num_tokens": 64,
+            "max_seq_len": 32768,
+            "logical_dense_kv": True,
+        }
+    )
+    monkeypatch.delenv("SGLANG_V100_PREFILL_D256_LOGICAL_TAIL")
+    assert not _paged_adapter._should_use_d256_gather(
+        **{
+            **shape,
+            "num_tokens": 63,
+            "max_seq_len": 32768,
+            "logical_dense_kv": True,
+        }
+    )
+    assert not _paged_adapter._should_use_d256_gather(
+        **{**shape, "num_tokens": 64, "max_seq_len": 32768}
+    )
+
+
+@pytest.mark.parametrize(
+    ("tokens", "expected_splits"),
+    [
+        (64, 64),
+        (65, 32),
+        (128, 32),
+        (256, 16),
+        (512, 8),
+        (1024, 4),
+        (2048, 2),
+        (2049, 1),
+    ],
+)
+def test_d256_logical_tail_split_policy(tokens, expected_splits):
+    assert (
+        _paged_adapter._d256_tail_split_kv(
+            num_tokens=tokens,
+            max_seq_len=245760,
+            logical_dense_kv=True,
+        )
+        == expected_splits
+    )
+    assert (
+        _paged_adapter._d256_tail_split_kv(
+            num_tokens=tokens,
+            max_seq_len=245760,
+            logical_dense_kv=False,
+        )
+        == 1
     )
 
 
@@ -91,20 +147,16 @@ def test_d256_gathered_dense_matches_shuffled_paged_attention(monkeypatch):
     seq_len = 8192
     num_tokens = 4096
     num_pages = seq_len // page_size
-    q = torch.randn(
-        num_tokens, 6, 256, dtype=torch.float16, device=device
-    ).mul_(0.1)
+    q = torch.randn(num_tokens, 6, 256, dtype=torch.float16, device=device).mul_(0.1)
     k_cache = torch.randn(
         num_pages, page_size, 1, 256, dtype=torch.float16, device=device
     ).mul_(0.1)
     v_cache = torch.randn_like(k_cache).mul_(0.1)
-    block_table = torch.randperm(
-        num_pages, dtype=torch.int32, device=device
-    ).view(1, -1)
-    seq_lens = torch.tensor([seq_len], dtype=torch.int32, device=device)
-    query_start_loc = torch.tensor(
-        [0, num_tokens], dtype=torch.int32, device=device
+    block_table = torch.randperm(num_pages, dtype=torch.int32, device=device).view(
+        1, -1
     )
+    seq_lens = torch.tensor([seq_len], dtype=torch.int32, device=device)
+    query_start_loc = torch.tensor([0, num_tokens], dtype=torch.int32, device=device)
     prefix_kv_lens = torch.tensor(
         [seq_len - num_tokens], dtype=torch.int32, device=device
     )
@@ -135,9 +187,7 @@ def test_d256_full_prompt_tail_padding_matches_paged_attention(monkeypatch):
     device = "cuda:0"
     page_size = 16
     seq_len = num_tokens = 4000
-    q = torch.randn(
-        num_tokens, 6, 256, dtype=torch.float16, device=device
-    ).mul_(0.1)
+    q = torch.randn(num_tokens, 6, 256, dtype=torch.float16, device=device).mul_(0.1)
     k_cache = torch.randn(
         seq_len // page_size,
         page_size,
@@ -151,9 +201,7 @@ def test_d256_full_prompt_tail_padding_matches_paged_attention(monkeypatch):
         seq_len // page_size, dtype=torch.int32, device=device
     ).view(1, -1)
     seq_lens = torch.tensor([seq_len], dtype=torch.int32, device=device)
-    query_start_loc = torch.tensor(
-        [0, num_tokens], dtype=torch.int32, device=device
-    )
+    query_start_loc = torch.tensor([0, num_tokens], dtype=torch.int32, device=device)
     prefix_kv_lens = torch.tensor([0], dtype=torch.int32, device=device)
     args = (
         q,
@@ -175,6 +223,37 @@ def test_d256_full_prompt_tail_padding_matches_paged_attention(monkeypatch):
     )
 
     torch.testing.assert_close(exact, paged, rtol=1e-3, atol=5e-5)
+
+
+def test_d256_logical_long_tail_auto_split_matches_unsplit(monkeypatch):
+    torch.manual_seed(53)
+    page_size = 16
+    seq_len = 32768
+    num_tokens = 64
+    num_pages = seq_len // page_size
+    q = torch.randn(num_tokens, 6, 256, dtype=torch.float16, device="cuda").mul_(0.1)
+    k_cache = torch.randn(
+        num_pages, page_size, 1, 256, dtype=torch.float16, device="cuda"
+    ).mul_(0.1)
+    v_cache = torch.randn_like(k_cache).mul_(0.1)
+    block_table = torch.arange(num_pages, dtype=torch.int32, device="cuda").view(1, -1)
+    args = (
+        q,
+        k_cache,
+        v_cache,
+        block_table,
+        torch.tensor([seq_len], dtype=torch.int32, device="cuda"),
+        torch.tensor([0, num_tokens], dtype=torch.int32, device="cuda"),
+        torch.tensor([seq_len - num_tokens], dtype=torch.int32, device="cuda"),
+    )
+    kwargs = dict(max_seq_len_hint=seq_len, logical_dense_kv=True)
+
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_SPLIT_KV", "1")
+    unsplit, _ = _paged_adapter.paged_forward(*args, **kwargs)
+    monkeypatch.setenv("SGLANG_V100_PREFILL_D256_SPLIT_KV", "auto")
+    split, _ = _paged_adapter.paged_forward(*args, **kwargs)
+
+    torch.testing.assert_close(split, unsplit, rtol=1e-3, atol=5e-6)
 
 
 def test_native_e5m2_cache_writer_matches_torch_conversion():
@@ -296,9 +375,9 @@ def test_triton_e5m2_extend_fallback_matches_mixed_kv_reference():
     torch.manual_seed(43)
     prefix_len, query_len, q_heads, kv_heads, dim = 257, 7, 5, 1, 128
     k_scale, v_scale = 0.75, 1.25
-    q = torch.randn(
-        query_len, q_heads, dim, device="cuda", dtype=torch.float16
-    ).mul_(0.1)
+    q = torch.randn(query_len, q_heads, dim, device="cuda", dtype=torch.float16).mul_(
+        0.1
+    )
     k_prefix = torch.randn(
         prefix_len, kv_heads, dim, device="cuda", dtype=torch.float16
     ).mul_(0.1)

@@ -16,7 +16,7 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
-| `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill: 4,137; 100K decode: 51.8; 200K decode: 45.8 tok/s** with the SM70 CUDA read-once split-KV decode partial; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
+| `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill/decode: 4,224/63.2; 70K decode: 59.1; 200K decode: 49.6 tok/s** with the SM70 CUDA split-KV decode partial and fused QPN8 gate/up path; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
 | `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; **cold 150K: 134; cold 200K: 112 tok/s**; 79.2 tok/s at 70K (warm); [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
 | `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
@@ -44,22 +44,26 @@ sweep columns.
 
 The acceptance workload for these changes is the actual
 `Qwen/Qwen3.8-27B-FP8` checkpoint with TP4, E5M2 KV, and speculative decoding
-off. The retained cold sweep reaches 4,137 prefill tok/s at 4K; the SM70 CUDA
-read-once split-KV decode partial holds about 52 tok/s at 100K and 46 tok/s at
-200K, versus about 30 tok/s at 128K before. The full curve and profiler
+off. The post-port cold validation reaches 4,224 prefill tok/s and 63.2 decode
+tok/s at 4K, 59.1 decode tok/s at 70K, and 49.6 decode tok/s at 200K. The SM70
+CUDA read-once split-KV decode partial removed the old severe context decay;
+the fused QPN8 gate/up path then reduced TPOT another 2.6% at 4K and 1.7% at
+70K in controlled A/B runs. The full curve and profiler
 breakdown are in the [FP8 target-only report](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md).
 The operator measurements below explain individual paths; they are not being
 used as a substitute for that FP8 end-to-end result.
 
 | Path | Measured shape | Result |
 | --- | --- | ---: |
-| Chunked GDN prefill | Qwen3.8 TP4, 2,048 tokens | 1.291 ms vs 1.745 ms Triton (1.35x) |
-| Chunked GDN prefill | Qwen3.8 TP4, 4,096 tokens | 2.547 ms vs 3.300 ms Triton (1.30x) |
-| Chunked GDN prefill | Qwen3.8 TP4, 8,192 tokens | 5.043 ms vs 6.232 ms Triton (1.24x) |
+| Chunked GDN prefill | Qwen3.8 TP4, 2,048 tokens | 1.455 ms vs 2.017 ms previous native schedule (27.9% lower) |
+| Chunked GDN prefill | Qwen3.8 TP4, 4,096 tokens | 2.199 ms vs 3.236 ms previous native schedule (32.0% lower) |
+| Chunked GDN prefill | Qwen3.8 TP4, 8,192 tokens | 3.725 ms vs 5.674 ms previous native schedule (34.3% lower) |
+| Exact D256 tail split-KV | Q=64, K=245,760, Hq/Hkv=6/1 | 4.306 ms vs 40.675 ms unsplit (9.45x) |
+| Fused QPN8 gate/up + SiLU | M=1, K=5,120, N=8,704 | 0.059 ms vs 0.062 ms materialized gate/up, bitwise exact (about 1.04x) |
 | Mixed FP16/FP32 Gemma RMSNorm | 4,096 x 5,120 | 0.315 ms vs 1.397 ms PyTorch (4.44x) |
 | Experimental BFLA sparse attention | Q=4,096, K=32,768, D=256, 10% keep | about 9.8 ms including selection vs 23.9 ms dense (about 2.4x) |
 
-The GDN prefill dispatcher chooses the direct recurrent kernel through 1,280
+The GDN prefill dispatcher chooses the direct recurrent kernel through 448
 tokens and the tensor-core 64-token chunk kernel above that boundary. It
 supports packed variable-length batches, row-strided mixed QKV, indexed FP32
 state, direct output, and a column-group CTA schedule. Keep decode on Triton in
@@ -309,11 +313,14 @@ This is the reference command for ordinary, non-speculative decode. No
 speculative environment switch or `--speculative-*` argument is present. The
 SM70 CUDA read-once split-KV decode partial and the QPN8 W8A16 decode GEMMs are
 enabled by default; set `SGLANG_V100_DECODE_CUDA=0` or
-`SGLANG_SM70_FP8_DECODE_QPN8=0` to opt out. With the CUDA partial, long-context
-decode holds about 52 tok/s at 100K and 46 tok/s at 200K, up from about
-30 tok/s at 128K before. The CUDA partial covers TP1/TP2/TP4 (the GQA ratio is
-fixed at 6:1, so tensor-parallel splits change only the per-rank KV-head
-count).
+`SGLANG_SM70_FP8_DECODE_QPN8=0` to opt out. With the current CUDA partial and
+QPN8 paths, target-only decode measures 59.1 tok/s at 70K and 49.6 tok/s at
+200K, up from about 30 tok/s at 128K before. QPN8's word-parallel decoder and
+fused gate/up SiLU path are also default-on; use
+`SGLANG_SM70_FP8_QPN8_FASTDEC=0` and
+`SGLANG_SM70_FP8_QPN8_FUSED_GATE=0` for a controlled rollback. The CUDA
+partial covers TP1/TP2/TP4 (the GQA ratio is fixed at 6:1, so tensor-parallel
+splits change only the per-rank KV-head count).
 
 ```bash
 FLASHINFER_DISABLE_VERSION_CHECK=1 \
@@ -1044,6 +1051,7 @@ repository. The relationship column states which kind of use applies.
 | TurboMind GEMM and MoE kernel lineage | [InternLM/lmdeploy](https://github.com/InternLM/lmdeploy) | Original TurboMind project and kernel architecture. | Apache-2.0 |
 | SM70 TurboMind FP8, AWQ, and FP16-MoE build source | [1CatAI/1Cat-vLLM](https://github.com/1CatAI/1Cat-vLLM/tree/6ada86ed64af6d1a7b3cb0f34df237fd86f06d48/csrc/sm70_turbomind) | Pinned sparse source snapshot used to build the current SGLang TurboMind adapter; its embedded TurboMind sources derive from LMDeploy. | Apache-2.0 / `6ada86e` |
 | SM70 Marlin GPTQ/AWQ dense and MoE kernels | [zhinianqin/marlin_v100](https://github.com/zhinianqin/marlin_v100/tree/6d72a49939701d26b15b617a4cd2423174adb2d1) | Native extension built by `scripts/setup_v100_marlin.sh`, with the compatibility and Qwen tuning patches in this repository. | Apache-2.0 / `6d72a49` |
+| QPN8 SM70 W8A16 decode kernel | [dnv2003/v100-skinny](https://github.com/dnv2003/v100-skinny) | Kernel architecture adapted for Qwen3.8 block-wise scales; this repository adds its own word-parallel FP8 decoder and paired gate/up SiLU epilogue. | MIT |
 | FlashInfer sampling and remaining SM70-compatible runtime operations | [haohervchb/flashinfer](https://github.com/haohervchb/flashinfer/tree/c3c40a7b90b792fc59f90f8f55c9e2de9c1b6833), derived from [flashinfer-ai/flashinfer](https://github.com/flashinfer-ai/flashinfer) | Pinned source dependency with this repository's reduced SM70 compatibility patch. | Apache-2.0 / `c3c40a7` |
 | Tensor-core templates used by TurboMind and Marlin builds | [NVIDIA/CUTLASS](https://github.com/NVIDIA/cutlass) | Header/template build dependency. TurboMind uses `da5e086`; Marlin uses CUTLASS `v4.2.1`. | BSD-3-Clause |
 | Qwen3.8 DFlash2 speculative decoding | [z-lab/Qwen3.8-27B-DFlash2](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2) | Draft checkpoint, published block configuration, and model contract used by the DFlash2 integration and benchmarks. | Apache-2.0 / model revision `ac04198` |

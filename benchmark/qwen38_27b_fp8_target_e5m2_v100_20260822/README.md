@@ -45,7 +45,7 @@ python -m sglang.bench_serving \
   --warmup-requests 0 --disable-ignore-eos
 ```
 
-## Results
+## Earlier baseline
 
 | Input | TTFT | Prefill | TPOT | Decode |
 | ---: | ---: | ---: | ---: | ---: |
@@ -55,10 +55,45 @@ python -m sglang.bench_serving \
 | 70,000 | 23,488.233 ms | 2,980.2 tok/s | 25.760 ms | 38.82 tok/s |
 | 128,000 | 54,322.900 ms | 2,356.3 tok/s | 33.289 ms | 30.04 tok/s |
 
-Every request completed and generated exactly 256 tokens. The curve reaches
-the requested approximately 4K tok/s short-prefill target at 4K. Long prefill
-degrades gradually rather than showing a new host-side routing cliff. Decode
-still falls materially with context and remains the main unfinished target.
+Every request completed and generated exactly 256 tokens. This earlier curve
+reaches the requested approximately 4K tok/s short-prefill target at 4K. Long
+prefill degrades gradually rather than showing a new host-side routing cliff.
+Decode still falls materially with context and motivated the later decode work
+below.
+
+## Post-port validation
+
+The later native GDN, exact logical-tail split-KV, QPN8 decoder, and fused
+gate/up work used the same target-only server and cold-cache protocol. The
+current default configuration produced:
+
+| Input | TTFT | Prefill | TPOT | Decode |
+| ---: | ---: | ---: | ---: | ---: |
+| 4,096 | 969.600 ms | 4,224.4 tok/s | 15.820 ms | 63.21 tok/s |
+| 70,000 | 22,799.250 ms | 3,070.3 tok/s | 16.910 ms | 59.14 tok/s |
+| 200,000 | 105,429.770 ms | 1,897.0 tok/s | 20.170 ms | 49.58 tok/s |
+
+The FP8 decode change was isolated by disabling only
+`SGLANG_SM70_FP8_QPN8_FASTDEC` and `SGLANG_SM70_FP8_QPN8_FUSED_GATE` in the
+control server:
+
+| Input | Control TPOT | Optimized TPOT | Latency reduction |
+| ---: | ---: | ---: | ---: |
+| 4,096 | 16.240 ms | 15.820 ms | 2.59% |
+| 70,000 | 17.210 ms | 16.910 ms | 1.74% |
+
+The paired gate/up kernel is bitwise equal to materializing QPN8 gate/up,
+applying PyTorch FP16 SiLU, and multiplying by FP16 up. At the operator level
+it saves roughly 4--20% for decode batches M=1--8. Short output projections
+remain on the scalar decoder because the word-parallel decoder was slower for
+that K=1,536 shape.
+
+The long-context policy was tested rather than extrapolated from full chunks.
+At Q=64/K=245,760, exact 64-way KV splitting measured 4.306 ms versus
+40.675 ms unsplit (9.45x, max absolute difference 4.8e-7). A real 198K FP8
+A/B, whose 1,392-token final chunk exercises this policy, reduced TTFT from
+105.705 s to 104.249 s. Full 8K chunks deliberately stay unsplit because their
+existing query/head grid already fills the GPU.
 
 ## FP8-model attribution
 

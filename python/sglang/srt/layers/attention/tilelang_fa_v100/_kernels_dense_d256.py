@@ -30,9 +30,11 @@ def _dense_prefix_d256_kernel(
     qk_policy=2,
     pv_policy=1,
     block_m=_BLOCK_M,
+    block_n=_BLOCK_N,
     threads=_THREADS,
     kv_union=False,
     gemm_version=2,
+    num_stages=0,
 ):
     dim = 256
     nt = T.dynamic("nt")
@@ -68,16 +70,16 @@ def _dense_prefix_d256_kernel(
         ):
             Q_shared = T.alloc_shared([block_m, dim], T.float16)
             if kv_union:
-                KV_shared = T.alloc_shared([_BLOCK_N, dim], T.float16)
+                KV_shared = T.alloc_shared([block_n, dim], T.float16)
                 K_shared = KV_shared
                 V_shared = KV_shared
             else:
-                K_shared = T.alloc_shared([_BLOCK_N, dim], T.float16)
-                V_shared = T.alloc_shared([_BLOCK_N, dim], T.float16)
-            P_shared = T.alloc_shared([block_m, _BLOCK_N], T.float16)
+                K_shared = T.alloc_shared([block_n, dim], T.float16)
+                V_shared = T.alloc_shared([block_n, dim], T.float16)
+            P_shared = T.alloc_shared([block_m, block_n], T.float16)
 
-            scores = T.alloc_fragment([block_m, _BLOCK_N], T.float32)
-            probabilities = T.alloc_fragment([block_m, _BLOCK_N], T.float16)
+            scores = T.alloc_fragment([block_m, block_n], T.float32)
+            probabilities = T.alloc_fragment([block_m, block_n], T.float16)
             output = T.alloc_fragment([block_m, dim], T.float32)
             row_max = T.alloc_fragment([block_m], T.float32)
             previous_max = T.alloc_fragment([block_m], T.float32)
@@ -98,29 +100,26 @@ def _dense_prefix_d256_kernel(
             T.fill(row_sum, 0)
 
             loop_end = T.min(
-                T.ceildiv(nk, _BLOCK_N),
+                T.ceildiv(nk, block_n),
                 T.ceildiv(
                     prefix_kv_len + query_start + block_m,
-                    _BLOCK_N,
+                    block_n,
                 ),
             )
-            for kv_tile in T.Pipelined(loop_end, num_stages=0):
-                tile_start = kv_tile * _BLOCK_N
+            for kv_tile in T.Pipelined(loop_end, num_stages=num_stages):
+                tile_start = kv_tile * block_n
                 T.clear(K_shared)
-                for n, d in T.Parallel(_BLOCK_N, dim):
+                for n, d in T.Parallel(block_n, dim):
                     kv_index = tile_start + n
                     if kv_index < nk:
                         K_shared[n, d] = K[kv_index, kv_head, d]
 
-                for row, n in T.Parallel(block_m, _BLOCK_N):
+                for row, n in T.Parallel(block_m, block_n):
                     kv_index = tile_start + n
                     scores[row, n] = T.if_then_else(
                         (query_start + row < nt)
                         & (kv_index < nk)
-                        & (
-                            kv_index
-                            <= prefix_kv_len + query_start + row
-                        ),
+                        & (kv_index <= prefix_kv_len + query_start + row),
                         0,
                         -T.infinity(T.float32),
                     )
@@ -147,7 +146,7 @@ def _dense_prefix_d256_kernel(
                     row_sum[row] *= rescale[row]
                 for row, d in T.Parallel(block_m, dim):
                     output[row, d] *= rescale[row]
-                for row, n in T.Parallel(block_m, _BLOCK_N):
+                for row, n in T.Parallel(block_m, block_n):
                     scores[row, n] = T.exp2(
                         (scores[row, n] - row_max[row]) * sm_scale * _LOG2_E
                     )
@@ -156,12 +155,12 @@ def _dense_prefix_d256_kernel(
                     row_sum[row] += tile_sum[row]
 
                 T.clear(V_shared)
-                for n, d in T.Parallel(_BLOCK_N, dim):
+                for n, d in T.Parallel(block_n, dim):
                     kv_index = tile_start + n
                     if kv_index < nk:
                         V_shared[n, d] = V[kv_index, kv_head, d]
 
-                for row, n in T.Parallel(block_m, _BLOCK_N):
+                for row, n in T.Parallel(block_m, block_n):
                     P_shared[row, n] = T.cast(scores[row, n], T.float16)
                 T.copy(P_shared, probabilities)
                 gemm(
@@ -189,9 +188,11 @@ def get_dense_prefix_d256_kernel(
     qk_policy=2,
     pv_policy=1,
     block_m=_BLOCK_M,
+    block_n=_BLOCK_N,
     threads=_THREADS,
     kv_union=False,
     gemm_version=2,
+    num_stages=0,
 ):
     key = (
         heads,
@@ -199,9 +200,11 @@ def get_dense_prefix_d256_kernel(
         qk_policy,
         pv_policy,
         block_m,
+        block_n,
         threads,
         kv_union,
         gemm_version,
+        num_stages,
     )
     if key not in _KERNEL_CACHE:
         _KERNEL_CACHE[key] = _dense_prefix_d256_kernel(
@@ -210,8 +213,10 @@ def get_dense_prefix_d256_kernel(
             qk_policy=qk_policy,
             pv_policy=pv_policy,
             block_m=block_m,
+            block_n=block_n,
             threads=threads,
             kv_union=kv_union,
             gemm_version=gemm_version,
+            num_stages=num_stages,
         )
     return _KERNEL_CACHE[key]

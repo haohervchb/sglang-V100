@@ -791,18 +791,26 @@ def _chunk_forward_kernel(
     store_checkpoints: bool,
     state_fp32: bool,
     value_block: int = VALUE_BLOCK,
+    packed_v: bool = False,
+    k_reuse_mode: int = 0,
 ):
+    if value_block not in (16, 32, 64) or VALUE_DIM % value_block != 0:
+        raise ValueError("value_block must be 16, 32, or 64 and divide VALUE_DIM")
+    if k_reuse_mode not in (0, 1, 2, 3, 4):
+        raise ValueError("k_reuse_mode must be between 0 and 4")
     tokens = T.dynamic("tokens")
     sequences = num_sequences
     chunks = T.dynamic("chunks")
     heads_per_key = value_heads // q_heads
     state_dtype = T.float32 if state_fp32 else T.float16
+    mixed_dim = 2 * q_heads * KEY_DIM + value_heads * VALUE_DIM
+    v_shape = [tokens, mixed_dim] if packed_v else [1, tokens, value_heads, VALUE_DIM]
 
     @T.prim_func
     def main(
         Q: T.Tensor([1, tokens, q_heads, KEY_DIM], T.float16),
         K: T.Tensor([1, tokens, q_heads, KEY_DIM], T.float16),
-        V: T.Tensor([1, tokens, value_heads, VALUE_DIM], T.float16),
+        V: T.Tensor(v_shape, T.float16),
         Inverse: T.Tensor([1, tokens, value_heads, CHUNK_SIZE], T.float16),
         GateCumsum: T.Tensor([1, tokens, value_heads], T.float32),
         Beta: T.Tensor([1, tokens, value_heads], T.float32),
@@ -821,9 +829,26 @@ def _chunk_forward_kernel(
             threads=THREADS,
         ) as (value_tile, value_head, sequence):
             q_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
-            k_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
-            k_dot_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
-            k_update_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+            if k_reuse_mode == 0:
+                k_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_dot_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_update_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+            elif k_reuse_mode == 1:
+                k_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_dot_shared = k_shared
+                k_update_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+            elif k_reuse_mode == 2:
+                k_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_dot_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_update_shared = k_shared
+            elif k_reuse_mode == 3:
+                k_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_dot_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_update_shared = k_dot_shared
+            else:
+                k_shared = T.alloc_shared([CHUNK_SIZE, KEY_DIM], T.float16)
+                k_dot_shared = k_shared
+                k_update_shared = k_shared
             value_shared = T.alloc_shared([CHUNK_SIZE, value_block], T.float16)
             inverse_shared = T.alloc_shared([CHUNK_SIZE, CHUNK_SIZE], T.float16)
             state_shared = T.alloc_shared([KEY_DIM, value_block], T.float16)
@@ -874,24 +899,43 @@ def _chunk_forward_kernel(
                         if i < valid:
                             q_shared[i, d] = Q[0, chunk_begin + i, key_head, d]
                             k_shared[i, d] = K[0, chunk_begin + i, key_head, d]
-                            k_dot_shared[i, d] = K[0, chunk_begin + i, key_head, d]
-                            k_update_shared[i, d] = K[0, chunk_begin + i, key_head, d]
+                            if k_reuse_mode not in (1, 4):
+                                k_dot_shared[i, d] = K[0, chunk_begin + i, key_head, d]
+                            if k_reuse_mode not in (2, 3, 4):
+                                k_update_shared[i, d] = K[
+                                    0, chunk_begin + i, key_head, d
+                                ]
                         else:
                             q_shared[i, d] = 0
                             k_shared[i, d] = 0
-                            k_dot_shared[i, d] = 0
-                            k_update_shared[i, d] = 0
+                            if k_reuse_mode not in (1, 4):
+                                k_dot_shared[i, d] = 0
+                            if k_reuse_mode not in (2, 3, 4):
+                                k_update_shared[i, d] = 0
                     for i, dv in T.Parallel(CHUNK_SIZE, value_block):
-                        value_shared[i, dv] = T.if_then_else(
-                            (i < valid) & (value_start + dv < VALUE_DIM),
-                            V[
+                        if packed_v:
+                            value_shared[i, dv] = T.if_then_else(
+                                (i < valid) & (value_start + dv < VALUE_DIM),
+                                V[
+                                    chunk_begin + i,
+                                    2 * q_heads * KEY_DIM
+                                    + value_head * VALUE_DIM
+                                    + value_start
+                                    + dv,
+                                ],
                                 0,
-                                chunk_begin + i,
-                                value_head,
-                                value_start + dv,
-                            ],
-                            0,
-                        )
+                            )
+                        else:
+                            value_shared[i, dv] = T.if_then_else(
+                                (i < valid) & (value_start + dv < VALUE_DIM),
+                                V[
+                                    0,
+                                    chunk_begin + i,
+                                    value_head,
+                                    value_start + dv,
+                                ],
+                                0,
+                            )
                     for i, j in T.Parallel(CHUNK_SIZE, CHUNK_SIZE):
                         inverse_shared[i, j] = T.if_then_else(
                             i < valid,
@@ -1295,6 +1339,8 @@ def _get_chunk_forward(
     store_checkpoints: bool,
     state_fp32: bool,
     value_block: int = VALUE_BLOCK,
+    packed_v: bool = False,
+    k_reuse_mode: int = 0,
 ):
     return _chunk_forward_kernel(
         q_heads,
@@ -1304,6 +1350,8 @@ def _get_chunk_forward(
         store_checkpoints,
         state_fp32,
         value_block,
+        packed_v,
+        k_reuse_mode,
     )
 
 
@@ -1507,6 +1555,21 @@ def packed_chunked_gdn_sm70(
     chunk_indices = (
         prepare_chunk_indices(cu_seqlens, CHUNK_SIZE).to(dtype=torch.int32).contiguous()
     )
+    packed_v_direct_value = (
+        os.environ.get("SGLANG_V100_GDN_PACKED_V_DIRECT", "1").strip().lower()
+    )
+    if packed_v_direct_value not in (
+        "0",
+        "false",
+        "off",
+        "no",
+        "1",
+        "true",
+        "on",
+        "yes",
+    ):
+        raise ValueError("SGLANG_V100_GDN_PACKED_V_DIRECT must be a boolean value")
+    packed_v_direct = packed_v_direct_value in ("1", "true", "on", "yes")
     q, k, v, gate_cumsum, beta = prepare_packed_gdn_sm70(
         mixed_qkv,
         gate_a,
@@ -1517,6 +1580,7 @@ def packed_chunked_gdn_sm70(
         dt_bias=dt_bias,
         cu_seqlens=cu_seqlens,
         chunk_indices=chunk_indices,
+        copy_v=not packed_v_direct,
     )
     return chunked_gdn_sm70(
         q,
@@ -1532,6 +1596,7 @@ def packed_chunked_gdn_sm70(
         qk_normalized=True,
         gate_is_cumulative=True,
         chunk_indices=chunk_indices,
+        packed_v=packed_v_direct,
     )
 
 
@@ -1546,6 +1611,7 @@ def prepare_packed_gdn_sm70(
     dt_bias: torch.Tensor,
     cu_seqlens: torch.Tensor,
     chunk_indices: torch.Tensor,
+    copy_v: bool = True,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Prepare row-strided mixed QKV and gates using only TileLang kernels."""
 
@@ -1556,7 +1622,10 @@ def prepare_packed_gdn_sm70(
     gate_a = gate_a.contiguous()
     gate_b = gate_b.contiguous()
     q, k = _get_packed_qk_norm(q_heads, value_heads)(mixed_qkv)
-    v = _get_packed_v_copy(q_heads, value_heads)(mixed_qkv)
+    # The native chunk forward kernel can consume V directly from the
+    # row-strided projection output.  Keep the compact copy available for the
+    # generic/Triton control path and external callers.
+    v = _get_packed_v_copy(q_heads, value_heads)(mixed_qkv) if copy_v else mixed_qkv
     gate_cumsum, beta = _get_packed_gate_cumsum(value_heads, cu_seqlens.numel() - 1)(
         gate_a,
         gate_b,
@@ -1583,6 +1652,7 @@ def chunked_gdn_sm70(
     qk_normalized: bool = False,
     gate_is_cumulative: bool = False,
     chunk_indices: torch.Tensor | None = None,
+    packed_v: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor | None]:
     """Run normalized, variable-length GDN prefill on SM70."""
 
@@ -1590,12 +1660,22 @@ def chunked_gdn_sm70(
         raise ValueError("The TileLang chunked GDN kernel is specialized for SM70.")
     if q.dtype != torch.float16 or k.dtype != q.dtype or v.dtype != q.dtype:
         raise ValueError("The SM70 TileLang chunked GDN kernel requires FP16 QKV.")
-    if q.shape[0] != 1 or k.shape[0] != 1 or v.shape[0] != 1:
+    if q.shape[0] != 1 or k.shape[0] != 1 or (not packed_v and v.shape[0] != 1):
         raise ValueError(
             "Variable-length QKV must be flattened with batch dimension 1."
         )
     _, tokens, q_heads, key_dim = q.shape
-    value_heads, value_dim = v.shape[-2:]
+    if packed_v:
+        value_heads = state.shape[-3]
+        value_dim = state.shape[-1]
+        expected_dim = 2 * q_heads * key_dim + value_heads * value_dim
+        if v.ndim != 2 or v.shape != (tokens, expected_dim) or not v.is_contiguous():
+            raise ValueError(
+                "Packed V must be contiguous row-strided mixed QKV with the "
+                "requested Q/V head geometry."
+            )
+    else:
+        value_heads, value_dim = v.shape[-2:]
     if key_dim != KEY_DIM or value_dim != VALUE_DIM:
         raise ValueError("The SM70 TileLang chunked GDN path supports K=V=128.")
     if state.dtype not in (torch.float16, torch.float32):
@@ -1622,7 +1702,11 @@ def chunked_gdn_sm70(
             chunk_indices=chunk_indices,
         )
 
-    output = torch.empty_like(v)
+    output = torch.empty(
+        (1, tokens, value_heads, value_dim),
+        dtype=torch.float16,
+        device=q.device,
+    )
     num_chunks = int(chunk_indices.shape[0])
     if store_checkpoints:
         checkpoints = torch.empty(
@@ -1644,6 +1728,14 @@ def chunked_gdn_sm70(
     if full_tilelang in ("1", "true", "on", "yes"):
         num_sequences = state_indices.numel()
         state_slots = state.shape[0]
+        value_block = int(os.environ.get("SGLANG_V100_GDN_VALUE_BLOCK", "32"))
+        k_reuse_mode = int(os.environ.get("SGLANG_V100_GDN_K_REUSE_MODE", "3"))
+        if value_block not in (16, 32):
+            raise ValueError("SGLANG_V100_GDN_VALUE_BLOCK must be 16 or 32")
+        if k_reuse_mode not in (0, 3):
+            raise ValueError("SGLANG_V100_GDN_K_REUSE_MODE must be 0 or 3")
+        if value_block == 32 and k_reuse_mode != 3:
+            raise ValueError("The 32-column SM70 GDN schedule requires K reuse mode 3")
         inverse = _get_kkt_inverse(q_heads, value_heads, num_sequences)(
             k,
             beta,
@@ -1657,6 +1749,9 @@ def chunked_gdn_sm70(
             state_slots,
             store_checkpoints,
             state.dtype == torch.float32,
+            value_block=value_block,
+            packed_v=packed_v,
+            k_reuse_mode=k_reuse_mode,
         )(
             q,
             k,
@@ -1675,6 +1770,8 @@ def chunked_gdn_sm70(
     else:
         # Explicit rollback/control: SGLang Triton prepares WY while TileLang
         # retains the recurrent state/output fusion.
+        if packed_v:
+            v = _get_packed_v_copy(q_heads, value_heads)(v)
         w, u, _ = chunk_gated_delta_rule_fwd_intra(
             k=k,
             v=v,

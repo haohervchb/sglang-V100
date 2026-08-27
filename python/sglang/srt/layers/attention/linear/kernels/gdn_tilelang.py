@@ -390,7 +390,7 @@ class TileLangGDNKernel(LinearAttnKernelBase):
         qk_dim = mixed_qkv.shape[-1] - value_heads * value_dim
         q_heads = qk_dim // (2 * key_dim)
         direct_max_tokens = int(
-            os.environ.get("SGLANG_V100_GDN_DIRECT_MAX_TOKENS", "1280")
+            os.environ.get("SGLANG_V100_GDN_DIRECT_MAX_TOKENS", "448")
         )
         if direct_max_tokens < 0:
             raise ValueError("SGLANG_V100_GDN_DIRECT_MAX_TOKENS must be non-negative")

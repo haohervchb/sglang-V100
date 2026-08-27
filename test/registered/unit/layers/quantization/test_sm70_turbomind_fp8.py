@@ -1,8 +1,8 @@
 import pytest
 import torch
-
 from sglang.srt.layers.quantization.sm70_turbomind_fp8 import (
     _SM70_FP8_PREFILL_DENSE_WORKSPACE_BYTES,
+    _load_sm70_qpn8_ops,
     _load_sm70_turbomind_fp8_ops,
     apply_sm70_turbomind_fp8_fused_silu_and_mul,
     apply_sm70_turbomind_fp8_linear,
@@ -16,9 +16,7 @@ pytestmark = pytest.mark.skipif(
 
 
 class _DummyLinear(torch.nn.Module):
-    def __init__(
-        self, output_size: int, input_size: int, gated: bool, prefix: str
-    ):
+    def __init__(self, output_size: int, input_size: int, gated: bool, prefix: str):
         super().__init__()
         weight = (
             torch.randn((output_size, input_size), device="cuda", dtype=torch.float16)
@@ -113,6 +111,21 @@ def test_prefill_dispatch_and_decode_kernel(
         else apply_sm70_turbomind_fp8_linear(layer, decode_input, None)
     )
     assert torch.isfinite(decode).all()
+    if gated:
+        gate_up = _load_sm70_qpn8_ops().qpn8_linear(
+            decode_input,
+            layer.sm70_fp8_qpn8_codes,
+            layer.sm70_fp8_qpn8_gscales,
+            output_size,
+            input_size,
+            16,
+            3,
+        )
+        reference = (
+            torch.nn.functional.silu(gate_up[:, : output_size // 2])
+            * gate_up[:, output_size // 2 :]
+        )
+        torch.testing.assert_close(decode, reference, rtol=0, atol=0)
 
 
 def test_prefill_exact_dense_workspace_is_bounded():
