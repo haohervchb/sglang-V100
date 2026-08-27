@@ -1804,11 +1804,18 @@ class QwenSparseAttnBackend(AttentionBackend):
             if metadata.is_cuda_graph
             else batch * topk
         )
+        # The packed FA fallback requires Q/K/V to have one dtype.  Keep the
+        # long-lived cache in FP8, but have the gather kernel decode only the
+        # selected (at most ``topk``) working set directly into FP16 scratch
+        # on SM70.  Allocating FP8 scratch here and casting afterwards both
+        # breaks CUDA-graph capture in flash-attn-v100 and adds another pair
+        # of full-scratch conversions.
+        packed_kv_dtype = q.dtype if k_buffer.dtype != q.dtype else k_buffer.dtype
         packed_k, packed_v = self._get_fa2_scratch(
             scratch_capacity,
             k_buffer.shape[1],
             k_buffer.shape[2],
-            k_buffer.dtype,
+            packed_kv_dtype,
             k_buffer.device,
         )
         qwen_sparse_kv_extraction_compact_triton(

@@ -3,7 +3,7 @@ set -euo pipefail
 
 q38_model_path=${1:-RadixArk/Qwen3.8-Flash-Next-NVFP4}
 q38_port=${PORT:-30000}
-q38_kv_cache_dtype=${KV_CACHE_DTYPE:-auto}
+q38_kv_cache_dtype=${KV_CACHE_DTYPE:-fp8_e5m2}
 q38_extra_args=("${@:2}")
 
 export FLASHINFER_DISABLE_VERSION_CHECK=${FLASHINFER_DISABLE_VERSION_CHECK:-1}
@@ -30,8 +30,8 @@ exec python -m sglang.launch_server \
   --tensor-parallel-size 4 \
   --host 127.0.0.1 \
   --port "$q38_port" \
-  --mem-fraction-static 0.75 \
-  --context-length 8192 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
   --max-running-requests 1 \
   --chunked-prefill-size 8192 \
   --cuda-graph-bs 1 \
