@@ -13,7 +13,6 @@ from contextlib import nullcontext
 from typing import Any, List, Optional, Protocol, Tuple
 
 import torch
-
 from sglang.srt.constants import GPU_MEMORY_TYPE_KV_CACHE
 from sglang.srt.mem_cache.utils import maybe_init_custom_mem_pool
 from sglang.srt.utils.torch_memory_saver_adapter import TorchMemorySaverAdapter
@@ -67,10 +66,13 @@ class ShortConvPool:
         if not layer_ids or state_shape is None:
             return
 
-        with self.memory_saver_adapter.region(GPU_MEMORY_TYPE_KV_CACHE), (
-            torch.cuda.use_mem_pool(self.custom_mem_pool)
-            if self.enable_custom_mem_pool
-            else nullcontext()
+        with (
+            self.memory_saver_adapter.region(GPU_MEMORY_TYPE_KV_CACHE),
+            (
+                torch.cuda.use_mem_pool(self.custom_mem_pool)
+                if self.enable_custom_mem_pool
+                else nullcontext()
+            ),
         ):
             self.conv_state = torch.zeros(
                 size=(len(layer_ids), size + 1) + state_shape,
@@ -156,10 +158,13 @@ class NGramPool:
         if context_len <= 0:
             return
 
-        with self.memory_saver_adapter.region(GPU_MEMORY_TYPE_KV_CACHE), (
-            torch.cuda.use_mem_pool(self.custom_mem_pool)
-            if self.enable_custom_mem_pool
-            else nullcontext()
+        with (
+            self.memory_saver_adapter.region(GPU_MEMORY_TYPE_KV_CACHE),
+            (
+                torch.cuda.use_mem_pool(self.custom_mem_pool)
+                if self.enable_custom_mem_pool
+                else nullcontext()
+            ),
         ):
             self.context = torch.full(
                 (size + 1, context_len),

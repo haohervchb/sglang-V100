@@ -4,7 +4,6 @@ import msgspec
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from sglang.srt.layers.hc_mix_triton import fused_hc_mix, fused_hc_mix_supported
 
 
@@ -33,9 +32,7 @@ class GroupedGemmaRMSNorm(nn.Module):
         self.weight.weight_loader = self._weight_loader
         # The JIT kernel requires group_size to be a multiple of 512; this is
         # init-static, so resolve it once here (device/dtype stay per-call).
-        effective_group_size = (
-            group_size if group_size is not None else hidden_size
-        )
+        effective_group_size = group_size if group_size is not None else hidden_size
         self._jit_group_size = (
             effective_group_size if effective_group_size % 512 == 0 else None
         )
@@ -50,7 +47,7 @@ class GroupedGemmaRMSNorm(nn.Module):
             and x.is_cuda
             and x.dtype in (torch.bfloat16, torch.float16)
         ):
-            from sglang.kernels.ops.layernorm.grouped_gemma_rmsnorm import (
+            from sglang.srt.layers.grouped_gemma_rmsnorm import (
                 grouped_gemma_rmsnorm,
             )
 
@@ -250,7 +247,7 @@ class GatedResidual(HyperConnectionBase):
             and hyper_input_normed.dtype in (torch.bfloat16, torch.float16)
             and hyper_input_normed.shape[0] <= 24
         ):
-            from sglang.kernels.ops.elementwise.hc_mix import (
+            from sglang.srt.layers.elementwise.hc_mix import (
                 hc_mix,
                 permute_pad_up_weight,
             )
@@ -304,7 +301,7 @@ class GatedResidual(HyperConnectionBase):
             and self.block_inject_weight.weight.dtype == block_output.dtype
         ):
             if self._split_combine_ok and block_output.shape[0] <= 32:
-                from sglang.kernels.ops.elementwise.hc_combine import (
+                from sglang.srt.layers.elementwise.hc_combine import (
                     hc_combine_split,
                 )
 
@@ -316,7 +313,7 @@ class GatedResidual(HyperConnectionBase):
                     self.hc_count,
                     self.hidden_size,
                 )
-            from sglang.kernels.ops.elementwise.hc_combine import hc_combine
+            from sglang.srt.layers.elementwise.hc_combine import hc_combine
 
             return hc_combine(
                 block_output,

@@ -374,6 +374,20 @@ class ModelRunnerKVCacheMixin:
                         pre_alloc_size=pre_alloc_size,
                     )
             elif config := self.mambaish_config:
+                from sglang.srt.configs.qwen4_exp import Qwen4ExpTextConfig
+
+                ple_kwargs = {}
+                if isinstance(config, Qwen4ExpTextConfig):
+                    ple_kwargs = dict(
+                        short_conv_layer_ids=[
+                            i
+                            for i in config.short_conv_layer_ids
+                            if self.start_layer <= i < self.end_layer
+                        ],
+                        short_conv_state_shape=config.short_conv_state_shape,
+                        ngram_context_len=config.ngram_context_len,
+                        ngram_eos_token_id=int(config.eos_token_id),
+                    )
                 self.req_to_token_pool = HybridReqToTokenPool(
                     size=max_num_reqs,
                     mamba_size=self.server_args.max_mamba_cache_size,
@@ -394,6 +408,7 @@ class ModelRunnerKVCacheMixin:
                     speculative_num_draft_tokens=max_spec_draft_tokens,
                     enable_overlap_schedule=not self.server_args.disable_overlap_schedule,
                     start_layer=self.start_layer,
+                    **ple_kwargs,
                 )
             else:
                 self.req_to_token_pool = ReqToTokenPool(
@@ -669,7 +684,7 @@ class ModelRunnerKVCacheMixin:
                         "kv_lora_rank": self.model_config.kv_lora_rank,
                         "qk_rope_head_dim": self.model_config.qk_rope_head_dim,
                     }
-                self.token_to_kv_pool = HybridLinearKVPool(
+                base_pool_kwargs = dict(
                     page_size=self.page_size,
                     size=self.max_total_num_tokens,
                     dtype=self.kv_cache_dtype,
@@ -687,14 +702,53 @@ class ModelRunnerKVCacheMixin:
                             if self.start_layer <= i < self.end_layer
                         ]
                     ),
-                    enable_kvcache_transpose=False,
                     device=self.device,
                     mamba_pool=self.req_to_token_pool.mamba_pool,
                     enable_memory_saver=self.server_args.enable_memory_saver,
-                    use_mla=self.use_mla_backend,
                     start_layer=self.start_layer,
-                    **extra_args,
                 )
+                qsa_profile = None
+                if not self.is_draft_worker:
+                    from sglang.srt.layers.attention.qsa.config import (
+                        QSA_VARIANT_COMPRESSED,
+                        parse_qsa_profile,
+                    )
+
+                    qsa_profile = parse_qsa_profile(config)
+                if (
+                    qsa_profile is not None
+                    and qsa_profile.variant == QSA_VARIANT_COMPRESSED
+                ):
+                    from sglang.srt.mem_cache.qsa_kv_pool import QSATokenToKVPool
+
+                    pool_kwargs = dict(base_pool_kwargs)
+                    pool_kwargs.update(
+                        qsa_index_kv_heads=qsa_profile.kv_heads,
+                        qsa_index_head_dim=qsa_profile.head_dim,
+                        qsa_compress_ratio=qsa_profile.compress_ratio,
+                        qsa_token_topk=qsa_profile.budget,
+                        index_state_dtype=self.dtype,
+                        num_request_slots=self.req_to_token_pool.req_to_token.shape[
+                            0
+                        ],
+                    )
+                    # The compressed QSA pool is a full-attention KV page
+                    # multiple of the ratio; enforce it up front.
+                    assert (
+                        pool_kwargs["page_size"] % qsa_profile.compress_ratio == 0
+                    ), (
+                        "compressed QSA requires page_size a multiple of "
+                        "qsa_compress_ratio"
+                    )
+                    self.token_to_kv_pool = QSATokenToKVPool(**pool_kwargs)
+                else:
+                    pool_kwargs = dict(base_pool_kwargs)
+                    pool_kwargs.update(
+                        enable_kvcache_transpose=False,
+                        use_mla=self.use_mla_backend,
+                        **extra_args,
+                    )
+                    self.token_to_kv_pool = HybridLinearKVPool(**pool_kwargs)
             else:
                 if is_float4_e2m1fn_x2(self.kv_cache_dtype):
                     self.token_to_kv_pool = MHATokenToKVPoolFP4(

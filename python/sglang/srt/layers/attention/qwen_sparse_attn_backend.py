@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from copy import copy
 from functools import lru_cache
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import msgspec
 import torch
 import torch.nn.functional as F
-
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
 from sglang.srt.layers.attention.qsa.config import (
     QSA_VARIANT_COMPRESSED,
@@ -39,10 +39,27 @@ from sglang.srt.layers.attention.qsa.sparse_attn import (
 )
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
 
+if TYPE_CHECKING:
+    from sglang.srt.speculative.spec_info import SpecInput
+
 logger = logging.getLogger(__name__)
 
 
 _TRTLLM_SPARSE_PAGE_SIZE = 64
+_SM70_DENSE_PREFILL_ENV = "SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS"
+_sm70_dense_prefill_logged = False
+
+
+@lru_cache(maxsize=1)
+def _sm70_dense_prefill_max_tokens() -> int:
+    """Maximum no-prefix QSA prefill length routed through dense FA on V100."""
+    raw = os.getenv(_SM70_DENSE_PREFILL_ENV, "8192")
+    try:
+        return max(0, int(raw))
+    except ValueError as exc:
+        raise ValueError(
+            f"{_SM70_DENSE_PREFILL_ENV} must be an integer, got {raw!r}"
+        ) from exc
 
 
 @lru_cache(maxsize=1)
@@ -78,6 +95,14 @@ def _resolve_flash_attn_varlen_func():
     except ImportError:
         pass
     try:
+        # SM70 (V100) FA2 build: the stock flash-attn 2.x kernels are sm80+
+        # only, so the fork ships a V100 build as a fallback.
+        from flash_attn_v100 import flash_attn_varlen_func
+
+        return flash_attn_varlen_func
+    except ImportError:
+        pass
+    try:
         from flash_attn.cute.interface import (
             flash_attn_varlen_func as cute_varlen_func,
         )
@@ -93,7 +118,6 @@ def _resolve_flash_attn_varlen_func():
             "QSA decode requires flash_attn (FA2) or flash-attn-4 "
             "(FA4 cute) for its packed varlen fallback."
         ) from exc
-
 
 
 class QwenSparseAttnMetadata(msgspec.Struct, frozen=True):
@@ -211,6 +235,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         # field reads below keep the existing Qwen4-Exp behavior unchanged.
         self.qsa_profile = parse_qsa_profile(config)
         self.max_context_len = int(getattr(model_config, "context_len", 0))
+        self.page_size = int(getattr(runner, "page_size", 1))
         self.compress_ratio = (
             self.qsa_profile.compress_ratio
             if self.qsa_profile is not None
@@ -245,6 +270,8 @@ class QwenSparseAttnBackend(AttentionBackend):
         self._trtllm_workspace = None
         self._graph_extend_lens = None
         self._graph_extend_lens_pin = None
+        self._sm70_dense_decode_positions = None
+        self._sm70_dense_decode_logged = False
 
     @staticmethod
     def _is_speculative_paged_mode(forward_mode) -> bool:
@@ -257,8 +284,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             return
         if int(getattr(spec_info, "topk", 1) or 1) != 1:
             raise NotImplementedError(
-                "Qwen QSA target verification supports only "
-                "speculative_eagle_topk=1"
+                "Qwen QSA target verification supports only speculative_eagle_topk=1"
             )
         draft_tokens = int(getattr(spec_info, "draft_token_num", 0) or 0)
         if draft_tokens > self.compress_ratio:
@@ -288,9 +314,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             )
             return max(1, int(sequence_lengths.max()))
         spec_info = forward_batch.spec_info
-        draft_window = (
-            int(spec_info.draft_token_num) if spec_info is not None else 0
-        )
+        draft_window = int(spec_info.draft_token_num) if spec_info is not None else 0
         return max(1, int(seq_lens_cpu.max()) + draft_window)
 
     @staticmethod
@@ -378,9 +402,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                     extend_lengths = torch.cat(
                         [
                             extend_lengths,
-                            torch.zeros(
-                                bs - extend_lengths.numel(), dtype=torch.int32
-                            ),
+                            torch.zeros(bs - extend_lengths.numel(), dtype=torch.int32),
                         ]
                     )
             else:
@@ -414,9 +436,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 torch.full((int(extend_len),), prefix_len, dtype=torch.int32)
             )
         row_lengths = (
-            torch.cat(row_lengths)
-            if row_lengths
-            else torch.empty(0, dtype=torch.int32)
+            torch.cat(row_lengths) if row_lengths else torch.empty(0, dtype=torch.int32)
         )
         row_prefix_lengths = (
             torch.cat(row_prefix_lengths)
@@ -429,12 +449,8 @@ class QwenSparseAttnBackend(AttentionBackend):
                 "QSA CUDA graph speculative layout has inconsistent token count: "
                 f"capacity={num_tokens}, actual={actual_rows}"
             )
-        repeats = extend_lengths.to(
-            device=req_pool_indices.device, dtype=torch.long
-        )
-        row_req_pool_indices = torch.repeat_interleave(
-            req_pool_indices[:bs], repeats
-        )
+        repeats = extend_lengths.to(device=req_pool_indices.device, dtype=torch.long)
+        row_req_pool_indices = torch.repeat_interleave(req_pool_indices[:bs], repeats)
         # Draft-extend graphs always execute the captured static token shape,
         # while a replay can contain fewer accepted tokens.  The runner packs
         # real rows first and zero-fills the tail, so give those tail rows safe
@@ -542,9 +558,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             # member sits chunk-locally at (block * ratio - prefix).
             member_rows = torch.where(
                 valid,
-                row_token_starts[rows]
-                + blocks * compress_ratio
-                - prefix_lens[rows],
+                row_token_starts[rows] + blocks * compress_ratio - prefix_lens[rows],
                 torch.zeros_like(blocks),
             )
         return write_locs, group_end_positions, rows, member_rows
@@ -609,10 +623,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             self.device = forward_batch.seq_lens.device
         if not self.max_context_len:
             self.max_context_len = self.req_to_token.shape[1]
-        if (
-            forward_batch.forward_mode.is_idle()
-            or forward_batch.seq_lens.numel() == 0
-        ):
+        if forward_batch.forward_mode.is_idle() or forward_batch.seq_lens.numel() == 0:
             # DP attention runs IDLE dummy forwards on ranks without work, and
             # the MTP multi-step wrapper forwards them as zero-row DECODE
             # steps.  Model layers skip attention for these batches, but
@@ -620,9 +631,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             # of falling into the extend/decode paths on empty tensors.
             return self._empty_metadata(forward_batch)
         original_mode = getattr(forward_batch, "_original_forward_mode", None)
-        if original_mode is not None and self._is_speculative_paged_mode(
-            original_mode
-        ):
+        if original_mode is not None and self._is_speculative_paged_mode(original_mode):
             # DP MAX_LEN pseudo-extend rewrites the mode to EXTEND with
             # extend_seq_lens == 1 per request, which loses the per-request
             # draft fan-out of target_verify/draft_extend.  Refuse to guess
@@ -632,9 +641,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 f"speculative mode {original_mode}: token rows would be "
                 "mis-mapped to requests"
             )
-        speculative_paged = self._is_speculative_paged_mode(
-            forward_batch.forward_mode
-        )
+        speculative_paged = self._is_speculative_paged_mode(forward_batch.forward_mode)
         if speculative_paged:
             logical_positions = forward_batch.positions
             if logical_positions.ndim == 2:
@@ -690,9 +697,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             else:
                 extend_seq_lens = forward_batch.extend_seq_lens
                 if extend_seq_lens is None:
-                    raise ValueError(
-                        "QSA extend metadata requires extend_seq_lens"
-                    )
+                    raise ValueError("QSA extend metadata requires extend_seq_lens")
                 token_to_batch_idx = torch.repeat_interleave(
                     torch.arange(
                         batch_size,
@@ -846,6 +851,49 @@ class QwenSparseAttnBackend(AttentionBackend):
                 num_padding=num_padding if num_padding is not None else 0,
             )
 
+    def init_forward_metadata_capture_cuda_graph(
+        self,
+        bs: int,
+        num_tokens: int,
+        req_pool_indices: torch.Tensor,
+        seq_lens: torch.Tensor,
+        encoder_lens: Optional[torch.Tensor],
+        forward_mode: ForwardMode,
+        spec_info: Optional[SpecInput],
+    ):
+        # The fork's captured graph runner drives the legacy capture/replay
+        # methods; the QSA backend stores metadata through the newer
+        # out-of-graph helper, so forward to it.
+        self._capture_cuda_graph_metadata(
+            bs=bs,
+            num_tokens=num_tokens,
+            req_pool_indices=req_pool_indices,
+            seq_lens=seq_lens,
+            forward_mode=forward_mode,
+            spec_info=spec_info,
+        )
+
+    def init_forward_metadata_replay_cuda_graph(
+        self,
+        bs: int,
+        req_pool_indices: torch.Tensor,
+        seq_lens: torch.Tensor,
+        seq_lens_sum: int,
+        encoder_lens: Optional[torch.Tensor],
+        forward_mode: ForwardMode,
+        spec_info: Optional[SpecInput],
+        seq_lens_cpu: Optional[torch.Tensor],
+    ):
+        self._replay_cuda_graph_metadata(
+            bs=bs,
+            req_pool_indices=req_pool_indices,
+            seq_lens=seq_lens,
+            forward_mode=forward_mode,
+            spec_info=spec_info,
+            seq_lens_cpu=seq_lens_cpu,
+            num_padding=0,
+        )
+
     def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int) -> None:
         if self.device is None:
             raise RuntimeError(
@@ -912,8 +960,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             max_bs, dtype=torch.int32, device=self.device
         )
         self._graph_extend_lens_pin = [
-            torch.zeros(max_bs, dtype=torch.int32, pin_memory=True)
-            for _ in range(2)
+            torch.zeros(max_bs, dtype=torch.int32, pin_memory=True) for _ in range(2)
         ]
         self._extend_lens_pin_idx = 0
 
@@ -1064,9 +1111,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             )
         else:
             metadata.sequence_lengths.copy_(seq_lens[:bs].to(torch.int32))
-            metadata.row_req_pool_indices.copy_(
-                req_pool_indices[:bs].to(torch.int32)
-            )
+            metadata.row_req_pool_indices.copy_(req_pool_indices[:bs].to(torch.int32))
             metadata.indexer_metadata.graph_prefix_lengths.copy_(
                 (seq_lens[:bs] - 1).clamp_min(0).to(torch.int32)
             )
@@ -1228,8 +1273,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         row_width_pages = self.req_to_token.shape[1] // full_page
         num_pages = min(max_pages, row_width_pages)
         table = (
-            self.req_to_token[req_indices, : num_pages * full_page : full_page]
-            .long()
+            self.req_to_token[req_indices, : num_pages * full_page : full_page].long()
             // full_page
         ).clamp_min(0)
         page_table[:, :num_pages].copy_(table.to(torch.int32))
@@ -1257,7 +1301,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         an EXTEND with no requests) are excluded via _original_forward_mode."""
         if self._mtp_shared_sparse_indices is None:
             return False
-        if forward_batch._original_forward_mode is not None:
+        if getattr(forward_batch, "_original_forward_mode", None) is not None:
             return False
         mode = forward_batch.forward_mode
         return mode.is_draft_extend_v2() or mode.is_extend_without_speculative()
@@ -1452,6 +1496,43 @@ class QwenSparseAttnBackend(AttentionBackend):
             (1, 0),
         ).contiguous()
         if not any(prefix_lens):
+            # QSA's Triton gather kernel is latency-bound on SM70: at the
+            # Qwen3.8 TP4 4K shape it takes ~29.5 ms per full-attention layer,
+            # versus ~3.55 ms for flash-attn-v100 dense causal GQA.  Dense
+            # prefill also retains all context rather than the selected 2K
+            # subset.  Keep the route bounded so long-context deployments can
+            # opt back into sparse O(L * topk) behavior.
+            dense_limit = _sm70_dense_prefill_max_tokens()
+            max_sequence_len = max(sequence_lens, default=1)
+            if (
+                dense_limit
+                and max_sequence_len > topk_indices.shape[-1]
+                and max_sequence_len <= dense_limit
+                and torch.cuda.get_device_capability(q.device) == (7, 0)
+            ):
+                global _sm70_dense_prefill_logged
+                if not _sm70_dense_prefill_logged:
+                    logger.info(
+                        "SM70 QSA prefill: using dense flash-attn-v100 for "
+                        "no-prefix sequences up to %d tokens (%s=0 disables).",
+                        dense_limit,
+                        _SM70_DENSE_PREFILL_ENV,
+                    )
+                    _sm70_dense_prefill_logged = True
+                flash_attn_varlen_func = _resolve_flash_attn_varlen_func()
+                output = flash_attn_varlen_func(
+                    q=q.contiguous(),
+                    k=k[:num_valid_rows].contiguous(),
+                    v=v[:num_valid_rows].contiguous(),
+                    cu_seqlens_q=cu_seqlens_q,
+                    cu_seqlens_k=cu_seqlens_q,
+                    max_seqlen_q=max_sequence_len,
+                    max_seqlen_k=max_sequence_len,
+                    dropout_p=0.0,
+                    softmax_scale=layer.scaling,
+                    causal=True,
+                )
+                return self._pad_extend_output(output, num_output_rows)
             output = sparse_gqa_fwd_interface_triton(
                 q.contiguous(),
                 k[:num_valid_rows].contiguous(),
@@ -1486,10 +1567,18 @@ class QwenSparseAttnBackend(AttentionBackend):
             sequence_lens, dtype=torch.int32, device=q.device
         )
         cu_seqlens_k = F.pad(sequence_lens_tensor.cumsum(0), (1, 0)).contiguous()
+        packed_k = torch.cat(k_parts)
+        packed_v = torch.cat(v_parts)
+        if packed_k.dtype != q.dtype:
+            # SM70 has no FP8 dot instruction. Prefix/chunk prefill is an
+            # uncommon path for the bounded 8K deployment, so decode the
+            # gathered cache once before entering the sparse FP16 kernel.
+            packed_k = packed_k.to(q.dtype)
+            packed_v = packed_v.to(q.dtype)
         output = sparse_gqa_fwd_interface_triton_ck(
             q.contiguous(),
-            torch.cat(k_parts),
-            torch.cat(v_parts),
+            packed_k,
+            packed_v,
             topk_indices,
             cu_seqlens_q,
             cu_seqlens_k,
@@ -1531,7 +1620,6 @@ class QwenSparseAttnBackend(AttentionBackend):
             self._fa2_scratch[key] = buffers
         return buffers[0][:capacity], buffers[1][:capacity]
 
-
     def _get_trtllm_sparse_tables(self, batch, pages_per_row, page, device):
         key = (batch, pages_per_row, device)
         cached = self._trtllm_sparse_tables.get(key)
@@ -1541,9 +1629,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             block_tables = (
                 torch.arange(batch, dtype=torch.int32, device=device)[:, None]
                 * pages_per_row
-                + torch.arange(pages_per_row, dtype=torch.int32, device=device)[
-                    None, :
-                ]
+                + torch.arange(pages_per_row, dtype=torch.int32, device=device)[None, :]
             ).contiguous()
             cached = (cu, block_tables)
             self._trtllm_sparse_tables[key] = cached
@@ -1582,9 +1668,7 @@ class QwenSparseAttnBackend(AttentionBackend):
         cu_strided, block_tables = self._get_trtllm_sparse_tables(
             batch, pages_per_row, page, device
         )
-        capacity_rows = (
-            self._cuda_graph_max_tokens if metadata.is_cuda_graph else batch
-        )
+        capacity_rows = self._cuda_graph_max_tokens if metadata.is_cuda_graph else batch
         packed_k, packed_v = self._get_fa2_scratch(
             max(capacity_rows, batch) * stride,
             k_buffer.shape[1],
@@ -1675,6 +1759,12 @@ class QwenSparseAttnBackend(AttentionBackend):
 
         metadata = self._resolve_metadata(forward_batch)
         topk_indices = topk_indices.to(torch.int32).contiguous()
+        if self._can_use_sm70_dense_decode(
+            q, k_buffer, v_buffer, forward_batch, metadata
+        ):
+            return self._forward_sm70_dense_decode(
+                q, k_buffer, v_buffer, layer, metadata
+            )
         trtllm_decode = _resolve_trtllm_sparse_decode()
         if trtllm_decode is not None:
             return self._forward_trtllm_sparse(
@@ -1751,6 +1841,91 @@ class QwenSparseAttnBackend(AttentionBackend):
         )
         return output.reshape(q.shape[0], -1)
 
+    def _can_use_sm70_dense_decode(
+        self, q, k_buffer, v_buffer, forward_batch, metadata
+    ) -> bool:
+        """Use the native byte-decoding paged kernel for bounded FP8 decode."""
+        dense_limit = _sm70_dense_prefill_max_tokens()
+        return (
+            dense_limit > 0
+            and self.max_context_len <= dense_limit
+            and forward_batch.forward_mode.is_decode()
+            and q.is_cuda
+            and torch.cuda.get_device_capability(q.device) == (7, 0)
+            and q.dtype == torch.float16
+            and q.shape[0] == metadata.sequence_lengths.numel()
+            and self.page_size == 16
+            and k_buffer.dtype == torch.float8_e5m2
+            and v_buffer.dtype == k_buffer.dtype
+            and k_buffer.ndim in (3, 4)
+            and v_buffer.ndim == k_buffer.ndim
+            and k_buffer.shape[-2:] == v_buffer.shape[-2:]
+            and k_buffer.shape[-1] == 256
+            and q.shape[1] == 6 * k_buffer.shape[-2]
+            and q.shape[-1] == 256
+        )
+
+    def _forward_sm70_dense_decode(
+        self, q, k_buffer, v_buffer, layer, metadata
+    ) -> torch.Tensor:
+        """Dense QSA decode through the optimized E5M2 SM70 paged kernel.
+
+        At this server's <=8K context, reading the native paged cache is
+        cheaper than materializing QSA's ~2K random selection into FP16. It
+        also preserves full-attention semantics and reuses the read-once
+        grouped-GQA E5M2 pipeline developed for Qwen3.8-27B.
+        """
+        if self._sm70_dense_decode_positions is None:
+            self._sm70_dense_decode_positions = torch.arange(
+                0,
+                self.max_context_len,
+                self.page_size,
+                dtype=torch.long,
+                device=q.device,
+            )
+        req_indices = metadata.row_req_pool_indices
+        if req_indices is None:
+            raise RuntimeError("SM70 dense QSA decode requires request indices")
+        page_slots = self.req_to_token[
+            req_indices.long().unsqueeze(1),
+            self._sm70_dense_decode_positions.unsqueeze(0),
+        ]
+        page_table = torch.div(
+            page_slots,
+            self.page_size,
+            rounding_mode="floor",
+        ).to(torch.int32)
+        if k_buffer.ndim == 3:
+            k_buffer = k_buffer.view(
+                -1, self.page_size, k_buffer.shape[-2], k_buffer.shape[-1]
+            )
+            v_buffer = v_buffer.view(
+                -1, self.page_size, v_buffer.shape[-2], v_buffer.shape[-1]
+            )
+
+        if not self._sm70_dense_decode_logged:
+            logger.info(
+                "SM70 QSA decode: using native dense E5M2 grouped paged "
+                "attention through %d tokens.",
+                self.max_context_len,
+            )
+            self._sm70_dense_decode_logged = True
+        from sglang.srt.layers.attention.tilelang_fa_v100 import (
+            grouped_decode_forward,
+        )
+
+        output = grouped_decode_forward(
+            q,
+            k_buffer,
+            v_buffer,
+            page_table,
+            metadata.sequence_lengths,
+            softmax_scale=layer.scaling,
+            k_scale=(layer.k_scale_float if layer.k_scale is not None else 1.0),
+            v_scale=(layer.v_scale_float if layer.v_scale is not None else 1.0),
+        )
+        return output.reshape(q.shape[0], -1)
+
 
 class QwenSparseMultiStepDraftBackend:
     """Per-step QSA metadata for consecutive Qwen4-Exp MTP draft decoding."""
@@ -1812,9 +1987,7 @@ class QwenSparseMultiStepDraftBackend:
             .reshape(steps, -1)[step]
         )
 
-    def _make_step_forward_batch(
-        self, forward_batch, step: int, num_padding: int = 0
-    ):
+    def _make_step_forward_batch(self, forward_batch, step: int, num_padding: int = 0):
         step_forward_batch = copy(forward_batch)
         step_forward_batch.forward_mode = ForwardMode.DECODE
         step_forward_batch.seq_lens = (forward_batch.seq_lens + step + 1).to(
@@ -1841,9 +2014,7 @@ class QwenSparseMultiStepDraftBackend:
                 )
                 step_forward_batch.seq_lens_cpu[-num_padding:] = 1
         step_forward_batch.batch_size = int(step_forward_batch.seq_lens.numel())
-        step_forward_batch.out_cache_loc = self._step_out_cache_loc(
-            forward_batch, step
-        )
+        step_forward_batch.out_cache_loc = self._step_out_cache_loc(forward_batch, step)
         return step_forward_batch
 
     def set_mtp_shared_sparse_indices(self, state) -> None:
@@ -1860,9 +2031,7 @@ class QwenSparseMultiStepDraftBackend:
         for backend in self.attn_backends:
             backend.init_cuda_graph_state(max_bs, max_num_tokens)
 
-    def init_forward_metadata_out_graph(
-        self, forward_batch, in_capture: bool = False
-    ):
+    def init_forward_metadata_out_graph(self, forward_batch, in_capture: bool = False):
         if in_capture:
             for step, backend in enumerate(self.attn_backends):
                 # Every capture row is synthetic.  Keep its sequence length

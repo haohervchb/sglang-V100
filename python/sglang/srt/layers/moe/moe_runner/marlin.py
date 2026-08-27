@@ -69,6 +69,10 @@ class MarlinMoeQuantInfo(MoeQuantInfo):
     w13_qzeros: Optional[torch.Tensor] = None
     w2_qzeros: Optional[torch.Tensor] = None
 
+    # ModelOpt NVFP4 specific (one FP32 scale per expert).
+    w13_global_scale: Optional[torch.Tensor] = None
+    w2_global_scale: Optional[torch.Tensor] = None
+
     # Optional
     expert_map: Optional[torch.Tensor] = None
 
@@ -134,6 +138,8 @@ def fused_experts_none_to_marlin(
         sort_indices2=quant_info.w2_g_idx_sort_indices,
         w1_zeros=quant_info.w13_qzeros,
         w2_zeros=quant_info.w2_qzeros,
+        w1_global_scale=quant_info.w13_global_scale,
+        w2_global_scale=quant_info.w2_global_scale,
         workspace=MARLIN_MOE_WORKSPACE,
         num_bits=quant_info.weight_bits,
         is_k_full=quant_info.is_k_full,

@@ -185,6 +185,14 @@ def _deterministic_inference() -> bool:
 def fused_hc_mix_supported(
     hyper_input_normed: torch.Tensor, w_down: torch.Tensor, w_up: torch.Tensor
 ) -> bool:
+    # SM70 is a pathological case for this persistent implementation.  On a
+    # V100 the device-wide atomics and software grid barriers make one Qwen
+    # 3.8 decode-size mix take ~1.12 ms, while the ordinary two-GEMV chain is
+    # ~36 us under CUDA graph replay.  Keep V100 on the compiled GEMV path.
+    if hyper_input_normed.is_cuda and torch.cuda.get_device_capability(
+        hyper_input_normed.device
+    ) == (7, 0):
+        return False
     # The persistent kernel accumulates the down projection with
     # device-scope atomics, so summation order varies across replays.
     if _deterministic_inference():
@@ -216,9 +224,7 @@ def fused_hc_mix(
     device = hyper_input_normed.device
     num_ctas = torch.cuda.get_device_properties(device).multi_processor_count
     t_raw = torch.empty((rows_pad, lowrank), dtype=torch.float32, device=device)
-    out = torch.empty(
-        (rows, hs), dtype=hyper_input_normed.dtype, device=device
-    )
+    out = torch.empty((rows, hs), dtype=hyper_input_normed.dtype, device=device)
     if rows == 0:
         return out
     _hc_mix_persistent_kernel[(num_ctas,)](

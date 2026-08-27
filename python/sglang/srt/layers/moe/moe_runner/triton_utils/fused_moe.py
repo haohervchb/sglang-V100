@@ -113,6 +113,8 @@ def inplace_fused_experts(
     use_int8_w8a8: bool = False,
     use_int8_w8a16: bool = False,
     use_int4_w4a16: bool = False,
+    use_nvfp4_w4a16: bool = False,
+    nvfp4_group_size: int = 16,
     per_channel_quant: bool = False,
     w1_scale: Optional[torch.Tensor] = None,
     w2_scale: Optional[torch.Tensor] = None,
@@ -121,6 +123,8 @@ def inplace_fused_experts(
     a1_scale: Optional[torch.Tensor] = None,
     a2_scale: Optional[torch.Tensor] = None,
     block_shape: Optional[List[int]] = None,
+    w1_scale2: Optional[torch.Tensor] = None,
+    w2_scale2: Optional[torch.Tensor] = None,
     routed_scaling_factor: Optional[float] = None,
     gemm1_alpha: Optional[float] = None,
     gemm1_limit: Optional[float] = None,
@@ -143,6 +147,8 @@ def inplace_fused_experts(
         use_int8_w8a8,
         use_int8_w8a16,
         use_int4_w4a16,
+        use_nvfp4_w4a16,
+        nvfp4_group_size,
         per_channel_quant,
         w1_scale,
         w2_scale,
@@ -151,6 +157,8 @@ def inplace_fused_experts(
         a1_scale,
         a2_scale,
         block_shape,
+        w1_scale2,
+        w2_scale2,
         False,
         routed_scaling_factor,
         gemm1_alpha,
@@ -176,6 +184,8 @@ def outplace_fused_experts(
     use_int8_w8a8: bool = False,
     use_int8_w8a16: bool = False,
     use_int4_w4a16: bool = False,
+    use_nvfp4_w4a16: bool = False,
+    nvfp4_group_size: int = 16,
     per_channel_quant: bool = False,
     w1_scale: Optional[torch.Tensor] = None,
     w2_scale: Optional[torch.Tensor] = None,
@@ -184,6 +194,8 @@ def outplace_fused_experts(
     a1_scale: Optional[torch.Tensor] = None,
     a2_scale: Optional[torch.Tensor] = None,
     block_shape: Optional[List[int]] = None,
+    w1_scale2: Optional[torch.Tensor] = None,
+    w2_scale2: Optional[torch.Tensor] = None,
     no_combine: bool = False,
     routed_scaling_factor: Optional[float] = None,
     gemm1_alpha: Optional[float] = None,
@@ -207,6 +219,8 @@ def outplace_fused_experts(
         use_int8_w8a8,
         use_int8_w8a16,
         use_int4_w4a16,
+        use_nvfp4_w4a16,
+        nvfp4_group_size,
         per_channel_quant,
         w1_scale,
         w2_scale,
@@ -215,6 +229,8 @@ def outplace_fused_experts(
         a1_scale,
         a2_scale,
         block_shape,
+        w1_scale2,
+        w2_scale2,
         no_combine=no_combine,
         routed_scaling_factor=routed_scaling_factor,
         gemm1_alpha=gemm1_alpha,
@@ -236,6 +252,8 @@ def fused_experts(
     use_int8_w8a8: bool = False,
     use_int8_w8a16: bool = False,
     use_int4_w4a16: bool = False,
+    use_nvfp4_w4a16: bool = False,
+    nvfp4_group_size: int = 16,
     per_channel_quant: bool = False,
     w1_scale: Optional[torch.Tensor] = None,
     w2_scale: Optional[torch.Tensor] = None,
@@ -244,6 +262,8 @@ def fused_experts(
     a1_scale: Optional[torch.Tensor] = None,
     a2_scale: Optional[torch.Tensor] = None,
     block_shape: Optional[List[int]] = None,
+    w1_scale2: Optional[torch.Tensor] = None,
+    w2_scale2: Optional[torch.Tensor] = None,
 ):
     topk_weights, topk_ids, _ = topk_output
     filter_expert = (
@@ -267,6 +287,8 @@ def fused_experts(
             use_int8_w8a8,
             use_int8_w8a16,
             use_int4_w4a16,
+            use_nvfp4_w4a16,
+            nvfp4_group_size,
             per_channel_quant,
             w1_scale,
             w2_scale,
@@ -275,6 +297,8 @@ def fused_experts(
             a1_scale,
             a2_scale,
             block_shape,
+            w1_scale2,
+            w2_scale2,
             moe_runner_config.routed_scaling_factor,
             moe_runner_config.gemm1_alpha,
             moe_runner_config.gemm1_clamp_limit,
@@ -298,6 +322,8 @@ def fused_experts(
             use_int8_w8a8,
             use_int8_w8a16,
             use_int4_w4a16,
+            use_nvfp4_w4a16,
+            nvfp4_group_size,
             per_channel_quant,
             w1_scale,
             w2_scale,
@@ -306,6 +332,8 @@ def fused_experts(
             a1_scale,
             a2_scale,
             block_shape,
+            w1_scale2,
+            w2_scale2,
             no_combine=moe_runner_config.no_combine,
             routed_scaling_factor=moe_runner_config.routed_scaling_factor,
             gemm1_alpha=moe_runner_config.gemm1_alpha,
@@ -355,6 +383,8 @@ def _prepare_fused_moe_run(
     use_int8_w8a8: bool,
     use_int8_w8a16: bool,
     use_int4_w4a16: bool,
+    use_nvfp4_w4a16: bool = False,
+    nvfp4_group_size: int = 16,
     per_channel_quant: bool,
     block_shape: Optional[List[int]],
 ):
@@ -426,6 +456,8 @@ def _fused_moe_kernel_sequence(
     use_int8_w8a8: bool,
     use_int8_w8a16: bool,
     use_int4_w4a16: bool,
+    use_nvfp4_w4a16: bool,
+    nvfp4_group_size: int,
     per_channel_quant: bool,
     w1_scale: Optional[torch.Tensor],
     w2_scale: Optional[torch.Tensor],
@@ -434,6 +466,8 @@ def _fused_moe_kernel_sequence(
     a1_scale: Optional[torch.Tensor],
     a2_scale: Optional[torch.Tensor],
     block_shape: Optional[List[int]],
+    w1_scale2: Optional[torch.Tensor],
+    w2_scale2: Optional[torch.Tensor],
     activation: str,
     is_gated: bool,
     no_combine: bool,
@@ -452,6 +486,14 @@ def _fused_moe_kernel_sequence(
     Supports optional LoRA hooks that fire between the two kernels and before
     combine. Returns ``out_hidden_states``.
     """
+    if use_nvfp4_w4a16:
+        # SM70 stores NVFP4 scales as float8_e4m3fn; the Triton kernel reads
+        # the scale bytes as raw u8 and decodes E4M3 numerically.
+        if w1_scale is not None and w1_scale.dtype == torch.float8_e4m3fn:
+            w1_scale = w1_scale.view(torch.uint8)
+        if w2_scale is not None and w2_scale.dtype == torch.float8_e4m3fn:
+            w2_scale = w2_scale.view(torch.uint8)
+
     num_tokens = hidden_states.shape[0]
     E, N, _ = w1.shape
     topk = topk_ids.shape[1]
@@ -511,8 +553,11 @@ def _fused_moe_kernel_sequence(
         use_int8_w8a8=use_int8_w8a8,
         use_int8_w8a16=use_int8_w8a16,
         use_int4_w4a16=use_int4_w4a16,
+        use_nvfp4_w4a16=use_nvfp4_w4a16,
+        nvfp4_group_size=nvfp4_group_size,
         per_channel_quant=per_channel_quant,
         block_shape=block_shape,
+        B_scale2=w1_scale2,
         c_sorted=down_moe_use_tma,
         filter_expert=filter_expert,
     )
@@ -701,8 +746,11 @@ def _fused_moe_kernel_sequence(
         use_int8_w8a8=use_int8_w8a8,
         use_int8_w8a16=use_int8_w8a16,
         use_int4_w4a16=use_int4_w4a16,
+        use_nvfp4_w4a16=use_nvfp4_w4a16,
+        nvfp4_group_size=nvfp4_group_size,
         per_channel_quant=per_channel_quant,
         block_shape=block_shape,
+        B_scale2=w2_scale2,
         a_use_tma=down_moe_use_tma,
         b_use_tma=down_moe_use_tma,
         filter_expert=filter_expert,
@@ -816,6 +864,8 @@ def fused_experts_impl(
     use_int8_w8a8: bool = False,
     use_int8_w8a16: bool = False,
     use_int4_w4a16: bool = False,
+    use_nvfp4_w4a16: bool = False,
+    nvfp4_group_size: int = 16,
     per_channel_quant: bool = False,
     w1_scale: Optional[torch.Tensor] = None,
     w2_scale: Optional[torch.Tensor] = None,
@@ -824,6 +874,8 @@ def fused_experts_impl(
     a1_scale: Optional[torch.Tensor] = None,
     a2_scale: Optional[torch.Tensor] = None,
     block_shape: Optional[List[int]] = None,
+    w1_scale2: Optional[torch.Tensor] = None,
+    w2_scale2: Optional[torch.Tensor] = None,
     no_combine: bool = False,
     routed_scaling_factor: Optional[float] = None,
     gemm1_alpha: Optional[float] = None,
@@ -838,6 +890,8 @@ def fused_experts_impl(
     # Check constraints.
     if use_int4_w4a16:
         assert hidden_states.shape[1] // 2 == w1.shape[2], "Hidden size mismatch"
+    elif use_nvfp4_w4a16:
+        assert hidden_states.shape[1] == w1.shape[2] * 2, "Hidden size mismatch"
     else:
         assert (
             hidden_states.shape[1] == w1.shape[2] - padded_size
@@ -864,6 +918,8 @@ def fused_experts_impl(
         use_int8_w8a8=use_int8_w8a8,
         use_int8_w8a16=use_int8_w8a16,
         use_int4_w4a16=use_int4_w4a16,
+        use_nvfp4_w4a16=use_nvfp4_w4a16,
+        nvfp4_group_size=nvfp4_group_size,
         per_channel_quant=per_channel_quant,
         block_shape=block_shape,
     )
@@ -886,6 +942,8 @@ def fused_experts_impl(
         use_int8_w8a8=use_int8_w8a8,
         use_int8_w8a16=use_int8_w8a16,
         use_int4_w4a16=use_int4_w4a16,
+        use_nvfp4_w4a16=use_nvfp4_w4a16,
+        nvfp4_group_size=nvfp4_group_size,
         per_channel_quant=per_channel_quant,
         w1_scale=w1_scale,
         w2_scale=w2_scale,
@@ -894,6 +952,8 @@ def fused_experts_impl(
         a1_scale=a1_scale,
         a2_scale=a2_scale,
         block_shape=block_shape,
+        w1_scale2=w1_scale2,
+        w2_scale2=w2_scale2,
         activation=activation,
         is_gated=is_gated,
         no_combine=no_combine,

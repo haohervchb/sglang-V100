@@ -33,8 +33,33 @@
 #include <tvm/ffi/container/tensor.h>
 
 #include <cstdint>
+#include <sstream>
+#include <stdexcept>
 
 namespace sglang {
+
+// Compat with this tree's vendored sgl_kernel headers: the upstream header
+// set exposed DTypeTrait / warp:: / math:: and a CHECK_HOST macro, while the
+// vendored copy uses lowercase dtype_trait and device:: namespaces.
+template <typename T>
+using DTypeTrait = ::dtype_trait<T>;
+namespace warp = ::device::warp;
+namespace math = ::device::math;
+
+struct CheckHostStream {
+  std::ostringstream os;
+  ~CheckHostStream() { throw std::runtime_error(os.str()); }
+  template <typename V>
+  CheckHostStream& operator<<(const V& v) {
+    os << v;
+    return *this;
+  }
+};
+
+#define CHECK_HOST(cond) \
+  if (cond) { \
+  } else \
+    CheckHostStream() << #cond << ": "
 
 /// \brief Round a float to the storage dtype and back (one eager aten step).
 /// The inline cvt keeps nvcc from folding the round-trip away: every eager

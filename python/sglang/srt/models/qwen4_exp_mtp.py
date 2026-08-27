@@ -6,23 +6,58 @@ from contextlib import ExitStack
 from typing import Optional
 
 import torch
-from torch import nn
-from transformers import PretrainedConfig
-
-from sglang.srt.distributed import get_pp_group
-from sglang.srt.environ import envs
+from sglang.srt.distributed import (
+    get_pp_group,
+    get_tensor_model_parallel_world_size,
+)
 from sglang.srt.eplb.expert_distribution import get_global_expert_distribution_recorder
+from sglang.srt.layers.dp_attention import is_dp_attention_enabled
 from sglang.srt.layers.layernorm import GemmaRMSNorm
 from sglang.srt.layers.logits_processor import LogitsProcessor
 from sglang.srt.layers.quantization.base_config import QuantizationConfig
+from sglang.srt.layers.quantization.utils import get_dynamic_override
 from sglang.srt.layers.vocab_parallel_embedding import ParallelLMHead
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
-from sglang.srt.models.qwen3_5_mtp import Qwen3_5ForCausalLMMTP, _mtp_quant_config
+from sglang.srt.models.qwen3_5_mtp import Qwen3_5ForCausalLMMTP
 from sglang.srt.models.qwen4_exp import Qwen4ExpModel
-from sglang.srt.runtime_context import get_model, get_parallel
+from sglang.srt.server_args import get_global_server_args
 from sglang.srt.utils import add_prefix, is_npu
+from torch import nn
+from transformers import PretrainedConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mtp_dynamically_unquantized(quant_config, prefix: str) -> bool:
+    dynamic = getattr(quant_config, "dynamic", None)
+    return bool(dynamic) and get_dynamic_override(quant_config, prefix) is False
+
+
+def _mtp_quant_config(quant_config):
+    """The quantization the MTP module itself is built with.
+
+    Mirrors the fork's Qwen3.5 MTP handling: ModelOpt FP4 checkpoints ship the
+    MTP module in BF16, so its quantization is disabled here.
+    """
+    if quant_config and quant_config.get_name() == "modelopt_fp4":
+        return None
+    if (
+        is_npu()
+        and get_global_server_args().speculative_draft_model_quantization is None
+    ):
+        return None
+    if quant_config and quant_config.get_name() == "quark":
+        exclude_layers = getattr(quant_config, "exclude_layers", [])
+        if any(
+            isinstance(layer, str) and layer.startswith("mtp.")
+            for layer in exclude_layers
+        ):
+            return None
+    if quant_config and _is_mtp_dynamically_unquantized(
+        quant_config, add_prefix("mtp", "")
+    ):
+        return None
+    return quant_config
 
 
 class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
@@ -48,7 +83,7 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
         quant_config = _mtp_quant_config(quant_config)
 
         self.config = config
-        self.tp_size = get_parallel().tp_size
+        self.tp_size = get_tensor_model_parallel_world_size()
         self.quant_config = quant_config
         self.pp_group = get_pp_group()
         self.hidden_size = config.hidden_size
@@ -66,7 +101,7 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
             config.hidden_size,
             quant_config=quant_config,
             prefix=add_prefix("model.shared_head.head", prefix),
-            use_attn_tp_group=get_parallel().enable_dp_lm_head,
+            use_attn_tp_group=is_dp_attention_enabled(),
         )
         self.logits_processor = LogitsProcessor(config)
 
@@ -79,10 +114,14 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
             if self.hc_count > 1
             else config.hidden_size
         )
-        self.pre_fc_norm_hidden = GemmaRMSNorm(hidden_norm_size, eps=config.rms_norm_eps)
+        self.pre_fc_norm_hidden = GemmaRMSNorm(
+            hidden_norm_size, eps=config.rms_norm_eps
+        )
 
     def _init_linear_projections(self, config: PretrainedConfig) -> None:
-        self.fc_embedding = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.fc_embedding = nn.Linear(
+            config.hidden_size, config.hidden_size, bias=False
+        )
         self.fc_hidden = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
 
     def _init_standard_fusion(self, config: PretrainedConfig):
@@ -118,17 +157,8 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
         return self.fc(torch.cat((input_embeds, hidden_states), dim=-1))
 
     def _npu_quant_context(self):
-        exit_stack = ExitStack()
-        if (
-            is_npu()
-            and self.quant_config is None
-            and get_model().quantization is not None
-        ):
-            exit_stack.enter_context(envs.SGLANG_DEEPEP_BF16_DISPATCH.override(True))
-            exit_stack.enter_context(
-                envs.DEEP_NORMAL_MODE_USE_INT8_QUANT.override(False)
-            )
-        return exit_stack
+        # NPU-only quant context; the V100 fork has no NPU backend.
+        return ExitStack()
 
     def _prepare_input_embeds(
         self,
@@ -213,7 +243,9 @@ class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
         logits_output = self.logits_processor(
             input_ids, hidden_states, self.lm_head, forward_batch
         )
-        self._set_hc_logits_hidden_states(logits_output, hc_hidden_states, forward_batch)
+        self._set_hc_logits_hidden_states(
+            logits_output, hc_hidden_states, forward_batch
+        )
         return logits_output
 
 

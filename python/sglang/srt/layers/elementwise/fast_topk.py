@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import torch
-
-from sglang.kernels.jit.utils import (
+from sglang.jit_kernel.utils import (
     cache_once,
     is_arch_support_pdl,
     load_jit,
@@ -31,7 +30,7 @@ def _jit_fast_topk_module(topk: int) -> Module:
         "fast_topk",
         *args,
         cuda_files=["elementwise/fast_topk.cuh"],
-        cuda_wrappers=[("fast_topk", f"FastTopKKernel<{args}>::run")],
+        cuda_wrappers=[("fast_topk", f"sglang::FastTopKKernel<{args}>::run")],
     )
 
 

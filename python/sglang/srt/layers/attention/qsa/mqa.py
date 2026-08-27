@@ -9,6 +9,15 @@ import math
 from typing import Optional
 
 import torch
+from sglang.srt.utils import get_device_capability
+
+
+def _qsa_mqa_kernel_dtype(device: torch.device) -> str:
+    """SM70 tilelang MMA only supports FP16; newer archs use bf16."""
+    if get_device_capability(device.index)[0] < 8:
+        return "float16"
+    return "bfloat16"
+
 
 try:
     import flashinfer.comm  # noqa: F401
@@ -126,21 +135,22 @@ if HAS_TILELANG:
         block_q: int = 32,
         num_stages: int = 3,
         threads: int = 512,
+        dtype: str = "bfloat16",
     ):
         rows = T.dynamic("rows")
         keys = T.dynamic("keys")
 
         @T.prim_func
         def kernel(
-            Q: T.Tensor([rows * heads, head_dim], T.bfloat16),  # type: ignore
-            K: T.Tensor([keys, head_dim], T.bfloat16),  # type: ignore
+            Q: T.Tensor([rows * heads, head_dim], dtype),  # type: ignore
+            K: T.Tensor([keys, head_dim], dtype),  # type: ignore
             Logits: T.Tensor([rows, keys], T.float32),  # type: ignore
             Starts: T.Tensor([rows], T.int32),  # type: ignore
             Ends: T.Tensor([rows], T.int32),  # type: ignore
         ):
             with T.Kernel(T.ceildiv(rows, block_q), threads=threads) as bx:
-                q_shared = T.alloc_shared([block_q * heads, head_dim], T.bfloat16)
-                k_shared = T.alloc_shared([block_n, head_dim], T.bfloat16)
+                q_shared = T.alloc_shared([block_q * heads, head_dim], dtype)
+                k_shared = T.alloc_shared([block_n, head_dim], dtype)
                 scores = T.alloc_fragment([block_n, block_q * heads], T.float32)
                 scores_3d = T.reshape(scores, (block_n, block_q, heads))
                 reduced = T.alloc_fragment([block_n, block_q], T.float32)
@@ -210,6 +220,7 @@ if HAS_TILELANG:
         groups_per_cta: int = 1,
         num_stages: int = 3,
         threads: int = 128,
+        dtype: str = "bfloat16",
     ):
         # The validated MMA layout wants 64 GEMM rows; pages narrower than
         # that (full_page // ratio compressed views) are packed in sub-page
@@ -224,8 +235,8 @@ if HAS_TILELANG:
 
         @T.prim_func
         def kernel(
-            Q: T.Tensor([batch, 1, heads, head_dim], T.bfloat16),  # type: ignore
-            KCache: T.Tensor([pages, page_size, 1, head_dim], T.bfloat16),  # type: ignore
+            Q: T.Tensor([batch, 1, heads, head_dim], dtype),  # type: ignore
+            KCache: T.Tensor([pages, page_size, 1, head_dim], dtype),  # type: ignore
             PageTable: T.Tensor([batch, max_pages], T.int32),  # type: ignore
             ContextLens: T.Tensor([batch], T.int32),  # type: ignore
             Logits: T.Tensor([batch, max_model_len], T.float32),  # type: ignore
@@ -236,8 +247,8 @@ if HAS_TILELANG:
                 T.ceildiv(T.ceildiv(max_pages, sub_pages), groups_per_cta),
                 threads=threads,
             ) as (bx, group_block):
-                q_shared = T.alloc_shared([heads, head_dim], T.bfloat16)
-                k_shared = T.alloc_shared([GROUP, head_dim], T.bfloat16)
+                q_shared = T.alloc_shared([heads, head_dim], dtype)
+                k_shared = T.alloc_shared([GROUP, head_dim], dtype)
                 scores = T.alloc_fragment([GROUP, heads], T.float32)
                 reduced = T.alloc_fragment([GROUP], T.float32)
                 T.copy(Q[bx, 0, :, :], q_shared)
@@ -258,9 +269,7 @@ if HAS_TILELANG:
                                         0,
                                         :,
                                     ],
-                                    k_shared[
-                                        sp * page_size : (sp + 1) * page_size, :
-                                    ],
+                                    k_shared[sp * page_size : (sp + 1) * page_size, :],
                                 )
                         T.gemm(
                             k_shared,
@@ -307,10 +316,10 @@ def tilelang_qsa_mqa_prefill(
     # Allocate the padded output once. Appending even a few padding rows with
     # torch.cat would allocate and copy the entire [rows, keys] FP32 matrix,
     # temporarily doubling the dominant prefill buffer for long contexts.
-    logits = torch.zeros(
-        (padded_rows, keys), dtype=torch.float32, device=q.device
-    )
-    q_padded = q.to(torch.bfloat16).contiguous()
+    logits = torch.zeros((padded_rows, keys), dtype=torch.float32, device=q.device)
+    dtype = _qsa_mqa_kernel_dtype(q.device)
+    torch_dtype = torch.float16 if dtype == "float16" else torch.bfloat16
+    q_padded = q.to(torch_dtype).contiguous()
     starts = row_starts.to(device=q.device, dtype=torch.int32).contiguous()
     ends = row_ends.to(device=q.device, dtype=torch.int32).contiguous()
     if padding:
@@ -318,9 +327,11 @@ def tilelang_qsa_mqa_prefill(
         starts = torch.cat([starts, starts[-1:].expand(padding)])
         ends = torch.cat([ends, ends[-1:].expand(padding)])
 
-    _tilelang_qsa_mqa_prefill_kernel(heads=heads, head_dim=head_dim, block_q=block_q)(
+    _tilelang_qsa_mqa_prefill_kernel(
+        heads=heads, head_dim=head_dim, block_q=block_q, dtype=dtype
+    )(
         q_padded.reshape(-1, head_dim),
-        k[:, 0].to(torch.bfloat16).contiguous(),
+        k[:, 0].to(torch_dtype).contiguous(),
         logits,
         starts,
         ends,
@@ -347,10 +358,13 @@ def tilelang_qsa_mqa_decode(
         raise RuntimeError("TileLang is unavailable")
     _validate_decode_inputs(q, k_cache, page_table, context_lens)
     page_size = int(k_cache.shape[1])
-    if page_size < 8 or 64 % page_size != 0:
+    # SM70 fork: the model's KV page is 16 and the QSA compress ratio is 4,
+    # so the compressed page is 4; sub-page packing supports any divisor of
+    # the 64-row GEMM tile (4/8/16/32/64).
+    if page_size < 4 or 64 % page_size != 0:
         raise ValueError(
             "TileLang QSA decode requires a compressed page size of "
-            f"8/16/32/64 (64-row GEMM sub-page packing), got {page_size}"
+            f"4/8/16/32/64 (64-row GEMM sub-page packing), got {page_size}"
         )
     logits = torch.full(
         (q.shape[0], max_model_len),
@@ -361,10 +375,14 @@ def tilelang_qsa_mqa_decode(
     if not q.shape[0] or not max_model_len:
         return logits
     # The validated MMA layout requires N (the Q-head dimension) to be a
-    # multiple of eight. Zero-padding preserves the weight-free head sum.
+    # multiple of eight; the SM70 (V100) MMA path additionally needs a
+    # multiple of 16. Zero-padding preserves the weight-free head sum.
     query_heads, head_dim = q.shape[1:]
-    kernel_heads = max(8, ((query_heads + 7) // 8) * 8)
-    q_kernel = q.to(torch.bfloat16)
+    align = 16 if get_device_capability(q.device.index)[0] < 8 else 8
+    kernel_heads = max(align, ((query_heads + align - 1) // align) * align)
+    dtype = _qsa_mqa_kernel_dtype(q.device)
+    torch_dtype = torch.float16 if dtype == "float16" else torch.bfloat16
+    q_kernel = q.to(torch_dtype)
     if kernel_heads != query_heads:
         q_kernel = torch.cat(
             [
@@ -374,10 +392,10 @@ def tilelang_qsa_mqa_decode(
             dim=1,
         )
     _tilelang_qsa_mqa_decode_kernel(
-        heads=kernel_heads, head_dim=head_dim, page_size=page_size
+        heads=kernel_heads, head_dim=head_dim, page_size=page_size, dtype=dtype
     )(
         q_kernel.unsqueeze(1).contiguous(),
-        k_cache.to(torch.bfloat16).contiguous(),
+        k_cache.to(torch_dtype).contiguous(),
         page_table.to(device=q.device, dtype=torch.int32).contiguous(),
         context_lens.to(device=q.device, dtype=torch.int32).contiguous(),
         logits,

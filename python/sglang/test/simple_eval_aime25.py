@@ -20,7 +20,6 @@ from sglang.test.simple_eval_common import (
     EvalResult,
     SamplerBase,
     SingleEvalResult,
-    import_load_dataset,
 )
 
 QUERY_TEMPLATE = """
@@ -60,16 +59,13 @@ class AIME25Eval(Eval):
         num_examples: Optional[int],
         num_threads: int,
     ):
-        examples = self._load_examples()
-
-        if num_examples:
-            examples = examples[: min(num_examples, len(examples))]
-
-        self.examples = examples
-        self.num_threads = num_threads
-
-    def _load_examples(self) -> list[dict]:
-        load_dataset = import_load_dataset()
+        try:
+            from datasets import load_dataset
+        except ImportError:
+            raise ImportError(
+                "The 'datasets' package is required for AIME25 evaluation. "
+                "Please install it with: pip install datasets"
+            )
 
         # Load AIME 2025 dataset from HuggingFace
         dataset1 = load_dataset("opencompass/AIME2025", "AIME2025-I", split="test")
@@ -82,7 +78,13 @@ class AIME25Eval(Eval):
             {"question": row["question"], "answer": str(row["answer"])}
             for row in dataset2
         ]
-        return examples1 + examples2
+        examples = examples1 + examples2
+
+        if num_examples:
+            examples = examples[: min(num_examples, len(examples))]
+
+        self.examples = examples
+        self.num_threads = num_threads
 
     def __call__(self, sampler: SamplerBase) -> EvalResult:
         def fn(row: dict):

@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import List, Optional
 
 import torch
-
 from sglang.srt.mem_cache.memory_pool import GB, HybridLinearKVPool, MambaPool
 
 
@@ -52,7 +51,6 @@ class QSATokenToKVPool(HybridLinearKVPool):
         )
         return index_k_bytes // compress_ratio * num_layers
 
-
     def __init__(
         self,
         *,
@@ -69,6 +67,7 @@ class QSATokenToKVPool(HybridLinearKVPool):
         qsa_compress_ratio: int,
         qsa_token_topk: int,
         num_request_slots: int,
+        index_state_dtype: Optional[torch.dtype] = None,
         enable_memory_saver: bool = False,
         enable_kv_cache_copy: bool = False,
         start_layer: Optional[int] = None,
@@ -108,6 +107,11 @@ class QSATokenToKVPool(HybridLinearKVPool):
             quant_method=quant_method,
             post_capture_active=post_capture_active,
         )
+        # The full-attention cache may be FP8 while the QSA indexer's RMSNorm
+        # and TileLang MQA still compute in FP16 on SM70.  Keep these dtypes
+        # independent instead of accidentally constructing FP8 index state
+        # from the full-cache storage dtype.
+        self.index_state_dtype = index_state_dtype or dtype
         if (
             min(
                 qsa_index_kv_heads,
@@ -302,6 +306,8 @@ class QwenDSATokenToKVPool(HybridLinearKVPool):
             quant_method=quant_method,
             post_capture_active=post_capture_active,
         )
+        # SM70 fork: match the compute dtype (fp16 on V100).
+        self.index_state_dtype = dtype
         if qsa_index_kv_heads != 1:
             raise ValueError(
                 f"tokenwise QSA requires index_kv_heads = 1 (MQA), got "

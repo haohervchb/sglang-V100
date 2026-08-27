@@ -270,6 +270,11 @@ ACTIVATION_SCHEMES = ["static"]
 _SUPPORTED_ACT_STRS = ("silu", "relu2", "gelu")
 
 
+def _is_sm70() -> bool:
+    """True when running on NVIDIA V100 (compute capability 7.x)."""
+    return torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 7
+
+
 class ModelOptQuantConfig(QuantizationConfig):
     def __init__(
         self,
@@ -1190,7 +1195,9 @@ class ModelOptFp4Config(ModelOptQuantConfig):
 
     @classmethod
     def get_min_capability(cls) -> int:
-        return 100
+        # SM70 (V100) is supported via the Triton on-the-fly dequant runner;
+        # other pre-Blackwell GPUs still fail in the method constructor.
+        return 70
 
     @staticmethod
     def common_group_size(cfg: dict) -> int:
@@ -1639,7 +1646,21 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
 
     def __init__(self, quant_config: ModelOptFp4Config):
         self.quant_config = quant_config
-        if not is_blackwell_supported():
+        self.is_sm70 = _is_sm70()
+        self.use_sm70_marlin = False
+        if self.is_sm70:
+            from sglang.srt.layers.quantization.marlin_utils import (
+                _sm70_marlin_v100_available,
+            )
+
+            self.use_sm70_marlin = _sm70_marlin_v100_available()
+            if not self.use_sm70_marlin:
+                logger.warning_once(
+                    "SM70 ModelOpt NVFP4: marlin_v100 is unavailable; falling "
+                    "back to the much slower Triton W4A16 path. Run "
+                    "scripts/setup_v100_marlin.sh to install it."
+                )
+        if not is_blackwell_supported() and not self.is_sm70:
             raise ValueError(
                 "Current platform does not support NVFP4"
                 " quantization. Please use Blackwell and"
@@ -1932,7 +1953,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
                 assert (
                     weight_scale.shape[-1] == expected_blocks[name]
                 ), f"Expected {name}_weight_scale.dim(2) == {expected_blocks[name]}, got {weight_scale.shape[-1]}"
-            else:
+            elif not self.is_sm70:
                 if weight_scale.shape[assert_dim] % 4 != 0:
                     logger.warning(
                         "NVFP4 %s_weight_scale K' not multiple of 4: shape=%s, group_size=%s",
@@ -1945,6 +1966,121 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             ), f"{name} Weight Blockscale must be represented as FP8-E4M3"
 
         # Weight processing based on strategy
+        if self.is_sm70:
+            # Both SM70 paths consume the checkpoint's per-expert tensor
+            # scales directly. ModelOpt emits matching gate/up scales for a
+            # fused W13 tensor; process_weights_after_loading validated this
+            # above and selected the gate scale.
+            if (
+                layer.moe_runner_config.is_gated
+                and layer.w13_weight_scale_2.dim() == 2
+            ):
+                w13_scale2 = layer.w13_weight_scale_2[:, 0].to(torch.float32)
+            else:
+                w13_scale2 = layer.w13_weight_scale_2.to(torch.float32)
+            w13_scale2 = w13_scale2.contiguous().reshape(-1)
+            w2_scale2 = (
+                layer.w2_weight_scale_2.to(torch.float32).contiguous().reshape(-1)
+            )
+
+            if not self.use_sm70_marlin:
+                # Portable correctness fallback: retain raw [E,N,K/2] codes
+                # and [E,N,K/16] scales for Triton's on-the-fly decoder.
+                copy_or_rebind_param(layer, "w13_scale2", w13_scale2)
+                copy_or_rebind_param(layer, "w2_scale2", w2_scale2)
+                return
+
+            if (self.quant_config.group_size or 16) != 16:
+                raise ValueError(
+                    "SM70 Marlin NVFP4 requires group_size=16, got "
+                    f"{self.quant_config.group_size}"
+                )
+
+            from sglang.srt.layers.quantization.gptq import (
+                gptq_marlin_moe_repack,
+            )
+            from sglang.srt.layers.quantization.marlin_utils import (
+                sm70_nvfp4_marlin_process_global_scale,
+                sm70_nvfp4_marlin_process_scales,
+            )
+
+            def _repack_nvfp4_weight(weight: torch.Tensor) -> torch.Tensor:
+                # ModelOpt: [E, N, K/2] uint8, low/high nibbles are adjacent K.
+                # GPTQ repacker input: [E, K/8, N] int32 with the same eight
+                # adjacent-K nibbles in every word.
+                num_experts, size_n, packed_k = weight.shape
+                size_k = packed_k * 2
+                gptq_layout = (
+                    weight.contiguous()
+                    .view(torch.int32)
+                    .transpose(1, 2)
+                    .contiguous()
+                )
+                empty_perm = torch.empty(
+                    (num_experts, 0),
+                    dtype=torch.int32,
+                    device=weight.device,
+                )
+                return gptq_marlin_moe_repack(
+                    gptq_layout,
+                    empty_perm,
+                    size_k,
+                    size_n,
+                    4,
+                )
+
+            copy_or_rebind_param(
+                layer, "w13_weight", _repack_nvfp4_weight(layer.w13_weight)
+            )
+            copy_or_rebind_param(
+                layer, "w2_weight", _repack_nvfp4_weight(layer.w2_weight)
+            )
+
+            # marlin_v100 consumes logical [E,K/16,N] metadata encoded in its
+            # special non-negative S0E5M3 representation.  Passing the native
+            # checkpoint E4M3 bytes here makes the GEMM underflow to ~zero.
+            w13_marlin_scales, w13_scale_factor = (
+                sm70_nvfp4_marlin_process_scales(
+                    layer.w13_weight_scale.transpose(1, 2).contiguous(),
+                    layer.params_dtype,
+                )
+            )
+            w2_marlin_scales, w2_scale_factor = (
+                sm70_nvfp4_marlin_process_scales(
+                    layer.w2_weight_scale.transpose(1, 2).contiguous(),
+                    layer.params_dtype,
+                )
+            )
+            copy_or_rebind_param(
+                layer,
+                "w13_weight_scale",
+                w13_marlin_scales,
+            )
+            copy_or_rebind_param(
+                layer,
+                "w2_weight_scale",
+                w2_marlin_scales,
+            )
+            copy_or_rebind_param(
+                layer,
+                "w13_scale2",
+                sm70_nvfp4_marlin_process_global_scale(
+                    w13_scale2, layer.params_dtype
+                )
+                / w13_scale_factor,
+            )
+            copy_or_rebind_param(
+                layer,
+                "w2_scale2",
+                sm70_nvfp4_marlin_process_global_scale(w2_scale2, layer.params_dtype)
+                / w2_scale_factor,
+            )
+            # Drop the eager CUTLASS-layout placeholders allocated during
+            # create_weights; they are sizeable for 512 experts and unused.
+            layer.w13_blockscale_swizzled = layer.w13_weight_scale
+            layer.w2_blockscale_swizzled = layer.w2_weight_scale
+            return
+
         if (
             self.enable_flashinfer_trtllm_moe
             and reorder_rows_for_gated_act_gemm is not None
@@ -2114,7 +2250,15 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
         self.moe_runner_config = moe_runner_config
         moe_runner_backend = get_moe_runner_backend()
 
-        if moe_runner_backend.is_auto():
+        if self.is_sm70:
+            # Prefer the bundled 1Cat-derived SM70 NVFP4 tensor-core kernel.
+            # Triton's per-element FP4/E4M3 decode remains a safe fallback.
+            moe_runner_backend = (
+                MoeRunnerBackend.MARLIN
+                if self.use_sm70_marlin
+                else MoeRunnerBackend.TRITON
+            )
+        elif moe_runner_backend.is_auto():
             # TRTLLM is currently the most performant and tested FP4 MoE
             # backend, so use it as the default.
             moe_runner_backend = MoeRunnerBackend.FLASHINFER_TRTLLM
@@ -2142,6 +2286,37 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             activation in _SUPPORTED_ACT_STRS
         ), f"{activation=} not in supported {_SUPPORTED_ACT_STRS}"
         moe_runner_config = self.moe_runner_config
+
+        if self.is_sm70:
+            if self.use_sm70_marlin:
+                from sglang.srt.layers.moe.moe_runner.marlin import (
+                    MarlinMoeQuantInfo,
+                )
+
+                quant_info = MarlinMoeQuantInfo(
+                    w13_qweight=layer.w13_weight,
+                    w2_qweight=layer.w2_weight,
+                    w13_scales=layer.w13_weight_scale,
+                    w2_scales=layer.w2_weight_scale,
+                    w13_g_idx_sort_indices=None,
+                    w2_g_idx_sort_indices=None,
+                    weight_bits=4,
+                    w13_global_scale=layer.w13_scale2,
+                    w2_global_scale=layer.w2_scale2,
+                )
+                return self.runner.run(dispatch_output, quant_info)
+
+            quant_info = TritonMoeQuantInfo(
+                w13_weight=layer.w13_weight,
+                w2_weight=layer.w2_weight,
+                use_nvfp4_w4a16=True,
+                nvfp4_group_size=self.quant_config.group_size or 16,
+                w13_scale=layer.w13_weight_scale,
+                w2_scale=layer.w2_weight_scale,
+                w13_scale2=layer.w13_scale2,
+                w2_scale2=layer.w2_scale2,
+            )
+            return self.runner.run(dispatch_output, quant_info)
 
         # FlashInfer TRTLLM FP4 path
         if self.enable_flashinfer_trtllm_moe and hasattr(layer, "g1_scale_c"):

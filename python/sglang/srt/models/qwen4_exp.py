@@ -10,9 +10,6 @@ import torch
 import torch.nn.functional as F
 import triton
 import triton.language as tl
-from torch import nn
-
-from sglang.kernels.ops.elementwise.elementwise import fused_sigmoid_mul
 from sglang.srt.configs.qwen4_exp import Qwen4ExpConfig, Qwen4ExpTextConfig
 from sglang.srt.distributed import get_tp_group, tensor_model_parallel_all_reduce
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
@@ -28,12 +25,15 @@ from sglang.srt.layers.dp_attention import (
     dp_gather_replicate,
     dp_scatter,
     get_attention_dp_size,
+    get_attention_tp_rank,
+    get_attention_tp_size,
     get_dp_global_num_tokens,
     get_global_dp_buffer,
     get_local_dp_buffer,
     is_allocation_symmetric,
     is_dp_attention_enabled,
 )
+from sglang.srt.layers.elementwise.sigmoid_mul import fused_sigmoid_mul
 from sglang.srt.layers.hyperconnection import (
     GatedResidual,
     HyperConnectionConfig,
@@ -46,22 +46,21 @@ from sglang.srt.layers.quantization.base_config import QuantizationConfig
 from sglang.srt.layers.quantization.unquant import UnquantizedEmbeddingMethod
 from sglang.srt.layers.utils import get_layer_id
 from sglang.srt.layers.vocab_parallel_embedding import VocabParallelEmbedding
+from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMode
 from sglang.srt.model_executor.forward_context import (
     get_attn_backend,
     get_req_to_token_pool,
 )
-from sglang.srt.model_executor.runner import get_is_capture_mode
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.models.qwen3_5 import (
     Qwen3_5AttentionDecoderLayer,
     Qwen3_5ForCausalLM,
-    Qwen3_5GatedDeltaNet,
     Qwen3_5LinearDecoderLayer,
 )
 from sglang.srt.models.qwen3_vl import Qwen3VLForConditionalGeneration
-from sglang.srt.runtime_context import get_parallel
 from sglang.srt.utils import logger
+from torch import nn
 
 # Decode/verify-sized batches only: at prefill sizes both chains are compute
 # bound and serializing them on one stream is faster than contending.
@@ -69,8 +68,9 @@ _QSA_INDEXER_OVERLAP_TOKEN_THRESHOLD = 1024
 
 
 def _get_ple_forward_mode(forward_batch: ForwardBatch) -> ForwardMode:
-    if forward_batch._original_forward_mode is not None:
-        return forward_batch._original_forward_mode
+    original_mode = getattr(forward_batch, "_original_forward_mode", None)
+    if original_mode is not None:
+        return original_mode
     return forward_batch.forward_mode
 
 
@@ -114,7 +114,7 @@ def _prepare_ple_batch(
 ) -> Optional[_PLEBatch]:
     """Prepare the token layout and the shared N-gram history once per forward."""
 
-    if forward_batch.tbo_parent_token_range is not None:
+    if getattr(forward_batch, "tbo_parent_token_range", None) is not None:
         raise NotImplementedError("Qwen4 PLE is not compatible with two-batch overlap")
     spec_algorithm = forward_batch.spec_algorithm
     if spec_algorithm is not None and spec_algorithm.is_ngram():
@@ -401,7 +401,7 @@ class Qwen4ExpPLEGroupedNorm(nn.Module):
             and x.is_cuda
             and x.dtype in (torch.bfloat16, torch.float16)
         ):
-            from sglang.kernels.ops.layernorm.grouped_gemma_rmsnorm import (
+            from sglang.srt.layers.grouped_gemma_rmsnorm import (
                 grouped_gemma_rmsnorm,
             )
 
@@ -497,11 +497,13 @@ class Qwen4ExpNGramEmbedding(nn.Module):
                 or getattr(config, "ple_embedding_dtype", None) == "float8_e4m3fn"
                 else torch.bfloat16
             ),
-            output_dtype=torch.bfloat16,
+            output_dtype=torch.get_default_dtype(),
             use_attn_tp_group=self.use_attn_tp_ngram,
         )
         self.ngram_embedding.register_buffer(
-            "weight_scale", torch.ones(1, dtype=torch.bfloat16), persistent=True
+            "weight_scale",
+            torch.ones(1, dtype=torch.get_default_dtype()),
+            persistent=True,
         )
 
     @classmethod
@@ -605,7 +607,7 @@ class Qwen4ExpNGramEmbedding(nn.Module):
     ) -> torch.Tensor:
         contexts = contexts.to(torch.long)
         if self.enable_ple_fusion and decode_sized:
-            from sglang.kernels.ops.qwen4_ple import (
+            from sglang.srt.layers.qwen4_ple import (
                 can_fuse_qwen4_ngram_hash,
                 fused_qwen4_ngram_hash,
             )
@@ -723,6 +725,7 @@ def _gather_ple_embedding_from_pinned_kernel(
     tp_vocab_start,
     tp_vocab_end,
     is_fp8: tl.constexpr,
+    emit_fp16: tl.constexpr,
     BLOCK_D: tl.constexpr,
 ):
     row_id = tl.program_id(0)
@@ -731,15 +734,25 @@ def _gather_ple_embedding_from_pinned_kernel(
     local_idx = tl.where(in_range, global_idx - tp_vocab_start, 0)
     offsets = tl.arange(0, BLOCK_D)
     mask = offsets < embedding_dim
+    out_dtype = tl.float16 if emit_fp16 else tl.bfloat16
     if is_fp8:
-        weight_ptr = weight_ptr.to(tl.int64).to(tl.pointer_type(tl.float8e4nv))
+        # SM70 has no native fp8 support; route the fp8 bytes through Triton's
+        # fp8e4b15 (which is a software decode = E4M3FN value * 2^-8) and undo
+        # the 8-bit bias shift to recover the E4M3FN semantics of the table.
+        weight_ptr = weight_ptr.to(tl.int64).to(tl.pointer_type(tl.float8e4b15))
+        values = tl.load(
+            weight_ptr + local_idx * embedding_dim + offsets,
+            mask=mask,
+            other=0.0,
+        ).to(out_dtype)
+        values = values * 256.0
     else:
         weight_ptr = weight_ptr.to(tl.int64).to(tl.pointer_type(tl.bfloat16))
-    values = tl.load(
-        weight_ptr + local_idx * embedding_dim + offsets,
-        mask=mask,
-        other=0.0,
-    ).to(tl.bfloat16)
+        values = tl.load(
+            weight_ptr + local_idx * embedding_dim + offsets,
+            mask=mask,
+            other=0.0,
+        ).to(out_dtype)
     tl.store(
         output_ptr + row_id * embedding_dim + offsets,
         tl.where(in_range, values, 0.0),
@@ -813,6 +826,7 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
         self.register_buffer("weight_scale", embedding.weight_scale, persistent=True)
         del embedding.weight
         self._block_d = triton.next_power_of_2(self.embedding_dim)
+        self._emit_dtype = torch.get_default_dtype()
 
     def allocate_output(
         self, shape: Tuple[int, ...], device: torch.device
@@ -823,8 +837,9 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                 get_tp_group(), disabled=not is_allocation_symmetric()
             )
         with allocation_context, torch.inference_mode(False):
-            # The gather kernel emits bf16 rows regardless of the table dtype.
-            return torch.empty(shape, dtype=torch.bfloat16, device=device)
+            # The gather kernel emits rows in the model's compute dtype
+            # regardless of the table dtype.
+            return torch.empty(shape, dtype=self._emit_dtype, device=device)
 
     def gather(
         self, input_ids: torch.Tensor, out: Optional[torch.Tensor] = None
@@ -838,9 +853,10 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                     f"invalid PLE prefetch output shape: {tuple(out.shape)} != "
                     f"{expected_shape}"
                 )
-            if out.dtype != torch.bfloat16 or out.device != input_ids.device:
+            if out.dtype != self._emit_dtype or out.device != input_ids.device:
                 raise ValueError(
-                    "PLE prefetch output must be bfloat16 on the id device"
+                    "PLE prefetch output must be on the id device with the "
+                    f"expected dtype ({self._emit_dtype})"
                 )
             output = out
 
@@ -854,6 +870,7 @@ class Qwen4ExpPinnedHostEmbedding(VocabParallelEmbedding):
                 tp_vocab_start=self.shard_indices.org_vocab_start_index,
                 tp_vocab_end=self.shard_indices.org_vocab_end_index,
                 is_fp8=self.weight.dtype == torch.float8_e4m3fn,
+                emit_fp16=self._emit_dtype == torch.float16,
                 BLOCK_D=self._block_d,
             )
         return output
@@ -968,7 +985,7 @@ class Qwen4ExpPLELayer(nn.Module):
             # only remove decode identities around them.  With row_width=1 the
             # padded/transpose path is exactly x.unsqueeze(-1), and every state
             # boundary is the contiguous one-column shift below.
-            from sglang.kernels.ops.qwen4_ple import (
+            from sglang.srt.layers.qwen4_ple import (
                 can_fuse_qwen4_short_conv_state,
                 fused_qwen4_short_conv_state,
             )
@@ -1188,7 +1205,7 @@ class Qwen4ExpPLELayer(nn.Module):
         gate = gate / math.sqrt(hidden_size)
         fused_gate_value = False
         if batch.use_decode_fast_path:
-            from sglang.kernels.ops.qwen4_ple import (
+            from sglang.srt.layers.qwen4_ple import (
                 can_fuse_qwen4_gate_value,
                 fused_qwen4_gate_value,
             )
@@ -1257,7 +1274,7 @@ class Qwen4ExpLayerExtensionMixin:
         hc_config = HyperConnectionConfig(
             hc_count=self.hc_count,
             hidden_size=self.hidden_size,
-            params_dtype=torch.bfloat16,
+            params_dtype=torch.get_default_dtype(),
             hc_lowrank=config.hc_lowrank,
             rms_norm_eps=config.rms_norm_eps,
             hc_per_branch_norm=True,
@@ -1322,7 +1339,7 @@ class Qwen4ExpLayerExtensionMixin:
         return get_attention_dp_size() > 1 and get_moe_a2a_backend().is_none()
 
     def _qwen4_exp_use_attn_tp_a2a_scatter(self) -> bool:
-        return get_parallel().attn_tp_size > 1 and not get_moe_a2a_backend().is_none()
+        return get_attention_tp_size() > 1 and not get_moe_a2a_backend().is_none()
 
     def _run_qwen4_exp_mlp(
         self,
@@ -1348,9 +1365,9 @@ class Qwen4ExpLayerExtensionMixin:
 
         attn_tp_chunks = None
         if use_attn_tp_a2a_scatter:
-            attn_tp_size = get_parallel().attn_tp_size
+            attn_tp_size = get_attention_tp_size()
             attn_tp_chunks = list(hidden_states.tensor_split(attn_tp_size))
-            hidden_states = attn_tp_chunks[get_parallel().attn_tp_rank].contiguous()
+            hidden_states = attn_tp_chunks[get_attention_tp_rank()].contiguous()
 
         hidden_states = self.mlp(hidden_states, forward_batch)
 
@@ -1491,6 +1508,16 @@ class Qwen4ExpAttentionDecoderLayer(
             )
         return topk_indices
 
+    def _prepare_qkv_gate(
+        self,
+        positions: torch.Tensor,
+        hidden_states: torch.Tensor,
+        forward_batch: ForwardBatch,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        return self.forward_prepare_native(
+            positions=positions, hidden_states=hidden_states
+        )
+
     def self_attention(
         self,
         positions: torch.Tensor,
@@ -1611,7 +1638,7 @@ class Qwen4ExpModel(Qwen3_5ForCausalLM):
         hc_config = HyperConnectionConfig(
             hc_count=self.hc_count,
             hidden_size=self.hidden_size,
-            params_dtype=torch.bfloat16,
+            params_dtype=torch.get_default_dtype(),
             hc_lowrank=config.hc_lowrank,
             rms_norm_eps=config.rms_norm_eps,
             hc_per_branch_norm=True,
@@ -2084,9 +2111,9 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
                     if name.endswith(ignore_suffixes) and name not in params_dict:
                         continue
                     if name.endswith("_scale") and name not in params_dict:
-                        assert (
-                            abs(loaded_weight.item() - 1.0) < 1e-6
-                        ), f"Expected 1.0, got {loaded_weight.item()} in skipped {name}"
+                        assert abs(loaded_weight.item() - 1.0) < 1e-6, (
+                            f"Expected 1.0, got {loaded_weight.item()} in skipped {name}"
+                        )
                         continue
                     if name in params_dict:
                         param = params_dict[name]
@@ -2110,10 +2137,6 @@ class Qwen4ExpForConditionalGeneration(Qwen3VLForConditionalGeneration):
                 f"[language_model_only] Qwen4 load_weights: skipped "
                 f"{skipped_visual_count} visual weights"
             )
-
-        for module in self.modules():
-            if isinstance(module, Qwen3_5GatedDeltaNet):
-                module.finalize_fused_in_proj()
 
         return loaded_params
 

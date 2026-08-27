@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from sglang.kernels.ops.elementwise.fast_topk import fast_topk
 from sglang.test.ci.ci_register import register_cuda_ci
 
@@ -21,7 +20,9 @@ def _check_topk_values(score, lengths, indices, topk, row_starts):
         row = indices[b]
         if length <= topk:
             # naive path: identity indices, then -1 fill
-            assert torch.equal(row[:length].cpu(), torch.arange(length, dtype=torch.int32))
+            assert torch.equal(
+                row[:length].cpu(), torch.arange(length, dtype=torch.int32)
+            )
             assert (row[length:] == -1).all()
             continue
         assert (row >= 0).all(), "long rows must fill every slot"

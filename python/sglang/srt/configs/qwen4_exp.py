@@ -1,7 +1,6 @@
-from transformers import PretrainedConfig
-
 from sglang.srt.configs.qwen3_next import Qwen3NextConfig
 from sglang.srt.configs.qwen3_vl import Qwen3VLVisionConfig
+from transformers import PretrainedConfig
 
 
 class Qwen4ExpVisionConfig(Qwen3VLVisionConfig):
@@ -28,7 +27,7 @@ class Qwen4ExpTextConfig(Qwen3NextConfig):
         heads_per_ngram=8,
         ngram_vocab_size_base=20000000,
         make_ngram_vocab_size_divisible_by=128,
-        ple_offload_embedding=False,
+        ple_offload_embedding=True,
         ple_embedding_dtype=None,
         index_share_for_mtp_iteration=True,
         rope_parameters=None,

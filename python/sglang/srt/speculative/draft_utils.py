@@ -43,10 +43,6 @@ class DraftBackendFactory:
         if self._is_qwen_qsa_draft_model():
             return self._create_qwen_qsa_decode_backend()
 
-        # Returns a per-step CONTAINER, not an AttentionBackend, so
-        # attn_backend_wrapper_for_draft_extend cannot give it a conv sidecar.
-        _assert_draft_needs_no_conv_sidecar(self.draft_model_runner)
-
         backend_map = {
             "flashinfer": self._create_flashinfer_decode_backend,
             "triton": self._create_triton_decode_backend,

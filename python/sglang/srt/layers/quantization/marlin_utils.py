@@ -473,6 +473,78 @@ def sm70_marlin_moe_logical_scales(
     return s.reshape((s.shape[0], -1, size_n)).contiguous()
 
 
+def sm70_nvfp4_marlin_process_scales(
+    scales: torch.Tensor, activation_dtype: torch.dtype
+) -> tuple[torch.Tensor, float]:
+    """Encode logical E4M3 NVFP4 scales for the SM70 Marlin fast path.
+
+    The V100 iterator converts four metadata bytes to FP16/BF16 with integer
+    bit operations.  It therefore consumes the special non-negative S0E5M3
+    representation used by marlin_v100, not checkpoint-native S1E4M3 bytes.
+    ``scales`` must already be in logical ``[E, K/16, N]`` order.
+
+    Returns the encoded metadata and a power-of-two scale factor.  The caller
+    must divide the processed global scale by that factor.
+    """
+    if activation_dtype not in (torch.float16, torch.bfloat16):
+        raise ValueError(
+            "SM70 NVFP4 Marlin supports FP16/BF16 activations, got "
+            f"{activation_dtype}"
+        )
+    if scales.dtype != torch.float8_e4m3fn or scales.ndim != 3:
+        raise ValueError(
+            "SM70 NVFP4 Marlin expects [E,K/16,N] E4M3 scales, got "
+            f"shape={tuple(scales.shape)}, dtype={scales.dtype}"
+        )
+
+    logical = scales.to(torch.float16)
+    if bool((logical < 0).any()):
+        raise ValueError("NVFP4 block scales must be non-negative")
+
+    # FP16 has enough exponent range for ModelOpt's normalized E4M3 scales.
+    # BF16 may need a shared rescale so every non-zero S0E5M3 byte keeps its
+    # high bit set, which the integer dequantizer relies on.
+    scale_factor = 1.0
+    if activation_dtype == torch.bfloat16:
+        nonzero = logical[logical > 0]
+        if nonzero.numel() > 0:
+            min_scaled = nonzero.float().min() * (2**7)
+            if min_scaled < 2:
+                scale_factor = float(torch.ceil(torch.log2(2 / min_scaled)).exp2())
+                logical = (logical.float() * scale_factor).to(torch.float16)
+
+    num_experts, num_groups, size_n = logical.shape
+    if size_n % 4 != 0:
+        raise ValueError(
+            f"SM70 NVFP4 Marlin requires N divisible by 4, got N={size_n}"
+        )
+    flat = logical.reshape(-1, size_n)
+    # The iterator deliberately reverses each pair when expanding metadata.
+    flat = flat.view(-1, 4)[:, [0, 2, 1, 3]].reshape(-1, size_n)
+    encoded = (flat * (2**7)).view(torch.int16) << 1
+    encoded = encoded.view(torch.float8_e4m3fn).reshape(-1, size_n * 2)
+    encoded = encoded[:, 1::2].contiguous()
+    return encoded.reshape(num_experts, num_groups, size_n), scale_factor
+
+
+def sm70_nvfp4_marlin_process_global_scale(
+    global_scale: torch.Tensor, activation_dtype: torch.dtype
+) -> torch.Tensor:
+    """Compensate an NVFP4 global scale for SM70's integer dequantizer."""
+    if activation_dtype == torch.float16:
+        target_exponent = 5
+    elif activation_dtype == torch.bfloat16:
+        target_exponent = 8
+    else:
+        raise ValueError(
+            "SM70 NVFP4 Marlin supports FP16/BF16 activations, got "
+            f"{activation_dtype}"
+        )
+    fp4_exponent = 2
+    exponent_bias = 2 ** (target_exponent - 1) - 2 ** (fp4_exponent - 1)
+    return (global_scale.to(torch.float32) * (2.0 ** (exponent_bias - 7))).contiguous()
+
+
 def marlin_zero_points(
     zp: torch.Tensor, size_k: int, size_n: int, num_bits: int
 ) -> torch.Tensor:

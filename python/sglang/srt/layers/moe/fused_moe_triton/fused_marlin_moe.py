@@ -36,7 +36,7 @@ def get_scalar_type(num_bits: int, has_zp: bool, scales: Optional[torch.Tensor] 
         not has_zp
         and num_bits == 4
         and scales is not None
-        and scales.dtype == torch.float8_e8m0fnu
+        and scales.dtype in (torch.float8_e4m3fn, torch.float8_e8m0fnu)
     ):
         return scalar_types.float4_e2m1f
     if has_zp:
@@ -81,6 +81,8 @@ def fused_marlin_moe(
     sort_indices2: Optional[torch.Tensor] = None,
     w1_zeros: Optional[torch.Tensor] = None,
     w2_zeros: Optional[torch.Tensor] = None,
+    w1_global_scale: Optional[torch.Tensor] = None,
+    w2_global_scale: Optional[torch.Tensor] = None,
     workspace: Optional[torch.Tensor] = None,
     num_bits: int = 8,
     is_k_full: bool = True,
@@ -135,12 +137,25 @@ def fused_marlin_moe(
         and w1_scale.dtype == torch.float8_e8m0fnu
         and w2_scale.dtype == torch.float8_e8m0fnu
     )
+    is_nvfp4_marlin = (
+        num_bits == 4
+        and w1_zeros is None
+        and w2_zeros is None
+        and w1_scale.dtype == torch.float8_e4m3fn
+        and w2_scale.dtype == torch.float8_e4m3fn
+    )
+    if is_nvfp4_marlin:
+        assert w1_global_scale is not None and w2_global_scale is not None, (
+            "NVFP4 Marlin requires per-expert FP32 global scales"
+        )
+        assert w1_global_scale.dtype == torch.float32
+        assert w2_global_scale.dtype == torch.float32
     if is_mxfp4_marlin:
         assert hidden_states.dtype == torch.bfloat16, (
             "MXFP4 Marlin with E8M0 scales is only instantiated for bfloat16 "
             f"activations, got {hidden_states.dtype}"
         )
-    else:
+    elif not is_nvfp4_marlin:
         assert (
             hidden_states.dtype == w1_scale.dtype
         ), f"moe_wna16_marlin_gemm assumes hidden_states.dtype ({hidden_states.dtype}) == w1_scale.dtype ({w1_scale.dtype})"
@@ -219,7 +234,7 @@ def fused_marlin_moe(
         w1,
         None,  # b_bias_or_none
         w1_scale,
-        None,  # global_scale_or_none
+        w1_global_scale,
         w1_zeros,
         g_idx1,
         sort_indices1,
@@ -271,7 +286,7 @@ def fused_marlin_moe(
         w2,
         None,  # b_bias_or_none
         w2_scale,
-        None,  # global_scale_or_none
+        w2_global_scale,
         w2_zeros,
         g_idx2,
         sort_indices2,

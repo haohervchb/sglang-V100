@@ -21,8 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 import torch
-
-from sglang.kernels.jit.utils import (
+from sglang.jit_kernel.utils import (
     cache_once,
     is_arch_support_pdl,
     load_jit,
@@ -39,9 +38,7 @@ def _jit_qsa_indexer_module(
 ) -> Module:
     """Compile and cache the JIT QSA indexer module for one specialisation."""
     if dtype not in (torch.bfloat16, torch.float16):
-        raise RuntimeError(
-            f"Unsupported dtype {dtype}. Supported: bfloat16, float16"
-        )
+        raise RuntimeError(f"Unsupported dtype {dtype}. Supported: bfloat16, float16")
     if head_dim not in (64, 128, 256):
         raise RuntimeError(
             f"Unsupported index head_dim {head_dim}. Supported: 64, 128, 256"
@@ -52,8 +49,8 @@ def _jit_qsa_indexer_module(
         *args,
         cuda_files=["attention/qsa_indexer.cuh"],
         cuda_wrappers=[
-            ("q_prep", f"qsa_index_q_prep<{args}>"),
-            ("k_compress", f"qsa_index_k_compress<{args}>"),
+            ("q_prep", f"sglang::qsa_index_q_prep<{args}>"),
+            ("k_compress", f"sglang::qsa_index_k_compress<{args}>"),
         ],
     )
 
@@ -162,9 +159,7 @@ def qsa_index_k_compress_store(
     is_neox_style    : NeoX (True) or GPT-J (False) RoPE pairing
     """
     head_dim = weight.shape[0]
-    module = _jit_qsa_indexer_module(
-        key_state_buffer.dtype, head_dim, is_neox_style
-    )
+    module = _jit_qsa_indexer_module(key_state_buffer.dtype, head_dim, is_neox_style)
     module.k_compress(
         key_state_buffer,
         group_locs,

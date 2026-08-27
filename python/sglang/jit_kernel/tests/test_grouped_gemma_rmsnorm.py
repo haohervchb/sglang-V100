@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from sglang.kernels.ops.layernorm.grouped_gemma_rmsnorm import grouped_gemma_rmsnorm
 from sglang.test.ci.ci_register import register_cuda_ci
 

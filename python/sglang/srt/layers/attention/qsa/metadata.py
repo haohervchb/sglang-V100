@@ -10,7 +10,6 @@ from typing import Optional, Tuple
 
 import msgspec
 import torch
-
 from sglang.srt.layers.attention.qsa.kernel import qsa_fast_topk
 
 
@@ -140,9 +139,7 @@ class QSAIndexerMetadata(msgspec.Struct, frozen=True):
         sequence_lengths = self.sequence_lengths.to(torch.int32)
         sequence_lengths_list = sequence_lengths.tolist()
         for sequence_id in range(len(sequence_lengths_list)):
-            complete_blocks = (
-                int(sequence_lengths_list[sequence_id]) // ratio
-            )
+            complete_blocks = int(sequence_lengths_list[sequence_id]) // ratio
             if complete_blocks == 0:
                 continue
             # DSV4-style addressing: a group's compressed slot is its first
@@ -150,8 +147,9 @@ class QSAIndexerMetadata(msgspec.Struct, frozen=True):
             # contiguous in one page), read straight off the request's
             # token-slot row.
             compressed_locs = (
-                self.token_slot_table[sequence_id, : complete_blocks * ratio : ratio]
-                .long()
+                self.token_slot_table[
+                    sequence_id, : complete_blocks * ratio : ratio
+                ].long()
                 // ratio
             )
             parts.append(compressed_buffer.index_select(0, compressed_locs))
@@ -274,7 +272,9 @@ def build_group_ring_slots(
     """Ring slots of a planned group's members, oldest first."""
     requests = req_pool_indices.long()[sequence_ids]
     offsets = torch.arange(
-        compress_ratio - 1, -1, -1,
+        compress_ratio - 1,
+        -1,
+        -1,
         device=group_end_positions.device,
         dtype=torch.long,
     )

@@ -45,6 +45,7 @@ MARLIN_V100_REF="${MARLIN_V100_REF:-6d72a49939701d26b15b617a4cd2423174adb2d1}"
 PATCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches"
 SM70_PATCHES=(
   "$PATCH_DIR/marlin-v100-qwen-sm70-tuning.patch"
+  "$PATCH_DIR/marlin-v100-qwen38-nvfp4-tuning.patch"
 )
 if [[ "${MARLIN_V100_SKIP_BF16_COMPAT:-0}" != 1 ]]; then
   SM70_PATCHES+=("$PATCH_DIR/marlin-v100-sm70.patch")

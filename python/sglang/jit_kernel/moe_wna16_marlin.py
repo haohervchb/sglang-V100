@@ -39,6 +39,69 @@ except Exception:
 # False = attempted but unavailable (so we only warn once).
 _marlin_v100_op = None
 
+_SM70_MARLIN_MOE_ENV_NAMES = (
+    "SM70_MARLIN_MOE_CTA_GEOMETRY",
+    "SM70_MARLIN_MOE_SPLIT_K",
+    "SM70_MARLIN_MOE_METADATA_CACHE",
+)
+_sm70_marlin_user_tuning = any(
+    os.getenv(name) for name in _SM70_MARLIN_MOE_ENV_NAMES
+)
+_sm70_qwen38_tuning_stage = None
+
+
+def _configure_sm70_qwen38_nvfp4_stage(
+    b_scales: torch.Tensor,
+    moe_block_size: int,
+    top_k: int,
+    size_m: int,
+    size_n: int,
+    size_k: int,
+) -> None:
+    """Select the measured TP4 decode geometry before CUDA-graph capture.
+
+    marlin_v100 reads these variables synchronously when its host launcher is
+    called.  SGLang captures the resulting kernels in the decode CUDA graph,
+    so there is no environment handling on graph replay.  Large-M/prefill
+    shapes clear the override and retain marlin_v100's generic/model selectors.
+    """
+    global _sm70_qwen38_tuning_stage
+    if not _IS_SM70 or _sm70_marlin_user_tuning:
+        return
+
+    stage = None
+    values = None
+    if (
+        b_scales.dtype == torch.float8_e4m3fn
+        and moe_block_size == 8
+        and top_k == 10
+        and size_m == 1
+        and size_n == 320
+        and size_k == 2560
+    ):
+        stage = 1
+        values = ("32x64x64x4x32x64x16", "1", "vector_words")
+    elif (
+        b_scales.dtype == torch.float8_e4m3fn
+        and moe_block_size == 8
+        and top_k == 1
+        and size_m == 10
+        and size_n == 2560
+        and size_k == 160
+    ):
+        stage = 2
+        values = ("64x256x32x4x64x64x32", "1", "lane_vectors")
+
+    if stage == _sm70_qwen38_tuning_stage:
+        return
+    if values is None:
+        for name in _SM70_MARLIN_MOE_ENV_NAMES:
+            os.environ.pop(name, None)
+    else:
+        for name, value in zip(_SM70_MARLIN_MOE_ENV_NAMES, values):
+            os.environ[name] = value
+    _sm70_qwen38_tuning_stage = stage
+
 
 def _load_marlin_v100_op():
     """Lazily auto-detect and load the marlin_v100 MoE op on SM70.
@@ -162,6 +225,14 @@ def moe_wna16_marlin_gemm(
     if _IS_SM70:
         op = _load_marlin_v100_op()
         if op is not None:
+            _configure_sm70_qwen38_nvfp4_stage(
+                b_scales,
+                moe_block_size,
+                top_k,
+                size_m,
+                size_n,
+                size_k,
+            )
             op(
                 a,
                 c,

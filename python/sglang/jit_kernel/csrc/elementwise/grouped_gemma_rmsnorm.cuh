@@ -10,7 +10,25 @@
 
 #include <tvm/ffi/container/tensor.h>
 
+#include <sstream>
+#include <stdexcept>
+
 namespace sglang {
+
+struct CheckHostStream {
+  std::ostringstream os;
+  ~CheckHostStream() { throw std::runtime_error(os.str()); }
+  template <typename V>
+  CheckHostStream& operator<<(const V& v) {
+    os << v;
+    return *this;
+  }
+};
+
+#define CHECK_HOST(cond) \
+  if (cond) { \
+  } else \
+    CheckHostStream() << #cond << ": "
 
 struct GroupedGemmaRMSNormParams {
   const void* input;

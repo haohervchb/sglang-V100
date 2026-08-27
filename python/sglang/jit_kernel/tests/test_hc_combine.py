@@ -1,7 +1,6 @@
 import pytest
 import torch
 import torch.nn.functional as F
-
 from sglang.kernels.ops.elementwise.hc_combine import hc_combine
 from sglang.test.ci.ci_register import register_cuda_ci
 
@@ -36,7 +35,9 @@ def _reference_hc_combine(
     return (R + injection).flatten(-2)
 
 
-def _make_inputs(num_tokens: int, dtype: torch.dtype, hc: int = HC_COUNT, hs: int = HIDDEN_SIZE):
+def _make_inputs(
+    num_tokens: int, dtype: torch.dtype, hc: int = HC_COUNT, hs: int = HIDDEN_SIZE
+):
     torch.manual_seed(0)
     block_output = torch.randn(num_tokens, hs, dtype=dtype, device="cuda")
     residual = torch.randn(num_tokens, hc * hs, dtype=dtype, device="cuda")
@@ -160,7 +161,10 @@ def test_hc_combine_unsupported_dtype():
 def test_hc_combine_bad_hidden_size():
     dtype = torch.bfloat16
     block_output, residual, normed_residual, inject_weight = _make_inputs(
-        4, dtype, hc=4, hs=1000  # 4 * 1000 = 4000, not a multiple of 2048
+        4,
+        dtype,
+        hc=4,
+        hs=1000,  # 4 * 1000 = 4000, not a multiple of 2048
     )
     with pytest.raises(RuntimeError, match="2048"):
         hc_combine(
@@ -191,7 +195,9 @@ def test_hc_combine_dtype_mismatch():
 def test_hc_combine_shape_mismatch():
     dtype = torch.bfloat16
     block_output, residual, normed_residual, inject_weight = _make_inputs(4, dtype)
-    bad_weight = torch.randn(HC_COUNT, HC_COUNT * HIDDEN_SIZE + 2048, dtype=dtype, device="cuda")
+    bad_weight = torch.randn(
+        HC_COUNT, HC_COUNT * HIDDEN_SIZE + 2048, dtype=dtype, device="cuda"
+    )
     with pytest.raises(RuntimeError):
         hc_combine(
             block_output,

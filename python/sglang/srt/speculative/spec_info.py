@@ -190,6 +190,8 @@ class SpeculativeAlgorithm(Enum):
             not self.is_none()
         ), "Cannot create worker for NONE speculative algorithm."
 
+        enable_overlap = not server_args.disable_overlap_schedule
+
         if self.is_dflash():
             # Keyed off the same env gate as supports_spec_v2() so the worker
             # and the scheduler schema always agree. With the gate on, the V2

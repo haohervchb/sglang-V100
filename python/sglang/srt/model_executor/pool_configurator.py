@@ -197,112 +197,12 @@ class DefaultPoolConfigurator(MemoryPoolConfigurator):
                     (n * k * num_layers * 2 * kv_size) // scale_block_size
                 )
 
-        cell_size += self._compute_qsa_cell_size(
-            hf_config=model_config.hf_text_config, num_layers=num_layers
-        )
         return cell_size
-
-    @staticmethod
-    def _compute_qsa_cell_size(*, hf_config, num_layers: int) -> int:
-        from sglang.srt.layers.attention.qsa.config import (
-            QSA_VARIANT_COMPRESSED,
-            parse_qsa_profile,
-        )
-        from sglang.srt.mem_cache.qsa_kv_pool import (
-            QSATokenToKVPool,
-            QwenDSATokenToKVPool,
-        )
-
-        if num_layers == 0:
-            return 0
-        qsa_profile = parse_qsa_profile(hf_config)
-        if qsa_profile is None:
-            return 0
-        if qsa_profile.variant == QSA_VARIANT_COMPRESSED:
-            return QSATokenToKVPool.qsa_bytes_per_token(
-                kv_heads=qsa_profile.kv_heads,
-                head_dim=qsa_profile.head_dim,
-                compress_ratio=qsa_profile.compress_ratio,
-                num_layers=num_layers,
-            )
-        return QwenDSATokenToKVPool.qsa_bytes_per_token(
-            kv_heads=qsa_profile.kv_heads,
-            head_dim=qsa_profile.head_dim,
-            num_layers=num_layers,
-        )
-
-    def _compute_dsa_indexer_cell_size(
-        self,
-        *,
-        kvc: KVCacheConfigurator,
-        num_layers: int,
-        allocate_all_layers: bool = False,
-    ) -> int:
-        index_head_dim = get_dsa_index_head_dim(kvc.model_config.hf_config)
-        indexer_size_per_token = (
-            index_head_dim + index_head_dim // DSATokenToKVPool.quant_block_size * 4
-        )
-        element_size = torch._utils._element_size(
-            DSATokenToKVPool.index_k_with_scale_buffer_dtype
-        )
-        memory_config = get_memory()
-        indexer_ratio = 1
-        if memory_config.enable_hisparse:
-            from sglang.srt.mem_cache.sparsity import parse_hisparse_config
-
-            indexer_ratio = parse_hisparse_config(kvc.server_args).host_to_device_ratio
-
-        from sglang.srt.mem_cache.kv_cache_configurator import (
-            _should_elide_dsa_index_k,
-        )
-
-        if allocate_all_layers or not _should_elide_dsa_index_k(
-            is_draft_worker=kvc.is_draft_worker
-        ):
-            num_indexer_layers = num_layers
-        else:
-            active_indexer_layers = [
-                layer_id
-                for layer_id in range(
-                    kvc.layer_info.start_layer, kvc.layer_info.end_layer
-                )
-                if not dsa_layer_skips_topk(kvc.model_config.hf_config, layer_id)
-            ]
-            from sglang.srt.layers.cp.utils import (
-                get_glm_dsa_cp_layer_shard_info,
-                get_layer_shard_range,
-            )
-
-            _, shard_size = get_glm_dsa_cp_layer_shard_info(kvc)
-            if shard_size > 1:
-                active_set = set(active_indexer_layers)
-                max_owned = 0
-                for rank in range(shard_size):
-                    start, end = get_layer_shard_range(rank, shard_size, num_layers)
-                    max_owned = max(
-                        max_owned,
-                        sum(
-                            kvc.layer_info.start_layer + i in active_set
-                            for i in range(start, end)
-                        ),
-                    )
-                num_indexer_layers = max_owned + 1
-            else:
-                num_indexer_layers = len(active_indexer_layers)
-
-        return int(
-            indexer_size_per_token * num_indexer_layers * element_size * indexer_ratio
-        )
 
     def calculate_pool_sizes(
         self, available_bytes: int, page_size: int
     ) -> MemoryPoolConfig:
-        available_bytes = max(available_bytes, 0)
-        max_total_num_tokens = (
-            available_bytes // self._cell_size
-            if self._cell_size
-            else self._zero_kv_max_tokens
-        )
+        max_total_num_tokens = available_bytes // self._cell_size
         max_total_num_tokens = max_total_num_tokens // page_size * page_size
         return MemoryPoolConfig(max_total_num_tokens=max_total_num_tokens)
 
