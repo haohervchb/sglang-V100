@@ -593,16 +593,28 @@ class QSAIndexer(MultiPlatformOp):
                 logical_positions,
                 indexer_metadata.compress_member_rows is not None,
             )
+        is_sm70_indexer = (
+            hidden_states.is_cuda
+            and torch.cuda.get_device_capability(hidden_states.device) == (7, 0)
+            and hidden_states.dtype == torch.float16
+            and self.index_n_heads == 4
+            and self.index_head_dim == 128
+        )
+        decode_head_alignment = self.index_n_heads if is_sm70_indexer else 8
         q, token_k, state_stored = self.project_qk(
             hidden_states,
             positions,
             pool=indexer_metadata.token_to_kv_pool,
             cache_loc=state_slots,
             q_heads_padded=(
-                # The tilelang decode MQA requires a query-head multiple of 8;
-                # writing the zero padding from the fused prep kernel avoids a
-                # separate fill + cat per layer.
-                ((self.index_n_heads + 7) // 8) * 8
+                # The exact Volta path consumes the four real heads directly;
+                # TileLang on newer GPUs needs an eight-head multiple. Write
+                # any padding in fused prep instead of allocating a cat later.
+                (
+                    (self.index_n_heads + decode_head_alignment - 1)
+                    // decode_head_alignment
+                    * decode_head_alignment
+                )
                 if (forward_mode.is_decode() or is_target_verify or is_draft_extend)
                 else None
             ),

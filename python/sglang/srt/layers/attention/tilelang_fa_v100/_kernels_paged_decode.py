@@ -136,9 +136,7 @@ def _decode_partial_kernel(
                                     bits = T.Cast("uint16", raw) << T.uint16(8)
                                     k_shared[n, d] = T.reinterpret(bits, T.float16)
                                 else:
-                                    k_shared[n, d] = FP8Lut[
-                                        T.cast(raw, T.int32)
-                                    ]
+                                    k_shared[n, d] = FP8Lut[T.cast(raw, T.int32)]
                             else:
                                 k_shared[n, d] = KCache[
                                     physical_page,
@@ -200,9 +198,7 @@ def _decode_partial_kernel(
                                     bits = T.Cast("uint16", raw) << T.uint16(8)
                                     v_shared[n, d] = T.reinterpret(bits, T.float16)
                                 else:
-                                    v_shared[n, d] = FP8Lut[
-                                        T.cast(raw, T.int32)
-                                    ]
+                                    v_shared[n, d] = FP8Lut[T.cast(raw, T.int32)]
                             else:
                                 v_shared[n, d] = VCache[
                                     physical_page,
@@ -260,6 +256,7 @@ def _decode_combine_kernel(
     max_splits: int,
     threads: int,
     min_tokens_per_split: int,
+    selected_tokens: int = 0,
 ):
     @T.prim_func
     def main(
@@ -273,11 +270,16 @@ def _decode_combine_kernel(
             max_lse = T.alloc_fragment([1], T.float32)
             sum_lse = T.alloc_fragment([1], T.float32)
             output = T.alloc_fragment([dim], T.float32)
+            context = (
+                T.min(SeqLens[batch_id], selected_tokens)
+                if selected_tokens > 0
+                else SeqLens[batch_id]
+            )
             active_splits = T.min(
                 max_splits,
                 T.max(
                     1,
-                    T.ceildiv(SeqLens[batch_id], min_tokens_per_split),
+                    T.ceildiv(context, min_tokens_per_split),
                 ),
             )
             for split in T.Parallel(max_splits):
@@ -309,6 +311,8 @@ def _decode_combine_kernel(
 
 
 _DECODE_KERNEL_CACHE = {}
+
+
 def get_paged_decode_kernels(
     *,
     batch: int,

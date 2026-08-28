@@ -147,6 +147,7 @@ if HAS_TILELANG:
             Logits: T.Tensor([rows, keys], T.float32),  # type: ignore
             Starts: T.Tensor([rows], T.int32),  # type: ignore
             Ends: T.Tensor([rows], T.int32),  # type: ignore
+            Scale: T.float32,
         ):
             with T.Kernel(T.ceildiv(rows, block_q), threads=threads) as bx:
                 q_shared = T.alloc_shared([block_q * heads, head_dim], dtype)
@@ -180,9 +181,9 @@ if HAS_TILELANG:
                         scores_3d[n, qi, head] = T.max(scores_3d[n, qi, head], 0.0)
                     T.reduce_sum(scores_3d, reduced, dim=-1, clear=True)
                     for qi, n in T.Parallel(block_q, block_n):
-                        Logits[row_base + qi, start_min + ni * block_n + n] = reduced[
-                            n, qi
-                        ]
+                        Logits[row_base + qi, start_min + ni * block_n + n] = (
+                            reduced[n, qi] / Scale
+                        )
 
         return kernel
 
@@ -316,7 +317,7 @@ def tilelang_qsa_mqa_prefill(
     # Allocate the padded output once. Appending even a few padding rows with
     # torch.cat would allocate and copy the entire [rows, keys] FP32 matrix,
     # temporarily doubling the dominant prefill buffer for long contexts.
-    logits = torch.zeros((padded_rows, keys), dtype=torch.float32, device=q.device)
+    logits = torch.empty((padded_rows, keys), dtype=torch.float32, device=q.device)
     dtype = _qsa_mqa_kernel_dtype(q.device)
     torch_dtype = torch.float16 if dtype == "float16" else torch.bfloat16
     q_padded = q.to(torch_dtype).contiguous()
@@ -335,11 +336,11 @@ def tilelang_qsa_mqa_prefill(
         logits,
         starts,
         ends,
+        float(score_scale or math.sqrt(head_dim)),
     )
     # A leading-dimension slice that retains every column is already
     # contiguous, so do not copy this large matrix again when removing padding.
     logits = logits[:rows]
-    logits.div_(score_scale or math.sqrt(head_dim))
     _tilelang_qsa_mqa_mask_kernel()(logits, starts[:rows], ends[:rows])
     return logits
 
@@ -424,6 +425,28 @@ def qsa_mqa_decode(
     max_model_len: int,
     score_scale: Optional[float] = None,
 ) -> torch.Tensor:
+    if (
+        q.is_cuda
+        and get_device_capability(q.device.index) == (7, 0)
+        and q.dtype == torch.float16
+        and q.shape[0] > 0
+        and q.shape[1:] == (4, 128)
+        and k_cache.dtype == torch.float16
+        and k_cache.ndim == 4
+        and k_cache.shape[1:] == (4, 1, 128)
+    ):
+        from sglang.srt.layers.attention.tilelang_fa_v100._decode_cuda import (
+            sm70_cuda_qsa_indexer_decode,
+        )
+
+        return sm70_cuda_qsa_indexer_decode(
+            q,
+            k_cache,
+            page_table,
+            context_lens,
+            max_model_len,
+            score_scale or math.sqrt(q.shape[-1]),
+        )
     if q.is_cuda and HAS_TILELANG:
         return tilelang_qsa_mqa_decode(
             q, k_cache, page_table, context_lens, max_model_len, score_scale

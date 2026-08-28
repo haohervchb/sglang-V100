@@ -13,6 +13,7 @@ Gated by ``SGLANG_V100_DECODE_CUDA=1``; falls back to TileLang otherwise.
 from __future__ import annotations
 
 import logging
+import math
 import os
 from pathlib import Path
 
@@ -30,6 +31,8 @@ _EXT = None
 _OPS_LOAD_ATTEMPTED = False
 
 PAGE_SIZE = 16  # fixed page granularity supported by the CUDA kernel
+QSA_DECODE_TARGET_CTAS = 160
+QSA_DECODE_TOKENS_PER_SPLIT = 32
 
 
 def sm70_cuda_decode_enabled() -> bool:
@@ -64,9 +67,7 @@ def _load_sm70_cuda_decode_ops():
         return None
     _OPS_LOAD_ATTEMPTED = True
     if not _SRC_PATH.is_file():
-        logger.warning(
-            "SM70 CUDA decode partial source not found: %s", _SRC_PATH
-        )
+        logger.warning("SM70 CUDA decode partial source not found: %s", _SRC_PATH)
         return None
     from torch.utils.cpp_extension import load_inline
 
@@ -111,7 +112,6 @@ def sm70_cuda_decode_partial(
             "SM70 CUDA decode partial requested but extension is unavailable."
         )
     batch, heads, dim = q.shape
-    page_size = k_cache.shape[1]
     partial_o = torch.empty(
         (batch, max_splits, heads, dim), dtype=torch.float16, device=q.device
     )
@@ -133,3 +133,111 @@ def sm70_cuda_decode_partial(
         partial_lse,
     )
     return partial_o, partial_lse
+
+
+def sm70_cuda_qsa_prefill(
+    q,
+    k_cache,
+    v_cache,
+    req_to_token,
+    req_indices,
+    indices,
+    seq_lens,
+    softmax_scale,
+):
+    """Run exact-shape QSA chunk-prefill directly from the E5M2 cache."""
+    ext = _load_sm70_cuda_decode_ops()
+    if ext is None:
+        raise RuntimeError("SM70 CUDA QSA prefill extension is unavailable.")
+    output = torch.empty_like(q)
+    ext.sm70_qsa_prefill(
+        q.contiguous(),
+        k_cache.view(torch.uint8).contiguous(),
+        v_cache.view(torch.uint8).contiguous(),
+        req_to_token.to(dtype=torch.int32).contiguous(),
+        req_indices.to(dtype=torch.int32).contiguous(),
+        indices.to(dtype=torch.int32).contiguous(),
+        seq_lens.to(dtype=torch.int32).contiguous(),
+        float(softmax_scale),
+        output,
+    )
+    return output
+
+
+def sm70_cuda_qsa_decode(
+    q,
+    k_cache,
+    v_cache,
+    req_to_token,
+    req_indices,
+    indices,
+    seq_lens,
+    softmax_scale,
+):
+    """Run QSA split-KV decode directly from selected E5M2 cache rows."""
+    ext = _load_sm70_cuda_decode_ops()
+    if ext is None:
+        raise RuntimeError("SM70 CUDA QSA decode extension is unavailable.")
+    batch, heads, dim = q.shape
+    max_splits = max(1, math.ceil(QSA_DECODE_TARGET_CTAS / batch))
+    partial_o = torch.empty(
+        (batch, max_splits, heads, dim), dtype=torch.float16, device=q.device
+    )
+    partial_lse = torch.empty(
+        (batch, max_splits, heads), dtype=torch.float32, device=q.device
+    )
+    seq_lens = seq_lens.to(dtype=torch.int32).contiguous()
+    indices = indices.to(dtype=torch.int32).contiguous()
+    ext.sm70_qsa_decode(
+        q.contiguous(),
+        k_cache.view(torch.uint8).contiguous(),
+        v_cache.view(torch.uint8).contiguous(),
+        req_to_token.to(dtype=torch.int32).contiguous(),
+        req_indices.to(dtype=torch.int32).contiguous(),
+        indices,
+        seq_lens,
+        max_splits,
+        QSA_DECODE_TOKENS_PER_SPLIT,
+        float(softmax_scale),
+        partial_o,
+        partial_lse,
+    )
+    from ._kernels_paged_decode import _decode_combine_kernel
+
+    combine = _decode_combine_kernel(
+        batch,
+        heads,
+        dim,
+        max_splits,
+        256,
+        QSA_DECODE_TOKENS_PER_SPLIT,
+        selected_tokens=indices.shape[1],
+    )
+    return combine(partial_o, partial_lse, seq_lens)
+
+
+def sm70_cuda_qsa_indexer_decode(
+    q,
+    k_cache,
+    page_table,
+    context_lens,
+    max_model_len,
+    score_scale,
+):
+    """Score compressed QSA index keys without Volta MMA head padding."""
+    ext = _load_sm70_cuda_decode_ops()
+    if ext is None:
+        raise RuntimeError("SM70 CUDA QSA indexer extension is unavailable.")
+    logits = torch.empty(
+        (q.shape[0], max_model_len), dtype=torch.float32, device=q.device
+    )
+    ext.sm70_qsa_indexer_decode(
+        q.contiguous(),
+        k_cache.contiguous(),
+        page_table.to(dtype=torch.int32).contiguous(),
+        context_lens.to(dtype=torch.int32).contiguous(),
+        int(max_model_len),
+        float(score_scale),
+        logits,
+    )
+    return logits

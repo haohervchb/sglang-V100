@@ -272,6 +272,8 @@ class QwenSparseAttnBackend(AttentionBackend):
         self._graph_extend_lens_pin = None
         self._sm70_dense_decode_positions = None
         self._sm70_dense_decode_logged = False
+        self._sm70_sparse_prefill_logged = False
+        self._sm70_sparse_decode_logged = False
 
     @staticmethod
     def _is_speculative_paged_mode(forward_mode) -> bool:
@@ -1549,6 +1551,30 @@ class QwenSparseAttnBackend(AttentionBackend):
         pool = self.token_to_kv_pool
         k_buffer = pool.get_key_buffer(layer.layer_id)
         v_buffer = pool.get_value_buffer(layer.layer_id)
+        if self._can_use_sm70_sparse_prefill(
+            q, k_buffer, v_buffer, forward_batch, topk_indices
+        ):
+            from sglang.srt.layers.attention.tilelang_fa_v100._decode_cuda import (
+                sm70_cuda_qsa_prefill,
+            )
+
+            if not self._sm70_sparse_prefill_logged:
+                logger.info(
+                    "SM70 QSA chunk-prefill: reading selected E5M2 K/V "
+                    "directly from the token pool."
+                )
+                self._sm70_sparse_prefill_logged = True
+            output = sm70_cuda_qsa_prefill(
+                q.contiguous(),
+                k_buffer,
+                v_buffer,
+                self.req_to_token_pool.req_to_token,
+                forward_batch.req_pool_indices,
+                topk_indices,
+                forward_batch.seq_lens,
+                layer.scaling,
+            )
+            return self._pad_extend_output(output, num_output_rows)
         req_to_token = self.req_to_token_pool.req_to_token
         req_indices = forward_batch.req_pool_indices.tolist()
         k_parts = [
@@ -1586,6 +1612,30 @@ class QwenSparseAttnBackend(AttentionBackend):
             layer.scaling,
         )
         return self._pad_extend_output(output, num_output_rows)
+
+    @staticmethod
+    def _can_use_sm70_sparse_prefill(
+        q, k_buffer, v_buffer, forward_batch, topk_indices
+    ) -> bool:
+        return (
+            forward_batch.forward_mode.is_extend()
+            and q.is_cuda
+            and torch.cuda.get_device_capability(q.device) == (7, 0)
+            and q.dtype == torch.float16
+            and q.ndim == 3
+            and q.shape[0] > 0
+            and q.shape[1:] == (6, 256)
+            and topk_indices.ndim == 2
+            and topk_indices.shape[0] == q.shape[0]
+            and topk_indices.shape[1] > 0
+            and k_buffer.dtype == torch.float8_e5m2
+            and v_buffer.dtype == k_buffer.dtype
+            and k_buffer.ndim == 3
+            and v_buffer.shape == k_buffer.shape
+            and k_buffer.shape[1:] == (1, 256)
+            and forward_batch.req_pool_indices.numel() == 1
+            and forward_batch.seq_lens.numel() == 1
+        )
 
     @staticmethod
     def _pad_extend_output(output: torch.Tensor, num_rows: int) -> torch.Tensor:
@@ -1765,6 +1815,38 @@ class QwenSparseAttnBackend(AttentionBackend):
             return self._forward_sm70_dense_decode(
                 q, k_buffer, v_buffer, layer, metadata
             )
+        if self._can_use_sm70_sparse_decode(
+            q,
+            k_buffer,
+            v_buffer,
+            forward_batch,
+            metadata,
+            topk_indices,
+        ):
+            req_indices = metadata.row_req_pool_indices
+            if req_indices is None:
+                req_indices = forward_batch.req_pool_indices
+            from sglang.srt.layers.attention.tilelang_fa_v100._decode_cuda import (
+                sm70_cuda_qsa_decode,
+            )
+
+            if not self._sm70_sparse_decode_logged:
+                logger.info(
+                    "SM70 QSA decode: resolving selected E5M2 K/V directly "
+                    "inside grouped split-K attention."
+                )
+                self._sm70_sparse_decode_logged = True
+            output = sm70_cuda_qsa_decode(
+                q,
+                k_buffer,
+                v_buffer,
+                self.req_to_token_pool.req_to_token,
+                req_indices,
+                topk_indices,
+                metadata.sequence_lengths,
+                layer.scaling,
+            )
+            return output.reshape(q.shape[0], -1)
         trtllm_decode = _resolve_trtllm_sparse_decode()
         if trtllm_decode is not None:
             return self._forward_trtllm_sparse(
@@ -1847,6 +1929,34 @@ class QwenSparseAttnBackend(AttentionBackend):
             causal=True,
         )
         return output.reshape(q.shape[0], -1)
+
+    @staticmethod
+    def _can_use_sm70_sparse_decode(
+        q,
+        k_buffer,
+        v_buffer,
+        forward_batch,
+        metadata,
+        topk_indices,
+    ) -> bool:
+        """Exact direct-cache QSA decode specialization for Qwen3.8 TP4."""
+        return (
+            forward_batch.forward_mode.is_decode()
+            and q.is_cuda
+            and torch.cuda.get_device_capability(q.device) == (7, 0)
+            and q.dtype == torch.float16
+            and q.ndim == 3
+            and q.shape[1:] == (6, 256)
+            and q.shape[0] == metadata.sequence_lengths.numel()
+            and topk_indices.ndim == 2
+            and topk_indices.shape[0] == q.shape[0]
+            and topk_indices.shape[1] > 0
+            and k_buffer.dtype == torch.float8_e5m2
+            and v_buffer.dtype == k_buffer.dtype
+            and k_buffer.ndim == 3
+            and v_buffer.shape == k_buffer.shape
+            and k_buffer.shape[1:] == (1, 256)
+        )
 
     def _can_use_sm70_dense_decode(
         self, q, k_buffer, v_buffer, forward_batch, metadata
