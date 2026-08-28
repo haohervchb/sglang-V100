@@ -16,6 +16,8 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV | ≥4,500 tok/s§ | 61.5–62.1 tok/s§ | ≥4,500 tok/s§ | 61.5–62.1 tok/s§ | Prefill stayed above 4,500 tok/s over the retained context sweep; the decode range is the post-kernel integrated result. [Full-context command](#qwen38-flash-next-nvfp4-target-only) |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Inferact MTP-3/4, E5M2 KV | — | 68–70 tok/s§ | — | 68–70 tok/s§ | Acceptance-dependent steady scheduler rate; a forced 512-token request measured 57.4 tok/s end-to-end with mean acceptance length 2.47. [Full-context command](#qwen38-flash-next-nvfp4-with-mtp) |
 | `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill/decode: 4,224/63.2; 70K decode: 59.1; 200K decode: 49.6 tok/s** with the SM70 CUDA split-KV decode partial and fused QPN8 gate/up path; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
 | `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; **cold 150K: 134; cold 200K: 112 tok/s**; 79.2 tok/s at 70K (warm); [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B-FP8` | DSpark-7, FP16 KV | 2,749 tok/s | 107.8 tok/s | 3,140 tok/s | 78.3 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen38_27b_fp8_dspark_tp_scaling_20260815/README.md) |
@@ -38,7 +40,10 @@ measurements. The 150K and 200K figures are clean cold-cache host runs (single
 request, freshly restarted server, zero cached prompt tokens); the older
 70K/200K bring-up rows were warm periodic-synthetic measurements. They validate
 the long-context path but are not directly comparable with the cold 1K/25K
-sweep columns.
+sweep columns. §The Flash Next rows retain the latest operational measurements,
+not a fresh cold 1K/25K matrix. Repeated values describe the observed stable
+range rather than separate samples at exactly those two prompt lengths; MTP
+throughput also varies with token acceptance.
 
 ### Native SM70 optimization status
 
@@ -304,8 +309,99 @@ or video-to-video jobs.
 
 ## LLM serving examples
 
-Run `conda activate sglang-v100` first. These commands use all four V100s and
-listen on port 8082.
+The Flash Next commands below invoke the repository environment directly and
+need no wrapper script. The older examples assume `conda activate sglang-v100`
+first. These commands use all four V100s; the listening port is shown in each
+command.
+
+### Qwen3.8 Flash Next NVFP4 target-only
+
+This is the non-speculative command used for the current V100 result. It uses
+E5M2 KV cache and is sized for one request at the model's full 262,144-token
+context. Run it from a clone at `$HOME/sglang-V100`, or change the `cd` path.
+
+```bash
+cd "$HOME/sglang-V100"
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_SM70_FORCE_FP16=1 \
+SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
+PYTHONPATH="$PWD/python" \
+conda run --no-capture-output -n sglang-v100 \
+python -m sglang.launch_server \
+  --trust-remote-code \
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --served-model-name qwen \
+  --dtype float16 \
+  --quantization modelopt_fp4 \
+  --reasoning-parser auto \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
+  --kv-cache-dtype fp8_e5m2 \
+  --tensor-parallel-size 4 \
+  --host 127.0.0.1 \
+  --port 30000 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --cuda-graph-bs 1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --mamba-full-memory-ratio 0.2
+```
+
+### Qwen3.8 Flash Next NVFP4 with MTP
+
+This uses Inferact's NVFP4 variant as the MTP draft source. The tested setting
+is three speculative steps with four draft tokens. It keeps the same E5M2 KV
+cache and full-context, single-request memory configuration as target-only.
+
+```bash
+cd "$HOME/sglang-V100"
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+FLASHINFER_DISABLE_VERSION_CHECK=1 \
+NCCL_P2P_LEVEL=NVL \
+SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+SGLANG_MAMBA_CONV_DTYPE=float16 \
+SGLANG_MAMBA_SSM_DTYPE=float16 \
+SGLANG_SM70_FORCE_FP16=1 \
+SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
+PYTHONPATH="$PWD/python" \
+conda run --no-capture-output -n sglang-v100 \
+python -m sglang.launch_server \
+  --trust-remote-code \
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --served-model-name qwen \
+  --dtype float16 \
+  --quantization modelopt_fp4 \
+  --reasoning-parser auto \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
+  --kv-cache-dtype fp8_e5m2 \
+  --tensor-parallel-size 4 \
+  --host 127.0.0.1 \
+  --port 30000 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --cuda-graph-bs 1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --mamba-full-memory-ratio 0.2 \
+  --speculative-algorithm EAGLE \
+  --speculative-draft-model-path Inferact/Qwen3.8-Flash-Next-NVFP4 \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
 
 ### Qwen3.8-27B-FP8 target-only
 
