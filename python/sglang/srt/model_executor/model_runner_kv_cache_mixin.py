@@ -707,14 +707,18 @@ class ModelRunnerKVCacheMixin:
                     enable_memory_saver=self.server_args.enable_memory_saver,
                     start_layer=self.start_layer,
                 )
-                qsa_profile = None
-                if not self.is_draft_worker:
-                    from sglang.srt.layers.attention.qsa.config import (
-                        QSA_VARIANT_COMPRESSED,
-                        parse_qsa_profile,
-                    )
+                # Qwen4-Exp's MTP layer is itself a QSA full-attention layer.
+                # Its draft iterations can reuse the target's sparse indices,
+                # but draft extend/warmup still writes and reads the draft KV
+                # and compressed index state.  Give draft workers the same QSA
+                # pool selected by their model config instead of a bare hybrid
+                # pool with none of the qsa_* buffers.
+                from sglang.srt.layers.attention.qsa.config import (
+                    QSA_VARIANT_COMPRESSED,
+                    parse_qsa_profile,
+                )
 
-                    qsa_profile = parse_qsa_profile(config)
+                qsa_profile = parse_qsa_profile(config)
                 if (
                     qsa_profile is not None
                     and qsa_profile.variant == QSA_VARIANT_COMPRESSED

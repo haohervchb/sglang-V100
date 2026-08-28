@@ -677,6 +677,23 @@ def fused_topk(
 
     M, _ = hidden_states.shape
 
+    if (
+        1 <= M <= 4
+        and gating_output.shape == (M, 512)
+        and gating_output.dtype in (torch.float16, torch.float32)
+        and topk == 10
+        and renormalize
+        and correction_bias is None
+        and scoring_func == "softmax"
+    ):
+        from sglang.jit_kernel.sm70_nvfp4_moe_decode import (
+            sm70_nvfp4_moe_decode_available,
+            sm70_topk10_softmax,
+        )
+
+        if sm70_nvfp4_moe_decode_available():
+            return sm70_topk10_softmax(gating_output.contiguous())
+
     topk_weights = torch.empty(
         M, topk, dtype=torch.float32, device=hidden_states.device
     )

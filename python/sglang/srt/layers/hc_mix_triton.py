@@ -72,8 +72,8 @@ def sm70_hc_down_gemv_silu(
         out,
         1.0 / hc_count,
         K=x.shape[1],
-        BLOCK_K=16384,
-        num_warps=8,
+        BLOCK_K=2048,
+        num_warps=4,
     )
     return out
 

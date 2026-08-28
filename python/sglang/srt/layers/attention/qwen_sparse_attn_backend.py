@@ -316,7 +316,11 @@ class QwenSparseAttnBackend(AttentionBackend):
             )
             return max(1, int(sequence_lengths.max()))
         spec_info = forward_batch.spec_info
-        draft_window = int(spec_info.draft_token_num) if spec_info is not None else 0
+        # Target verification carries the pre-write request length and exposes
+        # its extra window as ``draft_token_num``.  EAGLE v2 draft-extend uses
+        # ``EagleDraftInput`` instead and has already advanced seq_lens_cpu to
+        # the post-write length, so there is no window to add here.
+        draft_window = int(getattr(spec_info, "draft_token_num", 0) or 0)
         return max(1, int(seq_lens_cpu.max()) + draft_window)
 
     @staticmethod
@@ -2185,6 +2189,28 @@ class QwenSparseMultiStepDraftBackend:
                 seq_lens_cpu=step_batch.seq_lens_cpu,
                 num_padding=num_padding,
             )
+
+    def init_forward_metadata_capture_cuda_graph(self, forward_batch) -> None:
+        """Compatibility hook used by ``EagleDraftCudaGraphRunner``.
+
+        QSA builds its graph-stable metadata outside the captured graph.  Keep
+        the legacy draft-runner entry point as a thin alias so every MTP step
+        uses the same capture layout as the newer model-runner interface.
+        """
+
+        self.init_forward_metadata_out_graph(forward_batch, in_capture=True)
+
+    def init_forward_metadata_replay_cuda_graph(
+        self, forward_batch, bs: int
+    ) -> None:
+        """Refresh per-step QSA graph metadata before replay."""
+
+        if forward_batch.batch_size != bs:
+            raise RuntimeError(
+                "QSA MTP replay batch size does not match the captured graph: "
+                f"forward_batch.batch_size={forward_batch.batch_size}, bs={bs}"
+            )
+        self.init_forward_metadata_out_graph(forward_batch, in_capture=False)
 
     def init_forward_metadata_in_graph(self, forward_batch) -> None:
         pass

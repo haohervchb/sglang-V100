@@ -36,11 +36,15 @@ def _is_mtp_dynamically_unquantized(quant_config, prefix: str) -> bool:
 def _mtp_quant_config(quant_config):
     """The quantization the MTP module itself is built with.
 
-    Mirrors the fork's Qwen3.5 MTP handling: ModelOpt FP4 checkpoints ship the
-    MTP module in BF16, so its quantization is disabled here.
+    RadixArk's ModelOpt FP4 checkpoint excludes the complete MTP module and
+    stores it in BF16. Inferact's variant excludes the dense MTP projections
+    but provides the MTP experts in NVFP4. Preserve ModelOpt quantization for
+    the latter so the per-layer exclusion rules can select the right methods.
     """
     if quant_config and quant_config.get_name() == "modelopt_fp4":
-        return None
+        if quant_config.is_layer_excluded("mtp.layers.0.mlp.experts"):
+            return None
+        return quant_config
     if (
         is_npu()
         and get_global_server_args().speculative_draft_model_quantization is None

@@ -2397,9 +2397,11 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         # ragged FA2 wrappers), Triton index kernels, and torch.compile'd functions
         # are all compiled lazily on first prefill call without this.  Run a
         # lightweight EXTEND forward pass so compilation happens at startup.
-        if self.is_generation and not (
-            self.is_draft_worker and self.spec_algorithm.is_dflash_family()
-        ):
+        # A speculative draft model is never invoked as a standalone EXTEND
+        # model: EAGLE/MTP requires spec_info (target hidden states and draft
+        # tokens), while DFlash has its own draft inputs.  Besides being an
+        # invalid forward, warming that path does not compile a serving shape.
+        if self.is_generation and not self.is_draft_worker:
             major, _ = torch.cuda.get_device_capability()
             if major == 7:
                 # TileLang's paged-prefill cache key contains the request batch

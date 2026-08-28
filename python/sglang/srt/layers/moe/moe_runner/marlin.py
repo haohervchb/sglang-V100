@@ -93,6 +93,54 @@ def fused_experts_none_to_marlin(
 
     assert runner_config.activation == "silu", "Only SiLU activation is supported."
 
+    # Qwen3.8 Flash Next's TP4 decode shape is too skinny for Marlin's
+    # block-padded grouped GEMM: M<=4 routes ten rows through I=160 experts.
+    # On Volta, stream the existing Marlin-repacked NVFP4 tensors directly and
+    # split K widely enough to occupy all 80 SMs. Keep Marlin for prefill and
+    # every other model/shape.
+    routed_scale = runner_config.routed_scaling_factor
+    use_sm70_nvfp4_decode = (
+        hidden_states.dtype == torch.float16
+        and hidden_states.ndim == 2
+        and 1 <= hidden_states.shape[0] <= 4
+        and hidden_states.shape[1] == 2560
+        and tuple(topk_output.topk_ids.shape) == (hidden_states.shape[0], 10)
+        and tuple(quant_info.w13_qweight.shape) == (512, 160, 640)
+        and tuple(quant_info.w2_qweight.shape) == (512, 10, 5120)
+        and quant_info.weight_bits == 4
+        and quant_info.w13_qzeros is None
+        and quant_info.w2_qzeros is None
+        and quant_info.w13_scales.dtype == torch.float8_e4m3fn
+        and quant_info.w2_scales.dtype == torch.float8_e4m3fn
+        and quant_info.w13_global_scale is not None
+        and quant_info.w2_global_scale is not None
+        and quant_info.expert_map is None
+        and runner_config.num_experts == runner_config.num_local_experts == 512
+        and runner_config.swiglu_limit is None
+        and runner_config.gate_up_input_scale == 1.0
+        and runner_config.wide_output_scale == 1.0
+        and (routed_scale is None or routed_scale == 1.0)
+    )
+    if use_sm70_nvfp4_decode:
+        from sglang.jit_kernel.sm70_nvfp4_moe_decode import (
+            sm70_nvfp4_moe_decode,
+            sm70_nvfp4_moe_decode_available,
+        )
+
+        if sm70_nvfp4_moe_decode_available():
+            output = sm70_nvfp4_moe_decode(
+                hidden_states,
+                quant_info.w13_qweight,
+                quant_info.w2_qweight,
+                quant_info.w13_scales,
+                quant_info.w2_scales,
+                quant_info.w13_global_scale,
+                quant_info.w2_global_scale,
+                topk_output.topk_ids.view(-1),
+                topk_output.topk_weights.view(-1),
+            )
+            return StandardCombineInput(hidden_states=output)
+
     if (
         MARLIN_MOE_WORKSPACE is None
         or MARLIN_MOE_WORKSPACE.device != hidden_states.device
