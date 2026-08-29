@@ -13,11 +13,7 @@ from sglang.srt.hardware_backend.npu.graph_runner.eagle_draft_npu_graph_runner i
     EAGLEDraftNpuGraphRunner,
 )
 from sglang.srt.kv_canary.runner.canary_manager import context_tuple
-from sglang.srt.layers.attention.tokenspeed_mla_backend import TokenspeedMLABackend
 from sglang.srt.layers.attention.triton_backend import TritonAttnBackend
-from sglang.srt.layers.attention.trtllm_mla_backend import (
-    TRTLLMMLABackend,
-)
 from sglang.srt.layers.dp_attention import get_attention_tp_group
 from sglang.srt.layers.moe.utils import (
     speculative_moe_a2a_backend_context,
@@ -329,10 +325,26 @@ class EagleDraftWorker(BaseDraftWorker):
                 self.draft_attn_backend, AiterMultiStepDraftBackend
             )
 
+        draft_extend_type = type(self.draft_extend_attn_backend)
+        optional_mla_backend_type = (
+            draft_extend_type.__module__,
+            draft_extend_type.__name__,
+        ) in {
+            (
+                "sglang.srt.layers.attention.trtllm_mla_backend",
+                "TRTLLMMLABackend",
+            ),
+            (
+                "sglang.srt.layers.attention.tokenspeed_mla_backend",
+                "TokenspeedMLABackend",
+            ),
+        }
+        # Do not import the optional MLA backends just for this type check.
+        # Non-MLA EAGLE workers (including Qwen QSA on V100) do not use them,
+        # and the SM70 FlashInfer build intentionally lacks their API surface.
         supports_cuda_draft_extend_graph = (_is_cuda or _is_musa) and (
             isinstance(self.draft_extend_attn_backend, TritonAttnBackend)
-            or isinstance(self.draft_extend_attn_backend, TRTLLMMLABackend)
-            or isinstance(self.draft_extend_attn_backend, TokenspeedMLABackend)
+            or optional_mla_backend_type
         )
         # Capture extend
         # TODO: support draft extend cuda graph for more attention backends

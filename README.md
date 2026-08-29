@@ -17,7 +17,7 @@ configuration has no comparable retained end-to-end benchmark.
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV | ≥4,500 tok/s§ | 61.5–62.1 tok/s§ | ≥4,500 tok/s§ | 61.5–62.1 tok/s§ | Prefill stayed above 4,500 tok/s over the retained context sweep; the decode range is the post-kernel integrated result. [Full-context command](#qwen38-flash-next-nvfp4-target-only) |
-| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Inferact MTP-3/4, E5M2 KV | — | 68–70 tok/s§ | — | 68–70 tok/s§ | Acceptance-dependent steady scheduler rate; a forced 512-token request measured 57.4 tok/s end-to-end with mean acceptance length 2.47. [Full-context command](#qwen38-flash-next-nvfp4-with-mtp) |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Built-in MTP-3/4, E5M2 KV | — | — | — | — | Same-checkpoint MTP serving is supported; a comparable retained benchmark is not yet available. [Full-context command](#qwen38-flash-next-nvfp4-with-mtp) |
 | `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill/decode: 4,224/63.2; 70K decode: 59.1; 200K decode: 49.6 tok/s** with the SM70 CUDA split-KV decode partial and fused QPN8 gate/up path; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
 | `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; **cold 150K: 134; cold 200K: 112 tok/s**; 79.2 tok/s at 70K (warm); [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
@@ -330,6 +330,7 @@ SGLANG_MAMBA_CONV_DTYPE=float16 \
 SGLANG_MAMBA_SSM_DTYPE=float16 \
 SGLANG_SM70_FORCE_FP16=1 \
 SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
+SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
 PYTHONPATH="$PWD/python" \
 conda run --no-capture-output -n sglang-v100 \
 python -m sglang.launch_server \
@@ -339,6 +340,7 @@ python -m sglang.launch_server \
   --dtype float16 \
   --quantization modelopt_fp4 \
   --reasoning-parser auto \
+  --tool-call-parser auto \
   --attention-backend tilelang_fa_v100 \
   --linear-attn-prefill-backend tilelang \
   --linear-attn-decode-backend triton \
@@ -357,9 +359,10 @@ python -m sglang.launch_server \
 
 ### Qwen3.8 Flash Next NVFP4 with MTP
 
-This uses Inferact's NVFP4 variant as the MTP draft source. The tested setting
-is three speculative steps with four draft tokens. It keeps the same E5M2 KV
-cache and full-context, single-request memory configuration as target-only.
+This loads the checkpoint's built-in MTP module from the same RadixArk repo as
+the target. The setting is three speculative steps with four draft tokens. It
+keeps the same E5M2 KV cache and full-context, single-request memory
+configuration as target-only.
 
 ```bash
 cd "$HOME/sglang-V100"
@@ -372,6 +375,7 @@ SGLANG_MAMBA_CONV_DTYPE=float16 \
 SGLANG_MAMBA_SSM_DTYPE=float16 \
 SGLANG_SM70_FORCE_FP16=1 \
 SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
+SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
 PYTHONPATH="$PWD/python" \
 conda run --no-capture-output -n sglang-v100 \
 python -m sglang.launch_server \
@@ -381,6 +385,7 @@ python -m sglang.launch_server \
   --dtype float16 \
   --quantization modelopt_fp4 \
   --reasoning-parser auto \
+  --tool-call-parser auto \
   --attention-backend tilelang_fa_v100 \
   --linear-attn-prefill-backend tilelang \
   --linear-attn-decode-backend triton \
@@ -396,7 +401,7 @@ python -m sglang.launch_server \
   --mamba-scheduler-strategy extra_buffer \
   --mamba-full-memory-ratio 0.2 \
   --speculative-algorithm EAGLE \
-  --speculative-draft-model-path Inferact/Qwen3.8-Flash-Next-NVFP4 \
+  --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --speculative-num-steps 3 \
   --speculative-eagle-topk 1 \
   --speculative-num-draft-tokens 4
