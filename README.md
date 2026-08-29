@@ -136,6 +136,97 @@ mkdir -p "$HOME/.cache/huggingface"
 docker volume create sglang-v100-jit
 ```
 
+### Serve Qwen3.8 Flash Next NVFP4 from Docker
+
+Target-only, full 262,144-token context on four V100 32 GB GPUs:
+
+```bash
+docker run --rm --name qwen38-flash-next \
+  --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -v sglang-v100-jit:/root/sglang-v100-jit \
+  -e FLASHINFER_DISABLE_VERSION_CHECK=1 \
+  -e NCCL_P2P_LEVEL=NVL \
+  -e SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+  -e SGLANG_MAMBA_CONV_DTYPE=float16 \
+  -e SGLANG_MAMBA_SSM_DTYPE=float16 \
+  -e SGLANG_SM70_FORCE_FP16=1 \
+  -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
+  -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
+  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v1 \
+  --trust-remote-code \
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --served-model-name qwen \
+  --dtype float16 \
+  --quantization modelopt_fp4 \
+  --reasoning-parser auto \
+  --tool-call-parser auto \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
+  --kv-cache-dtype fp8_e5m2 \
+  --tensor-parallel-size 4 \
+  --host 127.0.0.1 \
+  --port 8082 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --cuda-graph-bs 1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --mamba-full-memory-ratio 0.2
+```
+
+Built-in MTP-3/4 uses the same RadixArk checkpoint as both target and draft:
+
+```bash
+docker run --rm --name qwen38-flash-next-mtp \
+  --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -v sglang-v100-jit:/root/sglang-v100-jit \
+  -e FLASHINFER_DISABLE_VERSION_CHECK=1 \
+  -e NCCL_P2P_LEVEL=NVL \
+  -e SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+  -e SGLANG_MAMBA_CONV_DTYPE=float16 \
+  -e SGLANG_MAMBA_SSM_DTYPE=float16 \
+  -e SGLANG_SM70_FORCE_FP16=1 \
+  -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
+  -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
+  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v1 \
+  --trust-remote-code \
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --served-model-name qwen \
+  --dtype float16 \
+  --quantization modelopt_fp4 \
+  --reasoning-parser auto \
+  --tool-call-parser auto \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
+  --kv-cache-dtype fp8_e5m2 \
+  --tensor-parallel-size 4 \
+  --host 127.0.0.1 \
+  --port 8082 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --cuda-graph-bs 1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --mamba-full-memory-ratio 0.2 \
+  --speculative-algorithm EAGLE \
+  --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
+
+Both commands expose the OpenAI-compatible API at `http://127.0.0.1:8082/v1`.
+Startup should report `tool_call_parser=qwen3_coder`. Replace the pinned image
+tag with `latest` only if tracking the newest published build is desired.
+
 ## MiniMax-H3 video and audio
 
 ### Serve H3 on the host
