@@ -318,6 +318,8 @@ command.
 This is the non-speculative command used for the current V100 result. It uses
 E5M2 KV cache and is sized for one request at the model's full 262,144-token
 context. Run it from a clone at `$HOME/sglang-V100`, or change the `cd` path.
+The checkpoint's Qwen3-Coder-style XML tool format is detected automatically;
+the startup log should report `tool_call_parser=qwen3_coder`.
 
 ```bash
 cd "$HOME/sglang-V100"

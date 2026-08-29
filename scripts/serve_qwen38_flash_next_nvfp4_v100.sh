@@ -12,6 +12,7 @@ export SGLANG_CUSTOM_ALLREDUCE_ALGO=${SGLANG_CUSTOM_ALLREDUCE_ALGO:-1stage}
 export SGLANG_MAMBA_CONV_DTYPE=${SGLANG_MAMBA_CONV_DTYPE:-float16}
 export SGLANG_MAMBA_SSM_DTYPE=${SGLANG_MAMBA_SSM_DTYPE:-float16}
 export SGLANG_SM70_FORCE_FP16=${SGLANG_SM70_FORCE_FP16:-1}
+export SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=${SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION:-0}
 # Dense flash-attn-v100 is faster than QSA's sparse gather at these bounded
 # prefill lengths. Set this to 0 to retain sparse QSA semantics everywhere.
 export SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=${SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS:-8192}
@@ -23,6 +24,7 @@ exec python -m sglang.launch_server \
   --dtype float16 \
   --quantization modelopt_fp4 \
   --reasoning-parser auto \
+  --tool-call-parser auto \
   --attention-backend tilelang_fa_v100 \
   --linear-attn-prefill-backend tilelang \
   --linear-attn-decode-backend triton \

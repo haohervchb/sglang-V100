@@ -281,6 +281,14 @@ class TestToolCallParserDetection(unittest.TestCase):
                 [],
                 "qwen",
             ),
+            (
+                "qwen3_coder",
+                "{% set enable_thinking = enable_thinking if enable_thinking is defined else true %}\n"
+                "<tool_call><function=get_weather>"
+                "<parameter=city>Paris</parameter></function></tool_call>",
+                ["<tool_call>"],
+                "qwen3_coder",
+            ),
             ("gpt_oss", "<|channel|>analysis<|message|>", [], "gpt-oss"),
             ("gemma4", "<|channel>content", [], "gemma4"),
             ("minimax_maps_to_m2", "<minimax:tool_call>", [], "minimax-m2"),
@@ -328,6 +336,10 @@ class TestToolCallParserDetection(unittest.TestCase):
         # value-based test above can't catch a swap — assert positions directly.
         rule_index = {rule.name: i for i, rule in enumerate(TOOL_CALL_PARSER_RULES)}
         self.assertLess(rule_index["glm45"], rule_index["xml_kv_tool_call"])
+
+    def test_qwen3_coder_rule_precedes_generic_qwen(self):
+        rule_index = {rule.name: i for i, rule in enumerate(TOOL_CALL_PARSER_RULES)}
+        self.assertLess(rule_index["qwen3_coder"], rule_index["qwen"])
 
     def test_xml_kv_requires_both_arg_tokens(self):
         template = "Hello {{ user }}"
