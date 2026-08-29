@@ -149,6 +149,8 @@ RUN git clone --depth 1 --branch v4.2.1 \
 COPY scripts/setup_v100_marlin.sh /opt/sglang/scripts/setup_v100_marlin.sh
 COPY patches/marlin-v100-qwen-sm70-tuning.patch \
       /opt/sglang/patches/marlin-v100-qwen-sm70-tuning.patch
+COPY patches/marlin-v100-qwen38-nvfp4-tuning.patch \
+      /opt/sglang/patches/marlin-v100-qwen38-nvfp4-tuning.patch
 RUN --mount=type=cache,target=/opt/deps/marlin-v100,sharing=locked \
     export CUTLASS_DIR=/opt/cutlass \
     && export MARLIN_V100_REPO=/opt/deps/marlin-v100 \
