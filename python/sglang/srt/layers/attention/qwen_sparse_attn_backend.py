@@ -1943,9 +1943,13 @@ class QwenSparseAttnBackend(AttentionBackend):
         metadata,
         topk_indices,
     ) -> bool:
-        """Exact direct-cache QSA decode specialization for Qwen3.8 TP4."""
+        """Exact direct-cache QSA decode/verify specialization for Qwen3.8 TP4."""
+        forward_mode = forward_batch.forward_mode
         return (
-            forward_batch.forward_mode.is_decode()
+            (
+                forward_mode.is_decode()
+                or QwenSparseAttnBackend._is_speculative_paged_mode(forward_mode)
+            )
             and q.is_cuda
             and torch.cuda.get_device_capability(q.device) == (7, 0)
             and q.dtype == torch.float16

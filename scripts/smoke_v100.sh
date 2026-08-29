@@ -26,6 +26,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" \
 import glob
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
 import flashinfer.sampling as flashinfer_sampling
@@ -33,6 +34,9 @@ import sgl_kernel
 from flashinfer.sampling import top_k_top_p_sampling_from_probs
 from sglang.srt.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from sglang.srt.function_call.base_format_detector import get_model_structural_tag
+from sglang.srt.layers.attention.qwen_sparse_attn_backend import (
+    QwenSparseAttnBackend,
+)
 from sglang.srt.layers.quantization.marlin_utils import (
     _sm70_marlin_v100_repack_ops,
 )
@@ -40,6 +44,7 @@ from sglang.srt.layers.quantization.sm70_fp16_moe import _load_sm70_ops
 from sglang.srt.layers.quantization.sm70_turbomind_fp8 import (
     _load_sm70_turbomind_fp8_ops,
 )
+from sglang.srt.model_executor.forward_batch_info import ForwardMode
 
 expected = os.environ.get("SGLANG_V100_FLASHINFER_DIR")
 sampling_path = Path(flashinfer_sampling.__file__).resolve()
@@ -67,6 +72,33 @@ assert hasattr(torch.ops.sglang_sm70_turbomind, "awq_dequantize_out"), (
     "TurboMind SM70 exact AWQ dequantizer is missing; rebuild against the "
     "pinned, attributed TurboMind source subset"
 )
+
+# Qwen3.8 MTP target verification and draft extension enter the paged QSA
+# path through forward_extend(). They must select the native SM70 decoder;
+# otherwise graph capture falls through to an unavailable Ampere FA2 wheel.
+qsa_rows = 4
+qsa_q = torch.empty(
+    (qsa_rows, 6, 256), device="cuda", dtype=torch.float16
+)
+qsa_k = torch.empty((16, 1, 256), device="cuda", dtype=torch.float8_e5m2)
+qsa_v = torch.empty_like(qsa_k)
+qsa_indices = torch.zeros((qsa_rows, 1), device="cuda", dtype=torch.int32)
+qsa_metadata = SimpleNamespace(
+    sequence_lengths=torch.ones(qsa_rows, device="cuda", dtype=torch.int32),
+)
+for qsa_mode in (
+    ForwardMode.DECODE,
+    ForwardMode.TARGET_VERIFY,
+    ForwardMode.DRAFT_EXTEND_V2,
+):
+    assert QwenSparseAttnBackend._can_use_sm70_sparse_decode(
+        qsa_q,
+        qsa_k,
+        qsa_v,
+        SimpleNamespace(forward_mode=qsa_mode),
+        qsa_metadata,
+        qsa_indices,
+    ), f"native SM70 QSA routing is disabled for {qsa_mode.name}"
 
 # Exercise the exact W8A16 block-FP8 operator used by Qwen3.6-27B-FP8.
 torch.manual_seed(7)
