@@ -2,6 +2,12 @@
 
 SGLang serving commands for four SM70 V100 GPUs.
 
+**Docker image:** [Download `geesegeesegeese/sglang-v100` from Docker Hub](https://hub.docker.com/r/geesegeesegeese/sglang-v100/tags)
+
+```bash
+docker pull geesegeesegeese/sglang-v100:latest
+```
+
 ## Current V100 performance
 
 All currently documented model checkpoints are listed below. Unless a row says
@@ -135,10 +141,17 @@ bash "$HOME/sglang-V100/scripts/smoke_v100.sh"
 
 ## Docker
 
-Pull the published image:
+Open the [Docker Hub repository and tag list](https://hub.docker.com/r/geesegeesegeese/sglang-v100/tags),
+or pull the current image directly:
 
 ```bash
 docker pull geesegeesegeese/sglang-v100:latest
+```
+
+For a reproducible deployment, pin the tested Qwen3.8 Flash Next release:
+
+```bash
+docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v2
 ```
 
 Build the current checkout:
