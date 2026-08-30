@@ -4,11 +4,12 @@ SGLang serving commands for four SM70 V100 GPUs.
 
 ## Current V100 performance
 
-All currently documented model checkpoints are listed below. LLM results use
-TP4, one cold request, and 256 greedy output tokens. Prefill is the exact input
-length divided by client time to first token; decode excludes that first-token
-time. The measurements came from separate tuning runs, so treat this as a
-practical reference rather than a perfectly controlled cross-model leaderboard.
+All currently documented model checkpoints are listed below. Unless a row says
+otherwise, LLM results use TP4, one cold request, and 256 greedy output tokens.
+Prefill is the exact input length divided by client time to first token; decode
+excludes that first-token time. The measurements came from separate tuning
+runs, so treat this as a practical reference rather than a perfectly controlled
+cross-model leaderboard.
 H3 reports wall-clock video generation time in the Results column rather than
 LLM token throughput. `—` means the metric does not apply or the supported
 configuration has no comparable retained end-to-end benchmark.
@@ -16,8 +17,8 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
-| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV | ≥4,500 tok/s§ | 61.5–62.1 tok/s§ | ≥4,500 tok/s§ | 61.5–62.1 tok/s§ | Prefill stayed above 4,500 tok/s over the retained context sweep; the decode range is the post-kernel integrated result. [Full-context command](#qwen38-flash-next-nvfp4-target-only) |
-| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Built-in MTP-3/4, E5M2 KV | 2,016 tok/s | 68.6 tok/s | 4,511 tok/s | 76.4 tok/s | Acceptance length: 2.79 at 1K and 3.23 at 25K. [Cold 1K/25K run](benchmark/qwen38_flash_next_nvfp4_mtp_v100_20260829/README.md); [full-context command](#qwen38-flash-next-nvfp4-with-mtp) |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, Docker v2 | 2,299 tok/s¶ | 60.2 tok/s¶ | — | — | **1K→25K: 60.09 output tok/s; 8K→1K at c4: 137.26 aggregate output tok/s.** [Fixed-image benchmark](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md); [Docker command](#serve-qwen38-flash-next-nvfp4-from-docker) |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Built-in MTP-3/4, E5M2 KV, Docker v2 | 2,055 tok/s¶ | 88.2 tok/s¶ | — | — | **1K→25K: 88.07 output tok/s; 8K→1K at c4: 149.25 aggregate output tok/s.** Acceptance length: 3.493 and 3.089. [Fixed-image benchmark](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md); [Docker command](#serve-qwen38-flash-next-nvfp4-from-docker) |
 | `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill/decode: 4,224/63.2; 70K decode: 59.1; 200K decode: 49.6 tok/s** with the SM70 CUDA split-KV decode partial and fused QPN8 gate/up path; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
 | `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; **cold 150K: 134; cold 200K: 112 tok/s**; 79.2 tok/s at 70K (warm); [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
@@ -39,10 +40,30 @@ measurements. The 150K and 200K figures are clean cold-cache host runs (single
 request, freshly restarted server, zero cached prompt tokens); the older
 70K/200K bring-up rows were warm periodic-synthetic measurements. They validate
 the long-context path but are not directly comparable with the cold 1K/25K
-sweep columns. §The Flash Next rows retain the latest operational measurements,
-not a fresh cold 1K/25K matrix. Repeated values describe the observed stable
-range rather than separate samples at exactly those two prompt lengths; MTP
-throughput also varies with token acceptance.
+sweep columns. ¶The Flash Next rows use the 2026-08-30 fixed-image Docker
+validation, whose long request had 1,000 input and 25,000 output tokens rather
+than the standard 256-token output. Its 1K prefill and decode columns are
+derived from TTFT and mean TPOT. The 25K-input columns are empty because that
+validation did not rerun a 25K-prompt point. The c4 figures are aggregate output
+throughput for four exact 8,192-input/1,024-output requests.
+
+### Qwen3.8 Flash Next Docker v2 concurrency
+
+The fixed image completed every requested load point with no request errors.
+Output throughput below is aggregate across each exact 8,192-input/1,024-output
+workload:
+
+| Concurrency | Target only | MTP-3/4 | MTP delta |
+| ---: | ---: | ---: | ---: |
+| 1 | 55.12 tok/s | 74.82 tok/s | +35.7% |
+| 4 | 137.26 tok/s | 149.25 tok/s | +8.7% |
+| 8 | 172.98 tok/s | 194.13 tok/s | +12.2% |
+| 16 | 239.36 tok/s | 183.87 tok/s | -23.2% |
+
+For the cold 1,000-input/25,000-output request at concurrency 1, target-only
+reached 60.09 output tok/s and MTP reached 88.07 output tok/s (+46.6%). See the
+[full fixed-image report](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md)
+for TTFT, TPOT, acceptance length, and memory sizing.
 
 ### Native SM70 optimization status
 
@@ -138,7 +159,8 @@ docker volume create sglang-v100-jit
 
 ### Serve Qwen3.8 Flash Next NVFP4 from Docker
 
-Target-only, full 262,144-token context on four V100 32 GB GPUs:
+Target-only on four V100 32 GB GPUs, with up to four live requests and the
+full 262,144-token per-request context limit:
 
 ```bash
 docker run --rm --name qwen38-flash-next \
@@ -154,7 +176,7 @@ docker run --rm --name qwen38-flash-next \
   -e SGLANG_SM70_FORCE_FP16=1 \
   -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
   -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
-  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v1 \
+  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v2 \
   --trust-remote-code \
   --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --served-model-name qwen \
@@ -169,16 +191,19 @@ docker run --rm --name qwen38-flash-next \
   --tensor-parallel-size 4 \
   --host 127.0.0.1 \
   --port 8082 \
-  --mem-fraction-static 0.80 \
+  --mem-fraction-static 0.85 \
   --context-length 262144 \
-  --max-running-requests 1 \
+  --max-running-requests 4 \
+  --max-mamba-cache-size 20 \
   --chunked-prefill-size 8192 \
-  --cuda-graph-bs 1 \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
   --mamba-scheduler-strategy extra_buffer \
   --mamba-full-memory-ratio 0.2
 ```
 
-Built-in MTP-3/4 uses the same RadixArk checkpoint as both target and draft:
+Built-in MTP-3/4 uses the same RadixArk checkpoint as both target and draft and
+keeps the same four-request, full-context sizing:
 
 ```bash
 docker run --rm --name qwen38-flash-next-mtp \
@@ -194,7 +219,7 @@ docker run --rm --name qwen38-flash-next-mtp \
   -e SGLANG_SM70_FORCE_FP16=1 \
   -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
   -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
-  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v1 \
+  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v2 \
   --trust-remote-code \
   --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --served-model-name qwen \
@@ -209,11 +234,13 @@ docker run --rm --name qwen38-flash-next-mtp \
   --tensor-parallel-size 4 \
   --host 127.0.0.1 \
   --port 8082 \
-  --mem-fraction-static 0.80 \
+  --mem-fraction-static 0.85 \
   --context-length 262144 \
-  --max-running-requests 1 \
+  --max-running-requests 4 \
+  --max-mamba-cache-size 20 \
   --chunked-prefill-size 8192 \
-  --cuda-graph-bs 1 \
+  --cuda-graph-max-bs 4 \
+  --cuda-graph-bs 1 2 4 \
   --mamba-scheduler-strategy extra_buffer \
   --mamba-full-memory-ratio 0.2 \
   --speculative-algorithm EAGLE \
@@ -226,6 +253,11 @@ docker run --rm --name qwen38-flash-next-mtp \
 Both commands expose the OpenAI-compatible API at `http://127.0.0.1:8082/v1`.
 Startup should report `tool_call_parser=qwen3_coder`. Replace the pinned image
 tag with `latest` only if tracking the newest published build is desired.
+`--context-length 262144` preserves the maximum context of an individual
+request; four simultaneous maximum-length requests cannot fit in the aggregate
+KV cache. With the `extra_buffer` scheduler, each live request consumes five
+Mamba slots, so four requests require `--max-mamba-cache-size 20`. CUDA graphs
+are captured only for the supported live batch sizes 1, 2, and 4.
 
 ## MiniMax-H3 video and audio
 

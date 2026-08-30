@@ -100,6 +100,27 @@ for qsa_mode in (
         qsa_indices,
     ), f"native SM70 QSA routing is disabled for {qsa_mode.name}"
 
+# Cold chunked prefill has no radix prefix on its first 8K chunk. Exercise
+# the self-contained TileLang dense route that handles it; the runtime image
+# intentionally has no external flash_attn_v100 package to fall back to.
+qsa_prefill_rows = 64
+qsa_prefill_q = torch.randn(
+    (qsa_prefill_rows, 6, 256), device="cuda", dtype=torch.float16
+) * 0.02
+qsa_prefill_k = torch.randn(
+    (qsa_prefill_rows, 1, 256), device="cuda", dtype=torch.float16
+) * 0.02
+qsa_prefill_v = torch.randn_like(qsa_prefill_k) * 0.02
+qsa_prefill_output = QwenSparseAttnBackend._forward_sm70_dense_prefill(
+    qsa_prefill_q,
+    qsa_prefill_k,
+    qsa_prefill_v,
+    [qsa_prefill_rows],
+    1.0 / 16.0,
+)
+assert qsa_prefill_output.shape == qsa_prefill_q.shape
+assert torch.isfinite(qsa_prefill_output).all()
+
 # Exercise the exact W8A16 block-FP8 operator used by Qwen3.6-27B-FP8.
 torch.manual_seed(7)
 weight = (

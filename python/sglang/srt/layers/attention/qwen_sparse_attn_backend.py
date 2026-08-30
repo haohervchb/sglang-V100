@@ -1525,18 +1525,12 @@ class QwenSparseAttnBackend(AttentionBackend):
                         _SM70_DENSE_PREFILL_ENV,
                     )
                     _sm70_dense_prefill_logged = True
-                flash_attn_varlen_func = _resolve_flash_attn_varlen_func()
-                output = flash_attn_varlen_func(
-                    q=q.contiguous(),
-                    k=k[:num_valid_rows].contiguous(),
-                    v=v[:num_valid_rows].contiguous(),
-                    cu_seqlens_q=cu_seqlens_q,
-                    cu_seqlens_k=cu_seqlens_q,
-                    max_seqlen_q=max_sequence_len,
-                    max_seqlen_k=max_sequence_len,
-                    dropout_p=0.0,
-                    softmax_scale=layer.scaling,
-                    causal=True,
+                output = self._forward_sm70_dense_prefill(
+                    q,
+                    k[:num_valid_rows],
+                    v[:num_valid_rows],
+                    extend_lens,
+                    layer.scaling,
                 )
                 return self._pad_extend_output(output, num_output_rows)
             output = sparse_gqa_fwd_interface_triton(
@@ -1616,6 +1610,45 @@ class QwenSparseAttnBackend(AttentionBackend):
             layer.scaling,
         )
         return self._pad_extend_output(output, num_output_rows)
+
+    @staticmethod
+    def _forward_sm70_dense_prefill(q, k, v, extend_lens, softmax_scale):
+        """Run no-prefix QSA prefill through the packaged TileLang D256 kernel.
+
+        K/V are packed request-major when there is no cached prefix.  The
+        dense D256 kernel handles one sequence per launch, so split ragged
+        batches at their existing packed boundaries.  This keeps the V100
+        image self-contained: it intentionally does not ship the legacy
+        external ``flash_attn_v100`` wheel.
+        """
+        from sglang.srt.layers.attention.tilelang_fa_v100._kernels_dense_d256 import (
+            get_dense_prefix_d256_kernel,
+        )
+
+        if sum(extend_lens) != q.shape[0]:
+            raise ValueError(
+                "QSA dense-prefill packed rows do not match extend lengths: "
+                f"rows={q.shape[0]}, extend={sum(extend_lens)}"
+            )
+        kernel = get_dense_prefix_d256_kernel(q.shape[1], k.shape[1])
+        outputs = []
+        row_start = 0
+        for extend_len in extend_lens:
+            row_end = row_start + extend_len
+            if extend_len:
+                outputs.append(
+                    kernel(
+                        q[row_start:row_end].contiguous(),
+                        k[row_start:row_end].contiguous(),
+                        v[row_start:row_end].contiguous(),
+                        0,
+                        softmax_scale,
+                    )
+                )
+            row_start = row_end
+        if not outputs:
+            return q.new_empty(q.shape)
+        return outputs[0] if len(outputs) == 1 else torch.cat(outputs)
 
     @staticmethod
     def _can_use_sm70_sparse_prefill(
