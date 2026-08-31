@@ -1,7 +1,7 @@
 diff --git a/python/sglang/srt/models/qwen4_exp.py b/python/sglang/srt/models/qwen4_exp.py
 --- a/python/sglang/srt/models/qwen4_exp.py
 +++ b/python/sglang/srt/models/qwen4_exp.py
-@@ -486,17 +486,25 @@ class Qwen4ExpNGramEmbedding(nn.Module):
+@@ -486,18 +486,27 @@ class Qwen4ExpNGramEmbedding(nn.Module):
              and get_attention_dp_size() > 1
              and not self.use_attn_tp_ngram
          )
