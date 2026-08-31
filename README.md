@@ -216,7 +216,10 @@ docker run --rm --name qwen38-flash-next \
 ```
 
 Built-in MTP-3/4 uses the same RadixArk checkpoint as both target and draft and
-keeps the same four-request, full-context sizing:
+keeps the same four-request, full-context sizing. MTP deliberately uses
+`--mem-fraction-static 0.80` rather than the target-only `0.85`; the extra
+headroom is required for the first real prompt's transient speculative/prefill
+allocations on 32 GB V100s:
 
 ```bash
 docker run --rm --name qwen38-flash-next-mtp \
@@ -247,7 +250,7 @@ docker run --rm --name qwen38-flash-next-mtp \
   --tensor-parallel-size 4 \
   --host 127.0.0.1 \
   --port 8082 \
-  --mem-fraction-static 0.85 \
+  --mem-fraction-static 0.80 \
   --context-length 262144 \
   --max-running-requests 4 \
   --max-mamba-cache-size 20 \
