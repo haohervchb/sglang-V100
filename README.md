@@ -53,11 +53,12 @@ derived from TTFT and mean TPOT. The 25K-input columns are empty because that
 validation did not rerun a 25K-prompt point. The c4 figures are aggregate output
 throughput for four exact 8,192-input/1,024-output requests.
 
-### Qwen3.8 Flash Next Docker v2 concurrency
+### Historical Qwen3.8 Flash Next Docker v2 concurrency benchmark
 
-The fixed image completed every requested load point with no request errors.
-Output throughput below is aggregate across each exact 8,192-input/1,024-output
-workload:
+The fixed v2 image completed every requested load point with no request errors.
+These rows are retained as benchmark provenance; use the v3 image in the live
+serve commands below. Output throughput is aggregate across each exact
+8,192-input/1,024-output workload:
 
 | Concurrency | Target only | MTP-3/4 | MTP delta |
 | ---: | ---: | ---: | ---: |
@@ -151,7 +152,7 @@ docker pull geesegeesegeese/sglang-v100:latest
 For a reproducible deployment, pin the tested Qwen3.8 Flash Next release:
 
 ```bash
-docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v2
+docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v3
 ```
 
 Build the current checkout:
@@ -189,7 +190,7 @@ docker run --rm --name qwen38-flash-next \
   -e SGLANG_SM70_FORCE_FP16=1 \
   -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
   -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
-  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v2 \
+  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v3 \
   --trust-remote-code \
   --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --served-model-name qwen \
@@ -235,7 +236,7 @@ docker run --rm --name qwen38-flash-next-mtp \
   -e SGLANG_SM70_FORCE_FP16=1 \
   -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
   -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
-  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v2 \
+  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v3 \
   --trust-remote-code \
   --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --served-model-name qwen \
