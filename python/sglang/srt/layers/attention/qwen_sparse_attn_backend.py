@@ -62,6 +62,36 @@ def _sm70_dense_prefill_max_tokens() -> int:
         ) from exc
 
 
+def use_sm70_qsa_dense_prefill(forward_batch, device: torch.device) -> bool:
+    """Share the dense routing decision with the QSA indexer.
+
+    Compressed keys must still be updated, but scoring and selecting them is
+    unnecessary when the attention backend consumes the full causal sequence.
+    Use CPU scheduling metadata so this decision never synchronizes the GPU.
+    """
+    mode = forward_batch.forward_mode
+    original_mode = getattr(forward_batch, "_original_forward_mode", mode)
+    if (
+        mode != ForwardMode.EXTEND
+        or original_mode not in (None, ForwardMode.EXTEND)
+        or device.type != "cuda"
+    ):
+        return False
+    limit = _sm70_dense_prefill_max_tokens()
+    lengths = forward_batch.seq_lens_cpu
+    extend_lengths = forward_batch.extend_seq_lens_cpu
+    return (
+        limit > 0
+        and lengths is not None
+        and extend_lengths is not None
+        and len(lengths) > 0
+        and len(lengths) == len(extend_lengths)
+        and all(int(n) == int(e) for n, e in zip(lengths, extend_lengths))
+        and max(int(n) for n in lengths) <= limit
+        and torch.cuda.get_device_capability(device) == (7, 0)
+    )
+
+
 @lru_cache(maxsize=1)
 def _resolve_trtllm_sparse_decode():
     """trtllm-gen paged decode for the post-gather sparse attention.
@@ -1509,13 +1539,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             # subset.  Keep the route bounded so long-context deployments can
             # opt back into sparse O(L * topk) behavior.
             dense_limit = _sm70_dense_prefill_max_tokens()
-            max_sequence_len = max(sequence_lens, default=1)
-            if (
-                dense_limit
-                and max_sequence_len > topk_indices.shape[-1]
-                and max_sequence_len <= dense_limit
-                and torch.cuda.get_device_capability(q.device) == (7, 0)
-            ):
+            if use_sm70_qsa_dense_prefill(forward_batch, q.device):
                 global _sm70_dense_prefill_logged
                 if not _sm70_dense_prefill_logged:
                     logger.info(

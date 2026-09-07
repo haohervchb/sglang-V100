@@ -173,7 +173,18 @@ class UnquantizedLinearMethod(LinearMethodBase):
         elif _use_aiter and type(layer.weight.data) is torch.Tensor:
             return tgemm.mm(x, layer.weight, bias, otype=x.dtype)
 
+        from sglang.jit_kernel.sm70_dense_gemv import linear, supported
+
+        if supported(x, layer.weight, bias):
+            return linear(x, layer.weight)
         return F.linear(x, layer.weight, bias)
+
+    def apply_fused_silu_and_mul(self, layer, x):
+        from sglang.jit_kernel.sm70_qwen_fusions import gate_up, gate_up_supported
+
+        if gate_up_supported(x, layer.weight):
+            return gate_up(x, layer.weight)
+        return None
 
 
 class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):

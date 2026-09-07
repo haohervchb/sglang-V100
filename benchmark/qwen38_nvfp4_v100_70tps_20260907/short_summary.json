@@ -1,0 +1,38 @@
+{
+  "comparison": [
+    {
+      "input_tokens": 1000,
+      "main_prefill_tok_s": 2538.1840344344046,
+      "final_prefill_tok_s": 2443.641657116038,
+      "prefill_change_percent": -3.7248038769353453,
+      "main_decode_tok_s": 61.37546205642111,
+      "final_decode_tok_s": 73.4597749275342,
+      "decode_change_percent": 19.689159912155517
+    },
+    {
+      "input_tokens": 8192,
+      "main_prefill_tok_s": 5335.340411270009,
+      "final_prefill_tok_s": 5505.805071592003,
+      "prefill_change_percent": 3.195010012143107,
+      "main_decode_tok_s": 60.471809753209584,
+      "final_decode_tok_s": 72.26101010824544,
+      "decode_change_percent": 19.49536553172222
+    },
+    {
+      "input_tokens": 25000,
+      "main_prefill_tok_s": 4800.2346714125,
+      "final_prefill_tok_s": 4864.923768625024,
+      "prefill_change_percent": 1.3476236401061215,
+      "main_decode_tok_s": 60.27833555512274,
+      "final_decode_tok_s": 71.96498061418151,
+      "decode_change_percent": 19.387803182408202
+    }
+  ],
+  "recheck_1k": {
+    "runs": 5,
+    "median_prefill_tok_s": 2425.087848076985,
+    "min_prefill_tok_s": 2209.4241085844174,
+    "max_prefill_tok_s": 2448.686597037675,
+    "median_decode_tok_s": 73.49520462093137
+  }
+}

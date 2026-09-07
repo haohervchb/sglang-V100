@@ -1015,9 +1015,13 @@ class LogitsProcessor(nn.Module):
                     hidden_states.bfloat16(), lm_head.weight.T.bfloat16()
                 )
             else:
-                logits = torch.matmul(
-                    hidden_states.to(lm_head.weight.dtype), lm_head.weight.T
-                )
+                from sglang.jit_kernel.sm70_dense_gemv import linear, supported
+
+                projected = hidden_states.to(lm_head.weight.dtype)
+                if supported(projected, lm_head.weight):
+                    logits = linear(projected, lm_head.weight)
+                else:
+                    logits = torch.matmul(projected, lm_head.weight.T)
         else:
             # GGUF models
             # TODO: use weight_packed_linear for GGUF models

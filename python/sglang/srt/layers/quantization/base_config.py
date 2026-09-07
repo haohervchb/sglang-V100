@@ -84,6 +84,10 @@ class LinearMethodBase(QuantizeMethodBase):
 
 
 class FusedMoEMethodBase(QuantizeMethodBase):
+    # True only when apply() leaves dispatch_output.hidden_states untouched,
+    # including all fallback paths. Models can then share the input with
+    # concurrent shared-expert computation.
+    preserves_input: bool = False
 
     def create_weights(
         self,

@@ -28,9 +28,13 @@ first kernel replaces cuBLAS's split-K down GEMV and fuses SiLU; the second
 computes the up projection by hidden coordinate and fuses sigmoid-mul-mean.
 This avoids both split-K reduction and pointwise launches without global
 barriers or atomics.
+The exact batch-one FP16 shape uses native CUDA with vector loads and four
+parallel branch reductions per warp; SGLANG_SM70_HC_NATIVE=0 selects Triton.
 """
 
 from __future__ import annotations
+
+import os
 
 import torch
 import triton
@@ -65,6 +69,17 @@ def _sm70_hc_down_gemv_kernel(
 def sm70_hc_down_gemv_silu(
     x: torch.Tensor, w_down: torch.Tensor, hc_count: int
 ) -> torch.Tensor:
+    if (
+        hc_count == 4
+        and x.shape == (1, 10240)
+        and w_down.shape == (320, 10240)
+        and x.data_ptr() % 16 == 0
+        and w_down.data_ptr() % 16 == 0
+        and os.environ.get("SGLANG_SM70_HC_NATIVE", "1") == "1"
+    ):
+        from sglang.jit_kernel.sm70_hc_mix import hc_down
+
+        return hc_down(x, w_down)
     out = torch.empty((x.shape[0], w_down.shape[0]), dtype=x.dtype, device=x.device)
     _sm70_hc_down_gemv_kernel[(w_down.shape[0],)](
         x,
@@ -132,6 +147,19 @@ def sm70_hc_up_gemv_reduce(
     hc_count: int,
     hidden_size: int,
 ) -> torch.Tensor:
+    if (
+        hc_count == 4
+        and hidden_size == 2560
+        and activated_down.shape == (1, 320)
+        and x.shape == (1, 10240)
+        and w_up.shape == (10240, 320)
+        and os.environ.get("SGLANG_SM70_HC_NATIVE", "1") == "1"
+        and activated_down.data_ptr() % 16 == 0
+        and w_up.data_ptr() % 16 == 0
+    ):
+        from sglang.jit_kernel.sm70_hc_mix import hc_up
+
+        return hc_up(activated_down, x, w_up)
     out = torch.empty((1, hidden_size), dtype=x.dtype, device=x.device)
     _sm70_hc_up_gemv_reduce_kernel[(hidden_size,)](
         activated_down,

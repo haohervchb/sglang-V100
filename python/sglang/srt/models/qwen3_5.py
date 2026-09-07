@@ -431,6 +431,23 @@ class Qwen3_5GatedDeltaNet(nn.Module):
         return query, key, value, z, b, a
 
     def _forward_input_proj(self, hidden_states: torch.Tensor):
+        from sglang.jit_kernel.sm70_qwen_fusions import qkv_ba, qkv_ba_supported
+        from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
+
+        qkv_weight = getattr(self.in_proj_qkvz, "weight", None)
+        ba_weight = getattr(self.in_proj_ba, "weight", None)
+        if (
+            type(self.in_proj_qkvz) is MergedColumnParallelLinear
+            and type(self.in_proj_ba) is MergedColumnParallelLinear
+            and type(self.in_proj_qkvz.quant_method) is UnquantizedLinearMethod
+            and type(self.in_proj_ba.quant_method) is UnquantizedLinearMethod
+            and not self.in_proj_qkvz.gather_output
+            and not self.in_proj_ba.gather_output
+            and self.in_proj_qkvz.bias is None
+            and self.in_proj_ba.bias is None
+            and qkv_ba_supported(hidden_states, qkv_weight, ba_weight)
+        ):
+            return qkv_ba(hidden_states, qkv_weight, ba_weight)
         if (
             _is_cpu
             or _is_npu
@@ -506,7 +523,11 @@ class Qwen3_5GatedDeltaNet(nn.Module):
             query, key, value = map(
                 lambda x: x.reshape(x.shape[0], -1), (query, key, value)
             )
-            mixed_qkv = torch.cat((query, key, value), dim=-1)
+            from sglang.jit_kernel.sm70_qwen_fusions import reuse_qkv_prefix
+
+            mixed_qkv = reuse_qkv_prefix(projected_states_qkvz, query, key, value)
+            if mixed_qkv is None:
+                mixed_qkv = torch.cat((query, key, value), dim=-1)
 
         core_attn_out = self.attn(
             forward_batch,

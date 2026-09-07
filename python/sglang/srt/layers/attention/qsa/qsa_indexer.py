@@ -540,10 +540,13 @@ class QSAIndexer(MultiPlatformOp):
         positions: torch.Tensor,
         forward_batch,
         indexer_metadata,
+        skip_prefill_selection: bool = False,
     ) -> torch.Tensor:
         forward_mode = forward_batch.forward_mode
         is_target_verify = getattr(forward_mode, "is_target_verify", lambda: False)()
         is_draft_extend = getattr(forward_mode, "is_draft_extend_v2", lambda: False)()
+        if skip_prefill_selection and not forward_mode.is_extend_without_speculative():
+            raise ValueError("QSA selection can only be skipped for ordinary prefill")
         if forward_mode.is_decode() or is_target_verify or is_draft_extend:
             # EAGLE/MTP may advance the model's RoPE coordinate independently
             # from the physical paged-KV position.  Compression and sparse
@@ -627,6 +630,14 @@ class QSAIndexer(MultiPlatformOp):
             state_slots=state_slots,
             state_stored=state_stored,
         )
+        if skip_prefill_selection:
+            # Zero-width indices carry the semantic row count to the dense
+            # attention backend without allocating an unused [rows, 2051]
+            # selection. Pending and compressed keys above remain ready for
+            # subsequent sparse decode and prefix-cache reuse.
+            return torch.empty(
+                (num_valid_tokens, 0), dtype=torch.int32, device=hidden_states.device
+            )
         if forward_mode.is_decode() or is_target_verify or is_draft_extend:
             compressed_cache, page_table, compressed_lengths, max_model_len = (
                 indexer_metadata.get_decode_mqa_inputs(self.layer_id)

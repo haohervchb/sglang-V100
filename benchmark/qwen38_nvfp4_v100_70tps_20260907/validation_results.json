@@ -1,0 +1,21 @@
+{
+  "distinct_passing_tests": 63,
+  "note": "Passing cases are the union of the original 60-case suite after rerunning its two PLE tests following the fix, plus three new QSA tests. Full-model deterministic text checks are recorded separately.",
+  "runs": [
+    {
+      "source": "/tmp/qwen38_70_20260907/pairs_ple_tests.log",
+      "note": "Initial combined suite: 59 passed, one PLE midpoint failure subsequently corrected.",
+      "output": "..........................................................F.             [100%]\n=================================== FAILURES ===================================\n_______________________ test_all_finite_fp16_gate_values _______________________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fec334fbe90>\n\n    def test_all_finite_fp16_gate_values(monkeypatch):\n        from sglang.srt.layers.qwen4_ple import fused_qwen4_gate_value\n    \n        monkeypatch.setenv(\"SGLANG_SM70_QWEN_FUSIONS\", \"1\")\n        bits = torch.arange(65536, device=\"cuda\", dtype=torch.int32).to(torch.int16)\n        gates = bits.view(torch.float16)\n        gates = gates[torch.isfinite(gates)].reshape(-1, 4, 1)\n        values = torch.ones((gates.shape[0], 2560), device=\"cuda\", dtype=torch.float16)\n        result = fused_qwen4_gate_value(gates, values)\n>       torch.testing.assert_close(result, reference(gates, values), rtol=0, atol=0)\nE       AssertionError: Tensor-likes are not equal!\nE       \nE       Mismatched elements: 5120 / 162529280 (0.0%)\nE       Greatest absolute difference: 0.00048828125 at index (196, 0, 0)\nE       Greatest relative difference: 0.000972747802734375 at index (196, 0, 0)\n\ntest/manual/layers/test_sm70_ple_gate.py:24: AssertionError\n=============================== warnings summary ===============================\n../miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464\n  /home/rah/miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode\n  \n    self._warn_or_fail_if_strict(f\"Unknown config option: {key}\\n\")\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test/manual/layers/test_sm70_ple_gate.py::test_all_finite_fp16_gate_values\n1 failed, 59 passed, 1 warning in 94.80s (0:01:34)\n"
+    },
+    {
+      "source": "/tmp/qwen38_70_20260907/ple_exact_tests.log",
+      "note": "After precise sigmoid fix: both PLE tests passed, including the previously failing exhaustive case.",
+      "output": "..                                                                       [100%]\n=============================== warnings summary ===============================\n../miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464\n  /home/rah/miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode\n  \n    self._warn_or_fail_if_strict(f\"Unknown config option: {key}\\n\")\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2 passed, 1 warning in 9.87s\n"
+    },
+    {
+      "source": "/tmp/qwen38_70_20260907/qsa_combine_tests.log",
+      "note": "Final QSA merge addition: all three new tests passed.",
+      "output": "...                                                                      [100%]\n=============================== warnings summary ===============================\n../miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464\n  /home/rah/miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode\n  \n    self._warn_or_fail_if_strict(f\"Unknown config option: {key}\\n\")\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3 passed, 1 warning in 7.60s\n"
+    }
+  ]
+}

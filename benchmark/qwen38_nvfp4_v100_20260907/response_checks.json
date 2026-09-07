@@ -1,0 +1,50 @@
+[
+  {
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "max_new_tokens": 128,
+    "temperature": 0,
+    "identical_text": true,
+    "common_prefix_tokens": 68,
+    "baseline_tokens": 68,
+    "candidate_tokens": 68,
+    "max_common_prefix_logprob_delta": 0.07947424054145813,
+    "baseline_text": "Sunlight reaches Earth's atmosphere and is scattered in all directions by the gases and particles in the air. Blue light is scattered more than other colors because it travels as shorter, smaller waves, a phenomenon known as Rayleigh scattering. Consequently, when we look up, we see this scattered blue light coming from all parts of the sky.",
+    "candidate_text": "Sunlight reaches Earth's atmosphere and is scattered in all directions by the gases and particles in the air. Blue light is scattered more than other colors because it travels as shorter, smaller waves, a phenomenon known as Rayleigh scattering. Consequently, when we look up, we see this scattered blue light coming from all parts of the sky."
+  },
+  {
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "max_new_tokens": 128,
+    "temperature": 0,
+    "identical_text": true,
+    "common_prefix_tokens": 128,
+    "baseline_tokens": 128,
+    "candidate_tokens": 128,
+    "max_common_prefix_logprob_delta": 0.03585946559906006,
+    "baseline_text": "```python\ndef fibonacci(n: int) -> list:\n    \"\"\"\n    Returns the first n Fibonacci numbers.\n    \n    Args:\n        n: The number of Fibonacci numbers to return.\n        \n    Returns:\n        A list containing the first n Fibonacci numbers.\n    \"\"\"\n    if n <= 0:\n        return []\n    if n == 1:\n        return [0]\n    \n    fibs = [0, 1]\n    for i in range(2, n):\n        fibs.append(fibs[i - 1] + fibs[i - 2",
+    "candidate_text": "```python\ndef fibonacci(n: int) -> list:\n    \"\"\"\n    Returns the first n Fibonacci numbers.\n    \n    Args:\n        n: The number of Fibonacci numbers to return.\n        \n    Returns:\n        A list containing the first n Fibonacci numbers.\n    \"\"\"\n    if n <= 0:\n        return []\n    if n == 1:\n        return [0]\n    \n    fibs = [0, 1]\n    for i in range(2, n):\n        fibs.append(fibs[i - 1] + fibs[i - 2"
+  },
+  {
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "max_new_tokens": 128,
+    "temperature": 0,
+    "identical_text": false,
+    "common_prefix_tokens": 89,
+    "baseline_tokens": 128,
+    "candidate_tokens": 128,
+    "max_common_prefix_logprob_delta": 0.05647057294845581,
+    "baseline_text": "To calculate $37 \\times 19$, we can use the standard multiplication algorithm or break it down using the distributive property. Here, I will show the step-by-step process using the standard vertical multiplication method, followed by a verification using the distributive property.\n\n### Method 1: Standard Vertical Multiplication\n\n**Step 1: Set up the multiplication**\nWrite the numbers vertically, aligning the digits by place value.\n\n$$\n\\begin{array}{r@{\\quad}l}\n  37 & \\\\\n\\times 19 & \\\\\n\\hline\n\\end{",
+    "candidate_text": "To calculate $37 \\times 19$, we can use the standard multiplication algorithm or break it down using the distributive property. Here, I will show the step-by-step process using the standard vertical multiplication method, followed by a verification using the distributive property.\n\n### Method 1: Standard Vertical Multiplication\n\n**Step 1: Set up the multiplication**\nWrite the numbers vertically, aligning the digits by place value:\n```\n   37\n x 19\n ----\n```\n\n**Step 2: Multiply the top number by the ones digit of the bottom number (9)**\n"
+  },
+  {
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "max_new_tokens": 128,
+    "temperature": 0,
+    "identical_text": true,
+    "common_prefix_tokens": 128,
+    "baseline_tokens": 128,
+    "candidate_tokens": 128,
+    "max_common_prefix_logprob_delta": 0.11568057537078857,
+    "baseline_text": "### Logical Deduction: Stack vs. Queue\n\nTo understand the difference between a stack and a queue, we must look at how they handle the order of data processing. Both are linear data structures, but they operate on opposite principles regarding which element is processed first.\n\n#### 1. The Stack (LIFO)\nA **Stack** operates on the principle of **LIFO** (Last-In, First-Out). Imagine a stack of plates in a cafeteria or a stack of books on a table.\n*   **Mechanism:** You can only add or remove items from the \"top\" of the stack.\n*  ",
+    "candidate_text": "### Logical Deduction: Stack vs. Queue\n\nTo understand the difference between a stack and a queue, we must look at how they handle the order of data processing. Both are linear data structures, but they operate on opposite principles regarding which element is processed first.\n\n#### 1. The Stack (LIFO)\nA **Stack** operates on the principle of **LIFO** (Last-In, First-Out). Imagine a stack of plates in a cafeteria or a stack of books on a table.\n*   **Mechanism:** You can only add or remove items from the \"top\" of the stack.\n*  "
+  }
+]

@@ -23,6 +23,7 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, optimized host source | 2,444 tok/s | 73.46 tok/s | 4,865 tok/s | 71.96 tok/s | **25K→8K: 71.83 decode tok/s; slowest 256-token window: 71.71.** [Source benchmark and limits](benchmark/qwen38_nvfp4_v100_70tps_20260907/README.md); source changes are not in the published Docker image |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, Docker v2 | 2,299 tok/s¶ | 60.2 tok/s¶ | — | — | **1K→25K: 60.09 output tok/s; 8K→1K at c4: 137.26 aggregate output tok/s.** [Fixed-image benchmark](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md); [Docker command](#serve-qwen38-flash-next-nvfp4-from-docker) |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Built-in MTP-3/4, E5M2 KV, Docker v2 | 2,055 tok/s¶ | 88.2 tok/s¶ | — | — | **1K→25K: 88.07 output tok/s; 8K→1K at c4: 149.25 aggregate output tok/s.** Acceptance length: 3.493 and 3.089. [Fixed-image benchmark](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md); [Docker command](#serve-qwen38-flash-next-nvfp4-from-docker) |
 | `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill/decode: 4,224/63.2; 70K decode: 59.1; 200K decode: 49.6 tok/s** with the SM70 CUDA split-KV decode partial and fused QPN8 gate/up path; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
@@ -52,6 +53,15 @@ than the standard 256-token output. Its 1K prefill and decode columns are
 derived from TTFT and mean TPOT. The 25K-input columns are empty because that
 validation did not rerun a 25K-prompt point. The c4 figures are aggregate output
 throughput for four exact 8,192-input/1,024-output requests.
+
+The [September 7–8 host source optimization](benchmark/qwen38_nvfp4_v100_70tps_20260907/README.md)
+reaches **4,876 prefill tok/s** and **71.87–72.00 decode tok/s**
+with 25K inputs and three 2K-output runs. An 8K-output run averages
+**71.83 decode tok/s** (slowest interval window: **71.71**).
+These target-only source results are separate from the Docker rows above.
+The [first-pass main comparison](benchmark/qwen38_nvfp4_v100_20260907/README.md)
+records the earlier 1K/8K/25K prefill and decode results. The source changes
+have not been published in a Docker image.
 
 ### Historical Qwen3.8 Flash Next Docker v2 concurrency benchmark
 

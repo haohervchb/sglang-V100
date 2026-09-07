@@ -1,0 +1,14 @@
+{
+  "pid": 73709,
+  "env": {
+    "CUDA_HOME": "/usr/local/cuda-12.8",
+    "SGLANG_SM70_DENSE_GEMV": "1",
+    "SGLANG_SM70_QWEN_FUSIONS": "1",
+    "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+    "SGLANG_TORCH_PROFILER_DIR": "/tmp/qwen38_70_20260907/profiles"
+  },
+  "command": [
+    "bash",
+    "scripts/serve_qwen38_flash_next_nvfp4_v100.sh"
+  ]
+}

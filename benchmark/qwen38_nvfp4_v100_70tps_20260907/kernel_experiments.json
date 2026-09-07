@@ -1,0 +1,574 @@
+{
+  "note": "Isolated graph-replay measurements, separate from serving. Router correctness checks preserved IDs and weights; all-reduce outputs matched the independent sum on all four ranks. All-reduce timings are the slowest rank for 32-node graphs with 50 replays. Its process completed successfully but reported ignored destructor errors at interpreter teardown.",
+  "records": [
+    {
+      "experiment": "QSA combine",
+      "batch": 1,
+      "splits": 160,
+      "selected_tokens": 2048,
+      "sequence_length": 25000,
+      "old_us": 23.68603720903048,
+      "candidate_us": 4.838429057098093,
+      "max_abs_error": 0.0001220703125,
+      "selected": true,
+      "source_log": "/tmp/qwen38_70_20260907/probe_qsa_combine.log"
+    },
+    {
+      "experiment": "QSA combine",
+      "batch": 2,
+      "splits": 80,
+      "selected_tokens": 2048,
+      "sequence_length": 25000,
+      "old_us": 20.214115594552606,
+      "candidate_us": 4.9607835490366385,
+      "max_abs_error": 6.103515625e-05,
+      "selected": true,
+      "source_log": "/tmp/qwen38_70_20260907/probe_qsa_combine.log"
+    },
+    {
+      "experiment": "QSA combine",
+      "batch": 4,
+      "splits": 40,
+      "selected_tokens": 2048,
+      "sequence_length": 25000,
+      "old_us": 12.374966142920897,
+      "candidate_us": 4.534034543050697,
+      "max_abs_error": 1.52587890625e-05,
+      "selected": true,
+      "source_log": "/tmp/qwen38_70_20260907/probe_qsa_combine.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 64,
+      "bits_per_pass": 4,
+      "old_us": 4.767360119278082,
+      "candidate_us": 5.3652187026936184,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 64,
+      "bits_per_pass": 5,
+      "old_us": 4.767360119278082,
+      "candidate_us": 5.338713453346681,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 64,
+      "bits_per_pass": 6,
+      "old_us": 4.767360119278082,
+      "candidate_us": 4.7498490225356615,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 64,
+      "bits_per_pass": 7,
+      "old_us": 4.767360119278082,
+      "candidate_us": 5.6469492060707305,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 64,
+      "bits_per_pass": 8,
+      "old_us": 4.767360119278082,
+      "candidate_us": 6.3183976665600445,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 128,
+      "bits_per_pass": 4,
+      "old_us": 4.767360119278082,
+      "candidate_us": 4.376056448154012,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 128,
+      "bits_per_pass": 5,
+      "old_us": 4.767360119278082,
+      "candidate_us": 4.58715800748922,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 128,
+      "bits_per_pass": 6,
+      "old_us": 4.767360119278082,
+      "candidate_us": 4.272956900132229,
+      "selected": true,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 128,
+      "bits_per_pass": 7,
+      "old_us": 4.767360119278082,
+      "candidate_us": 4.989930767390781,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 256,
+      "bits_per_pass": 4,
+      "old_us": 4.767360119278082,
+      "candidate_us": 4.609738484435681,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 256,
+      "bits_per_pass": 5,
+      "old_us": 4.767360119278082,
+      "candidate_us": 5.077015287988448,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "experiment": "FP16 router stable key/value radix",
+      "threads": 256,
+      "bits_per_pass": 6,
+      "old_us": 4.767360119278082,
+      "candidate_us": 5.0314950135132674,
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/probe_topk_pairs.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PUSH",
+      "blocks": null,
+      "threads": null,
+      "us": 3.351680040359497,
+      "rank_us": [
+        3.3375999331474304,
+        3.285120129585266,
+        3.351680040359497,
+        3.258880078792572
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": true,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 1,
+      "threads": 128,
+      "us": 4.949760138988495,
+      "rank_us": [
+        4.865280091762543,
+        4.946559965610504,
+        4.946559965610504,
+        4.949760138988495
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 1,
+      "threads": 256,
+      "us": 4.399999976158142,
+      "rank_us": [
+        4.302079975605011,
+        4.399999976158142,
+        4.344959855079651,
+        4.345600008964539
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 1,
+      "threads": 512,
+      "us": 3.8649600744247437,
+      "rank_us": [
+        3.8649600744247437,
+        3.7932801246643066,
+        3.852800130844116,
+        3.852800130844116
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 2,
+      "threads": 128,
+      "us": 4.220159947872162,
+      "rank_us": [
+        4.183039963245392,
+        4.143359959125519,
+        4.220159947872162,
+        4.209280014038086
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 2,
+      "threads": 256,
+      "us": 3.6870399117469788,
+      "rank_us": [
+        3.6870399117469788,
+        3.6640000343322754,
+        3.6793598532676697,
+        3.656960129737854
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 2,
+      "threads": 512,
+      "us": 3.8367998600006104,
+      "rank_us": [
+        3.8367998600006104,
+        3.77920001745224,
+        3.8207998871803284,
+        3.794560134410858
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 4,
+      "threads": 128,
+      "us": 3.530240058898926,
+      "rank_us": [
+        3.530240058898926,
+        3.514240086078644,
+        3.489280045032501,
+        3.5257598757743835
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 4,
+      "threads": 256,
+      "us": 3.710080087184906,
+      "rank_us": [
+        3.6883199214935303,
+        3.6844798922538757,
+        3.6588799953460693,
+        3.710080087184906
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 4,
+      "threads": 512,
+      "us": 3.9103999733924866,
+      "rank_us": [
+        3.9103999733924866,
+        3.77344012260437,
+        3.8784000277519226,
+        3.856000006198883
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 8,
+      "threads": 128,
+      "us": 3.559040129184723,
+      "rank_us": [
+        3.559040129184723,
+        3.500159978866577,
+        3.5225600004196167,
+        3.4988799691200256
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 8,
+      "threads": 256,
+      "us": 3.7190398573875427,
+      "rank_us": [
+        3.7190398573875427,
+        3.6524799466133118,
+        3.6902400851249695,
+        3.6716800928115845
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.ONE_SHOT_PULL",
+      "blocks": 8,
+      "threads": 512,
+      "us": 3.840000033378601,
+      "rank_us": [
+        3.777279853820801,
+        3.840000033378601,
+        3.7958401441574097,
+        3.8099199533462524
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 1,
+      "threads": 128,
+      "us": 5.370879769325256,
+      "rank_us": [
+        5.349760055541992,
+        5.370879769325256,
+        5.3408002853393555,
+        5.352960228919983
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 1,
+      "threads": 256,
+      "us": 5.463680028915405,
+      "rank_us": [
+        5.38815975189209,
+        5.463680028915405,
+        5.358719825744629,
+        5.4527997970581055
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 1,
+      "threads": 512,
+      "us": 5.463039875030518,
+      "rank_us": [
+        5.463039875030518,
+        5.418879985809326,
+        5.4604798555374146,
+        5.433599948883057
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 2,
+      "threads": 128,
+      "us": 5.999360084533691,
+      "rank_us": [
+        5.976960062980652,
+        5.999360084533691,
+        5.902720093727112,
+        5.991039872169495
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 2,
+      "threads": 256,
+      "us": 5.991680026054382,
+      "rank_us": [
+        5.991680026054382,
+        5.928959846496582,
+        5.97055971622467,
+        5.9334397315979
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 2,
+      "threads": 512,
+      "us": 5.470719933509827,
+      "rank_us": [
+        5.4150402545928955,
+        5.470719933509827,
+        5.445759892463684,
+        5.445759892463684
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 4,
+      "threads": 128,
+      "us": 6.06656014919281,
+      "rank_us": [
+        6.056960225105286,
+        5.958399772644043,
+        6.06656014919281,
+        6.003199815750122
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 4,
+      "threads": 256,
+      "us": 6.0044801235198975,
+      "rank_us": [
+        5.924479961395264,
+        5.989760160446167,
+        5.95583975315094,
+        6.0044801235198975
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 4,
+      "threads": 512,
+      "us": 5.527679920196533,
+      "rank_us": [
+        5.527679920196533,
+        5.4553598165512085,
+        5.509759783744812,
+        5.42527973651886
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 8,
+      "threads": 128,
+      "us": 6.0524797439575195,
+      "rank_us": [
+        5.980160236358643,
+        6.0524797439575195,
+        5.950080156326294,
+        6.0390400886535645
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 8,
+      "threads": 256,
+      "us": 5.9411197900772095,
+      "rank_us": [
+        5.9411197900772095,
+        5.930879712104797,
+        5.927680134773254,
+        5.937280058860779
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    },
+    {
+      "algo": "AllReduceAlgo.TWO_SHOT_PULL",
+      "blocks": 8,
+      "threads": 512,
+      "us": 5.4924798011779785,
+      "rank_us": [
+        5.410559773445129,
+        5.4924798011779785,
+        5.419520139694214,
+        5.463039875030518
+      ],
+      "experiment": "4-GPU all-reduce",
+      "elements": 2560,
+      "dtype": "float16",
+      "selected": false,
+      "source_log": "/tmp/qwen38_70_20260907/allreduce_probe.log"
+    }
+  ]
+}

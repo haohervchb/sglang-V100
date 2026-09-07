@@ -62,9 +62,11 @@ def _configure_sm70_qwen38_nvfp4_stage(
 
     marlin_v100 reads these variables synchronously when its host launcher is
     called.  SGLang captures the resulting kernels in the decode CUDA graph,
-    so there is no environment handling on graph replay.  Large-M/prefill
+    so there is no environment handling on graph replay. The 1K gate/up and
+    large-prefill down shapes use separately measured CTA geometries; other
     shapes clear the override and retain marlin_v100's generic/model selectors.
     """
+
     global _sm70_qwen38_tuning_stage
     if not _IS_SM70 or _sm70_marlin_user_tuning:
         return
@@ -81,6 +83,26 @@ def _configure_sm70_qwen38_nvfp4_stage(
     ):
         stage = 1
         values = ("32x64x64x4x32x64x16", "1", "vector_words")
+    elif (
+        b_scales.dtype == torch.float8_e4m3fn
+        and moe_block_size == 32
+        and top_k == 10
+        and 512 <= size_m <= 2048
+        and size_n == 320
+        and size_k == 2560
+    ):
+        stage = 3
+        values = ("32x64x64x4x32x32x32", "1", "vector_words")
+    elif (
+        b_scales.dtype == torch.float8_e4m3fn
+        and moe_block_size == 64
+        and top_k == 1
+        and size_m >= 40960
+        and size_n == 2560
+        and size_k == 160
+    ):
+        stage = 4
+        values = ("64x256x32x4x64x64x32", "1", "vector_words")
     elif (
         b_scales.dtype == torch.float8_e4m3fn
         and moe_block_size == 8
