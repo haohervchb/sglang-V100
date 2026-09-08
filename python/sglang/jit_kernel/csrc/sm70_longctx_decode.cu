@@ -337,18 +337,16 @@ qsa_decode_partial_kernel(
     qs[i] = q[(int64_t)seq_id * kGroup * kDim + i];
   }
 
-  float m_row[kGroup];
-  float l_row[kGroup];
-  float o_acc[kGroup][kAccPerLane];
-#pragma unroll
-  for (int r = 0; r < kGroup; ++r) {
-    m_row[r] = -1.0e30f;
-    l_row[r] = 0.f;
-  }
+  // Each compute warp owns one query head. Thread-local arrays indexed by
+  // the runtime warp ID force these accumulators into local memory on SM70.
+  // Keep only this thread's head state so ptxas can retain it in registers.
+  float m_row = -1.0e30f;
+  float l_row = 0.f;
+  float o_acc[kAccPerLane];
   if (is_compute_warp) {
 #pragma unroll
     for (int j = 0; j < kAccPerLane; ++j) {
-      o_acc[warp][j] = 0.f;
+      o_acc[j] = 0.f;
     }
   }
   __syncthreads();
@@ -427,14 +425,14 @@ qsa_decode_partial_kernel(
       for (int off = 16; off; off >>= 1) {
         loc_max = fmaxf(loc_max, __shfl_xor_sync(0xffffffffu, loc_max, off));
       }
-      const float m_new = fmaxf(m_row[r], loc_max);
-      const float alpha = exp2f((m_row[r] - m_new) * scale_log2);
-      m_row[r] = m_new;
-      l_row[r] *= alpha;
+      const float m_new = fmaxf(m_row, loc_max);
+      const float alpha = exp2f((m_row - m_new) * scale_log2);
+      m_row = m_new;
+      l_row *= alpha;
       if (alpha != 1.f) {
 #pragma unroll
         for (int j = 0; j < kAccPerLane; ++j) {
-          o_acc[r][j] *= alpha;
+          o_acc[j] *= alpha;
         }
       }
       float p = 0.f;
@@ -447,7 +445,7 @@ qsa_decode_partial_kernel(
       for (int off = 16; off; off >>= 1) {
         loc_sum += __shfl_xor_sync(0xffffffffu, loc_sum, off);
       }
-      l_row[r] += loc_sum;
+      l_row += loc_sum;
     }
     __syncthreads();
 
@@ -464,10 +462,10 @@ qsa_decode_partial_kernel(
 #pragma unroll
         for (int j = 0; j < kPairsPerLane; ++j) {
           const __half2 value = vrow[lane + j * 32];
-          o_acc[r][2 * j] =
-              fmaf(p, __half2float(value.x), o_acc[r][2 * j]);
-          o_acc[r][2 * j + 1] =
-              fmaf(p, __half2float(value.y), o_acc[r][2 * j + 1]);
+          o_acc[2 * j] =
+              fmaf(p, __half2float(value.x), o_acc[2 * j]);
+          o_acc[2 * j + 1] =
+              fmaf(p, __half2float(value.y), o_acc[2 * j + 1]);
         }
       }
     }
@@ -476,21 +474,21 @@ qsa_decode_partial_kernel(
 
   if (is_compute_warp) {
     const int r = warp;
-    const float inv_l = l_row[r] > 0.f ? 1.f / l_row[r] : 0.f;
+    const float inv_l = l_row > 0.f ? 1.f / l_row : 0.f;
     __half* out_row =
         partial_o +
         (((int64_t)seq_id * max_splits + split_id) * kGroup + r) * kDim;
 #pragma unroll
     for (int j = 0; j < kPairsPerLane; ++j) {
       out_row[2 * (lane + j * 32)] =
-          __float2half_rn(o_acc[r][2 * j] * inv_l);
+          __float2half_rn(o_acc[2 * j] * inv_l);
       out_row[2 * (lane + j * 32) + 1] =
-          __float2half_rn(o_acc[r][2 * j + 1] * inv_l);
+          __float2half_rn(o_acc[2 * j + 1] * inv_l);
     }
     if (lane == 0) {
       partial_lse[((int64_t)seq_id * max_splits + split_id) * kGroup + r] =
-          l_row[r] > 0.f
-              ? __log2f(l_row[r]) + m_row[r] * scale_log2
+          l_row > 0.f
+              ? __log2f(l_row) + m_row * scale_log2
               : -1.0e30f;
     }
   }

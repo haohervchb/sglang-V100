@@ -1,0 +1,44 @@
+RUN restart.py mtp34_vector mtp23_native 2
+mtp23_native 189261
+RUN correctness_serving.py mtp23_native
+[transformers] You are using a model of type `qwen4_exp` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+Explain why the sky appears blue in three sentences. Sunlight reaches Earth's atmosphere and scatters in all directions, but shorter blue wavelengths are scattered more strongly than longer red wavelengths due to  {'type': 'stop', 'matched': 248046} 90
+Write a Python function that returns the first n Fibonacci numbers. ```python
+def fibonacci(n: int) -> list:
+    """
+    Returns the first n Fibonacci numbers.
+
+    Args:
+        n: The number of Fibonacci numbers to return. {'type': 'length', 'length': 128} 128
+Calculate 37 multiplied by 19 and show the steps. To calculate $37 \times 19$, we can use the standard multiplication algorithm or break it down using the distributive property. Here, I will show the step-by-st {'type': 'length', 'length': 128} 128
+What is the difference between a stack and a queue? Give one use for each. ### Logical Deduction
+
+To understand the difference between a stack and a queue, we must analyze their fundamental operating principles, data access methods, an {'type': 'length', 'length': 128} 128
+RUN bench_natural.py --tag mtp23_native_natural
+[transformers] You are using a model of type `qwen4_exp` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+mtp23_native_natural 1000 256 20260830 prefill 1671.18 decode 112.507 slowest 112.507 spec {'spec_accept_rate': 0.5714285714285714, 'spec_accept_length': 2.1512605042016806, 'spec_num_correct_drafts': 136, 'spec_num_proposed_drafts': 238, 'spec_verify_ct': 119, 'spec_accepted_drafts': 136, 'spec_proposed_drafts': 238, 'spec_correct_drafts_histogram': [36, 30, 53], 'spec_accept_histogram': [36, 30, 53]}
+mtp23_native_natural 1000 1024 20260830 prefill 2988.89 decode 115.706 slowest 112.266 spec {'spec_accept_rate': 0.603448275862069, 'spec_accept_length': 2.206896551724138, 'spec_num_correct_drafts': 560, 'spec_num_proposed_drafts': 928, 'spec_verify_ct': 464, 'spec_accepted_drafts': 560, 'spec_proposed_drafts': 928, 'spec_correct_drafts_histogram': [130, 108, 226], 'spec_accept_histogram': [130, 108, 226]}
+mtp23_native_natural 1000 1024 20260831 prefill 3009.39 decode 121.645 slowest 113.198 spec {'spec_accept_rate': 0.6568848758465011, 'spec_accept_length': 2.311512415349887, 'spec_num_correct_drafts': 582, 'spec_num_proposed_drafts': 886, 'spec_verify_ct': 443, 'spec_accepted_drafts': 582, 'spec_proposed_drafts': 886, 'spec_correct_drafts_histogram': [111, 82, 250], 'spec_accept_histogram': [111, 82, 250]}
+mtp23_native_natural 8192 256 20260830 prefill 5432.92 decode 110.735 slowest 110.735 spec {'spec_accept_rate': 0.5756302521008403, 'spec_accept_length': 2.1512605042016806, 'spec_num_correct_drafts': 137, 'spec_num_proposed_drafts': 238, 'spec_verify_ct': 119, 'spec_accepted_drafts': 137, 'spec_proposed_drafts': 238, 'spec_correct_drafts_histogram': [37, 27, 55], 'spec_accept_histogram': [37, 27, 55]}
+mtp23_native_natural 8192 1024 20260830 prefill 5449.96 decode 114.695 slowest 109.828 spec {'spec_accept_rate': 0.6095444685466378, 'spec_accept_length': 2.2212581344902387, 'spec_num_correct_drafts': 562, 'spec_num_proposed_drafts': 922, 'spec_verify_ct': 461, 'spec_accepted_drafts': 562, 'spec_proposed_drafts': 922, 'spec_correct_drafts_histogram': [127, 106, 228], 'spec_accept_histogram': [127, 106, 228]}
+mtp23_native_natural 8192 1024 20260831 prefill 5443.86 decode 117.503 slowest 106.927 spec {'spec_accept_rate': 0.6377777777777778, 'spec_accept_length': 2.2755555555555556, 'spec_num_correct_drafts': 574, 'spec_num_proposed_drafts': 900, 'spec_verify_ct': 450, 'spec_accepted_drafts': 574, 'spec_proposed_drafts': 900, 'spec_correct_drafts_histogram': [122, 82, 246], 'spec_accept_histogram': [122, 82, 246]}
+mtp23_native_natural 25000 256 20260830 prefill 4612.82 decode 109.33 slowest 109.33 spec {'spec_accept_rate': 0.5708333333333333, 'spec_accept_length': 2.1333333333333333, 'spec_num_correct_drafts': 137, 'spec_num_proposed_drafts': 240, 'spec_verify_ct': 120, 'spec_accepted_drafts': 137, 'spec_proposed_drafts': 240, 'spec_correct_drafts_histogram': [37, 29, 54], 'spec_accept_histogram': [37, 29, 54]}
+mtp23_native_natural 25000 1024 20260830 prefill 4683.69 decode 109.349 slowest 101.957 spec {'spec_accept_rate': 0.5634095634095634, 'spec_accept_length': 2.128898128898129, 'spec_num_correct_drafts': 542, 'spec_num_proposed_drafts': 962, 'spec_verify_ct': 481, 'spec_accepted_drafts': 542, 'spec_proposed_drafts': 962, 'spec_correct_drafts_histogram': [152, 116, 213], 'spec_accept_histogram': [152, 116, 213]}
+mtp23_native_natural 25000 1024 20260831 prefill 4675.36 decode 124.787 slowest 115.924 spec {'spec_accept_rate': 0.7120853080568721, 'spec_accept_length': 2.4265402843601898, 'spec_num_correct_drafts': 601, 'spec_num_proposed_drafts': 844, 'spec_verify_ct': 422, 'spec_accepted_drafts': 601, 'spec_proposed_drafts': 844, 'spec_correct_drafts_histogram': [81, 81, 260], 'spec_accept_histogram': [81, 81, 260]}
+mtp23_native_natural 70000 256 20260830 prefill 4620.37 decode 106.096 slowest 106.096 spec {'spec_accept_rate': 0.5450819672131147, 'spec_accept_length': 2.098360655737705, 'spec_num_correct_drafts': 133, 'spec_num_proposed_drafts': 244, 'spec_verify_ct': 122, 'spec_accepted_drafts': 133, 'spec_proposed_drafts': 244, 'spec_correct_drafts_histogram': [41, 29, 52], 'spec_accept_histogram': [41, 29, 52]}
+mtp23_native_natural 70000 1024 20260830 prefill 4619.93 decode 112.977 slowest 106.239 spec {'spec_accept_rate': 0.6117136659436009, 'spec_accept_length': 2.2212581344902387, 'spec_num_correct_drafts': 564, 'spec_num_proposed_drafts': 922, 'spec_verify_ct': 461, 'spec_accepted_drafts': 564, 'spec_proposed_drafts': 922, 'spec_correct_drafts_histogram': [125, 108, 228], 'spec_accept_histogram': [125, 108, 228]}
+mtp23_native_natural 70000 1024 20260831 prefill 4638.66 decode 119.719 slowest 111.542 spec {'spec_accept_rate': 0.6647727272727273, 'spec_accept_length': 2.327272727272727, 'spec_num_correct_drafts': 585, 'spec_num_proposed_drafts': 880, 'spec_verify_ct': 440, 'spec_accepted_drafts': 585, 'spec_proposed_drafts': 880, 'spec_correct_drafts_histogram': [105, 85, 250], 'spec_accept_histogram': [105, 85, 250]}
+RUN correctness_serving.py mtp23_native_after_long
+[transformers] You are using a model of type `qwen4_exp` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+Explain why the sky appears blue in three sentences. Sunlight reaches Earth's atmosphere and scatters in all directions, but shorter blue wavelengths are scattered more strongly than longer red wavelengths due to  {'type': 'stop', 'matched': 248046} 90
+Write a Python function that returns the first n Fibonacci numbers. ```python
+def fibonacci(n: int) -> list:
+    """
+    Returns the first n Fibonacci numbers.
+
+    Args:
+        n: The number of Fibonacci numbers to return. {'type': 'length', 'length': 128} 128
+Calculate 37 multiplied by 19 and show the steps. To calculate $37 \times 19$, we can use the standard multiplication algorithm or break it down using the distributive property. Here, I will show the step-by-st {'type': 'length', 'length': 128} 128
+What is the difference between a stack and a queue? Give one use for each. ### Logical Deduction
+
+To understand the difference between a stack and a queue, we must analyze their fundamental operating principles, data access methods, an {'type': 'length', 'length': 128} 128

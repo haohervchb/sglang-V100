@@ -430,8 +430,7 @@ class Qwen3_5GatedDeltaNet(nn.Module):
 
         return query, key, value, z, b, a
 
-    def _forward_input_proj(self, hidden_states: torch.Tensor):
-        from sglang.jit_kernel.sm70_qwen_fusions import qkv_ba, qkv_ba_supported
+    def _sm70_input_proj_weights(self):
         from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
 
         qkv_weight = getattr(self.in_proj_qkvz, "weight", None)
@@ -445,8 +444,15 @@ class Qwen3_5GatedDeltaNet(nn.Module):
             and not self.in_proj_ba.gather_output
             and self.in_proj_qkvz.bias is None
             and self.in_proj_ba.bias is None
-            and qkv_ba_supported(hidden_states, qkv_weight, ba_weight)
         ):
+            return qkv_weight, ba_weight
+        return None, None
+
+    def _forward_input_proj(self, hidden_states: torch.Tensor):
+        from sglang.jit_kernel.sm70_qwen_fusions import qkv_ba, qkv_ba_supported
+
+        qkv_weight, ba_weight = self._sm70_input_proj_weights()
+        if qkv_ba_supported(hidden_states, qkv_weight, ba_weight):
             return qkv_ba(hidden_states, qkv_weight, ba_weight)
         if (
             _is_cpu
@@ -474,17 +480,23 @@ class Qwen3_5GatedDeltaNet(nn.Module):
             projected_states_ba, _ = self.in_proj_ba(hidden_states)
         return projected_states_qkvz, projected_states_ba
 
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        forward_batch: ForwardBatch,
-    ):
-        """
-        Forward pass with three parts:
-        1. Input projection
-        2. Core attention (custom op)
-        3. Output projection
-        """
+    def _prepare_input_projections(self, hidden_states: torch.Tensor):
+        from sglang.jit_kernel.sm70_qwen_fusions import qkvzba, qkvzba_supported
+
+        qkv_weight, ba_weight = self._sm70_input_proj_weights()
+        if (
+            self.key_dim // self.attn_tp_size,
+            self.value_dim // self.attn_tp_size,
+            self.num_v_heads // self.attn_tp_size,
+            self.head_k_dim,
+            self.head_v_dim,
+        ) == (512, 1536, 12, 128, 128) and qkvzba_supported(
+            hidden_states, qkv_weight, ba_weight
+        ):
+            # Write the QKV, Z, B and A layouts directly. This avoids the four
+            # copies needed by the ratio-three GDN verification path.
+            return qkvzba(hidden_states, qkv_weight, ba_weight)
+
         projected_states_qkvz, projected_states_ba = self._forward_input_proj(
             hidden_states
         )
@@ -528,6 +540,21 @@ class Qwen3_5GatedDeltaNet(nn.Module):
             mixed_qkv = reuse_qkv_prefix(projected_states_qkvz, query, key, value)
             if mixed_qkv is None:
                 mixed_qkv = torch.cat((query, key, value), dim=-1)
+
+        return mixed_qkv, z, b, a
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        forward_batch: ForwardBatch,
+    ):
+        """
+        Forward pass with three parts:
+        1. Input projection
+        2. Core attention (custom op)
+        3. Output projection
+        """
+        mixed_qkv, z, b, a = self._prepare_input_projections(hidden_states)
 
         core_attn_out = self.attn(
             forward_batch,

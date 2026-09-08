@@ -1,0 +1,4 @@
+{"rows": 2, "op": "down", "before_us": 9.049165065314181, "after_us": 8.576508773570794, "bitwise_equal": true}
+{"rows": 2, "op": "up", "before_us": 7.753460515546296, "after_us": 7.480370816415957, "bitwise_equal": true}
+{"rows": 4, "op": "down", "before_us": 11.590643934548472, "after_us": 11.031556288838809, "bitwise_equal": true}
+{"rows": 4, "op": "up", "before_us": 12.53319001634561, "after_us": 12.544294444643779, "bitwise_equal": true}

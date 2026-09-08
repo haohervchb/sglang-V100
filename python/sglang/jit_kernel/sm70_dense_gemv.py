@@ -1,4 +1,4 @@
-"""Native batch-one FP16 GEMVs for the measured Qwen3.8 TP4 shapes."""
+"""Native FP16 projections for the measured Qwen3.8 TP4 shapes."""
 
 import os
 
@@ -23,6 +23,8 @@ _CONFIGS = {
 
 
 def supported(x: torch.Tensor, weight: torch.Tensor, bias=None) -> bool:
+    from sglang.jit_kernel.sm70_small_gemm import shape_supported
+
     return (
         os.environ.get("SGLANG_SM70_DENSE_GEMV", "0") == "1"
         and x.is_cuda
@@ -30,7 +32,7 @@ def supported(x: torch.Tensor, weight: torch.Tensor, bias=None) -> bool:
         and weight.dtype == torch.float16
         and weight.device == x.device
         and x.ndim == 2
-        and x.shape[0] == 1
+        and x.shape[0] in (1, 2, 4)
         and weight.ndim == 2
         and x.shape[1] == weight.shape[1]
         and bias is None
@@ -39,8 +41,14 @@ def supported(x: torch.Tensor, weight: torch.Tensor, bias=None) -> bool:
         and x.data_ptr() % 16 == 0
         and weight.data_ptr() % 16 == 0
         and (
-            tuple(weight.shape) in _CONFIGS
-            or (weight.shape[1] == 2560 and weight.shape[0] >= 32768)
+            (
+                x.shape[0] == 1
+                and (
+                    tuple(weight.shape) in _CONFIGS
+                    or (weight.shape[1] == 2560 and weight.shape[0] >= 32768)
+                )
+            )
+            or shape_supported(x, weight)
         )
         and torch.cuda.get_device_capability(x.device) == (7, 0)
     )
@@ -61,6 +69,10 @@ def _module(threads: int, lanes: int, vector: int):
 
 
 def linear(x: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    if x.shape[0] != 1:
+        from sglang.jit_kernel.sm70_small_gemm import linear as small_linear
+
+        return small_linear(x, weight)
     config = _CONFIGS.get(tuple(weight.shape), (64, 32, 8))
     out = torch.empty((1, weight.shape[0]), dtype=x.dtype, device=x.device)
     _module(*config).gemv(x, weight, out)

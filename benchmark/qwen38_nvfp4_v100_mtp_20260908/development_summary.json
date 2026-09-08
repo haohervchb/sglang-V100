@@ -1,0 +1,322 @@
+[
+  {
+    "tag": "mtp34_base",
+    "input_len": 1000,
+    "seed": 20260830,
+    "decode_tok_s": 69.74222439821368,
+    "minimum_window": 67.67341088568445,
+    "accept_length": 2.7379679144385025
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 1000,
+    "seed": 20260831,
+    "decode_tok_s": 61.494785249807684,
+    "minimum_window": 51.248774388614,
+    "accept_length": 2.4150943396226414
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 8192,
+    "seed": 20260830,
+    "decode_tok_s": 91.05315634911796,
+    "minimum_window": 85.54065617163307,
+    "accept_length": 3.4478114478114477
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 8192,
+    "seed": 20260831,
+    "decode_tok_s": 79.79211064265432,
+    "minimum_window": 62.619424837071584,
+    "accept_length": 3.011764705882353
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 25000,
+    "seed": 20260830,
+    "decode_tok_s": 76.69444387133956,
+    "minimum_window": 67.87449363862079,
+    "accept_length": 3.0476190476190474
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 25000,
+    "seed": 20260831,
+    "decode_tok_s": 75.81328308140614,
+    "minimum_window": 48.72212005112938,
+    "accept_length": 3.002932551319648
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 70000,
+    "seed": 20260830,
+    "decode_tok_s": 103.3451877359173,
+    "minimum_window": 102.07160164358942,
+    "accept_length": 3.9844357976653697
+  },
+  {
+    "tag": "mtp34_base",
+    "input_len": 70000,
+    "seed": 20260831,
+    "decode_tok_s": 82.82499914486583,
+    "minimum_window": 67.26275344474672,
+    "accept_length": 3.170278637770898
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 1000,
+    "seed": 20260830,
+    "decode_tok_s": 73.34499034448692,
+    "minimum_window": 71.36916532628311,
+    "accept_length": 2.7379679144385025
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 1000,
+    "seed": 20260831,
+    "decode_tok_s": 64.38446204593671,
+    "minimum_window": 53.60876215136791,
+    "accept_length": 2.4150943396226414
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 8192,
+    "seed": 20260830,
+    "decode_tok_s": 96.28908019024966,
+    "minimum_window": 85.89025813516115,
+    "accept_length": 3.6441281138790034
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 8192,
+    "seed": 20260831,
+    "decode_tok_s": 78.58694547937455,
+    "minimum_window": 57.994538448414794,
+    "accept_length": 2.942528735632184
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 25000,
+    "seed": 20260830,
+    "decode_tok_s": 78.27526804662999,
+    "minimum_window": 70.5262057923486,
+    "accept_length": 2.951008645533141
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 25000,
+    "seed": 20260831,
+    "decode_tok_s": 97.44161753417396,
+    "minimum_window": 92.69152041168977,
+    "accept_length": 3.683453237410072
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 70000,
+    "seed": 20260830,
+    "decode_tok_s": 103.81832446365351,
+    "minimum_window": 102.6822590327439,
+    "accept_length": 3.9689922480620154
+  },
+  {
+    "tag": "mtp34_graph",
+    "input_len": 70000,
+    "seed": 20260831,
+    "decode_tok_s": 81.97021028901214,
+    "minimum_window": 66.48186006450942,
+    "accept_length": 3.1314984709480123
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 1000,
+    "seed": 20260830,
+    "decode_tok_s": 102.51070063776929,
+    "minimum_window": 95.43793599120751,
+    "accept_length": 2.7750677506775068
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 1000,
+    "seed": 20260831,
+    "decode_tok_s": 81.98450753925913,
+    "minimum_window": 59.1656691196352,
+    "accept_length": 2.2164502164502164
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 8192,
+    "seed": 20260830,
+    "decode_tok_s": 132.16142209722105,
+    "minimum_window": 116.90972457659818,
+    "accept_length": 3.6441281138790034
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 8192,
+    "seed": 20260831,
+    "decode_tok_s": 85.19277475677087,
+    "minimum_window": 51.88379641607686,
+    "accept_length": 2.3378995433789953
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 25000,
+    "seed": 20260830,
+    "decode_tok_s": 108.22617802739893,
+    "minimum_window": 98.38522922278172,
+    "accept_length": 2.9767441860465116
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 25000,
+    "seed": 20260831,
+    "decode_tok_s": 134.25541804012894,
+    "minimum_window": 129.24071741383057,
+    "accept_length": 3.696750902527076
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 70000,
+    "seed": 20260830,
+    "decode_tok_s": 141.9320215366122,
+    "minimum_window": 140.19962276396024,
+    "accept_length": 3.9844357976653697
+  },
+  {
+    "tag": "mtp34_capture",
+    "input_len": 70000,
+    "seed": 20260831,
+    "decode_tok_s": 111.152769012822,
+    "minimum_window": 84.53650433241502,
+    "accept_length": 3.093655589123867
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 1000,
+    "seed": 20260830,
+    "decode_tok_s": 123.62737186143251,
+    "minimum_window": 113.6709008855595,
+    "accept_length": 3.0385756676557865
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 1000,
+    "seed": 20260831,
+    "decode_tok_s": 99.88141606704163,
+    "minimum_window": 78.84641945173401,
+    "accept_length": 2.449760765550239
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 8192,
+    "seed": 20260830,
+    "decode_tok_s": 142.22346091407556,
+    "minimum_window": 122.39414400560719,
+    "accept_length": 3.5432525951557095
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 8192,
+    "seed": 20260831,
+    "decode_tok_s": 128.85391108702262,
+    "minimum_window": 101.67617941086007,
+    "accept_length": 3.2
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 25000,
+    "seed": 20260830,
+    "decode_tok_s": 128.08765653876296,
+    "minimum_window": 113.56031812789651,
+    "accept_length": 3.2
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 25000,
+    "seed": 20260831,
+    "decode_tok_s": 148.05385557910748,
+    "minimum_window": 140.43369149620654,
+    "accept_length": 3.710144927536232
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 70000,
+    "seed": 20260830,
+    "decode_tok_s": 156.15499366718177,
+    "minimum_window": 154.80377776325943,
+    "accept_length": 3.9844357976653697
+  },
+  {
+    "tag": "mtp34_batch",
+    "input_len": 70000,
+    "seed": 20260831,
+    "decode_tok_s": 126.13796277091298,
+    "minimum_window": 102.810965612644,
+    "accept_length": 3.190031152647975
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 1000,
+    "seed": 20260830,
+    "decode_tok_s": 122.71519637779132,
+    "minimum_window": 112.60735250159772,
+    "accept_length": 3.0385756676557865
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 1000,
+    "seed": 20260831,
+    "decode_tok_s": 98.89446514483183,
+    "minimum_window": 78.0856020681,
+    "accept_length": 2.449760765550239
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 8192,
+    "seed": 20260830,
+    "decode_tok_s": 112.85880355046446,
+    "minimum_window": 100.64981366952465,
+    "accept_length": 2.8131868131868134
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 8192,
+    "seed": 20260831,
+    "decode_tok_s": 113.79120986870831,
+    "minimum_window": 79.96919926282764,
+    "accept_length": 2.8287292817679557
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 25000,
+    "seed": 20260830,
+    "decode_tok_s": 126.46397345794014,
+    "minimum_window": 120.30303554201612,
+    "accept_length": 3.1604938271604937
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 25000,
+    "seed": 20260831,
+    "decode_tok_s": 113.18160213675937,
+    "minimum_window": 69.15005722847212,
+    "accept_length": 2.8444444444444446
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 70000,
+    "seed": 20260830,
+    "decode_tok_s": 127.90827394637428,
+    "minimum_window": 118.27449582102788,
+    "accept_length": 3.240506329113924
+  },
+  {
+    "tag": "mtp34_copyfixed",
+    "input_len": 70000,
+    "seed": 20260831,
+    "decode_tok_s": 130.58961715445116,
+    "minimum_window": 105.6169949349332,
+    "accept_length": 3.303225806451613
+  }
+]

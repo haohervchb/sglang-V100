@@ -6,6 +6,26 @@ from sglang.srt.utils.common import is_blackwell, is_hip, is_musa
 logger = logging.getLogger(__name__)
 
 
+def qsa_draft_extend_graph_backend(attn_backend, topk: int):
+    """Resolve the graph-capable full-attention side of a QSA draft model."""
+
+    from sglang.srt.layers.attention.qsa.config import QSA_VARIANT_COMPRESSED
+    from sglang.srt.layers.attention.qwen_sparse_attn_backend import (
+        QwenSparseAttnBackend,
+    )
+
+    backend = getattr(attn_backend, "full_attn_backend", attn_backend)
+    if (
+        topk == 1
+        and isinstance(backend, QwenSparseAttnBackend)
+        and backend.qsa_profile is not None
+        and backend.qsa_profile.variant == QSA_VARIANT_COMPRESSED
+        and backend.qsa_profile.draft_extend_cuda_graph
+    ):
+        return backend
+    return None
+
+
 class DraftBackendFactory:
     def __init__(
         self,

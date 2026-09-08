@@ -1,0 +1,6 @@
+{"rows": 4, "threads": 512, "byte_permute": false, "scalar_accumulator": false, "splits": 40, "us": 71.31366151751894, "max_error": 0.0}
+{"rows": 4, "threads": 512, "byte_permute": false, "scalar_accumulator": true, "splits": 40, "us": 24.401510938037806, "max_error": 0.0}
+{"rows": 2, "threads": 512, "byte_permute": false, "scalar_accumulator": false, "splits": 80, "us": 43.69484768615638, "max_error": 0.0}
+{"rows": 2, "threads": 512, "byte_permute": false, "scalar_accumulator": true, "splits": 80, "us": 16.914248268359916, "max_error": 0.0}
+{"rows": 1, "threads": 512, "byte_permute": false, "scalar_accumulator": false, "splits": 160, "us": 25.118642366587345, "max_error": 0.0}
+{"rows": 1, "threads": 512, "byte_permute": false, "scalar_accumulator": true, "splits": 160, "us": 14.023223176828584, "max_error": 0.0}

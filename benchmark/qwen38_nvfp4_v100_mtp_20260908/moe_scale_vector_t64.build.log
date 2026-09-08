@@ -1,0 +1,27 @@
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+ptxas info    : 10 bytes gmem, 32 bytes cmem[3], 80 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN14sm70_nvfp4_moe18down_reduce_kernelEPKfiP6__half' for 'sm_70'
+ptxas info    : Function properties for _ZN14sm70_nvfp4_moe18down_reduce_kernelEPKfiP6__half
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 56 registers, used 0 barriers, 376 bytes cmem[0]
+ptxas info    : Compile time = 6.255 ms
+ptxas info    : Compiling entry function '_ZN14sm70_nvfp4_moe19down_partial_kernelEPK6__halfPKjPKhPKfPKiS8_iPf' for 'sm_70'
+ptxas info    : Function properties for _ZN14sm70_nvfp4_moe19down_partial_kernelEPK6__halfPKjPKhPKfPKiS8_iPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 90 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 46.211 ms
+ptxas info    : Compiling entry function '_ZN14sm70_nvfp4_moe26gate_up_reduce_silu_kernelEPKfS1_PKiiP6__half' for 'sm_70'
+ptxas info    : Function properties for _ZN14sm70_nvfp4_moe26gate_up_reduce_silu_kernelEPKfS1_PKiiP6__half
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 105 registers, used 0 barriers, 392 bytes cmem[0]
+ptxas info    : Compile time = 10.025 ms
+ptxas info    : Compiling entry function '_ZN14sm70_nvfp4_moe22gate_up_partial_kernelEPK6__halfPKjPKhPKiiPf' for 'sm_70'
+ptxas info    : Function properties for _ZN14sm70_nvfp4_moe22gate_up_partial_kernelEPK6__halfPKjPKhPKiiPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 0 barriers, 400 bytes cmem[0]
+ptxas info    : Compile time = 77.364 ms
+ptxas info    : Compiling entry function '_ZN14sm70_nvfp4_moe17topk10_radix_halfEPK6__halfPfPi' for 'sm_70'
+ptxas info    : Function properties for _ZN14sm70_nvfp4_moe17topk10_radix_halfEPK6__halfPfPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 1 barriers, 16928 bytes smem, 376 bytes cmem[0]
+ptxas info    : Compile time = 18.549 ms

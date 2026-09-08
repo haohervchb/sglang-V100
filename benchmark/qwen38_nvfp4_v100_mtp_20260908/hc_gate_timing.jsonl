@@ -1,0 +1,6 @@
+{"rows": 2, "seed": 7, "before_us": 28.63059765474586, "after_us": 25.18726294877942, "bitwise_equal": true}
+{"rows": 2, "seed": 31, "before_us": 28.274063561919306, "after_us": 25.33470945931523, "bitwise_equal": true}
+{"rows": 2, "seed": 113, "before_us": 28.27965568197291, "after_us": 25.626661927447994, "bitwise_equal": true}
+{"rows": 4, "seed": 7, "before_us": 32.846399870343284, "after_us": 29.956502214087642, "bitwise_equal": true}
+{"rows": 4, "seed": 31, "before_us": 32.252450959872355, "after_us": 29.50463146267937, "bitwise_equal": true}
+{"rows": 4, "seed": 113, "before_us": 32.64531589602878, "after_us": 29.741093669269347, "bitwise_equal": true}

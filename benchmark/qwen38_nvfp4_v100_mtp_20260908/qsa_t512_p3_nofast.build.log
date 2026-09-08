@@ -1,0 +1,28 @@
+nvcc warning : Support for offline compilation for architectures prior to '<compute/sm/lto>_75' will be removed in a future release (Use -Wno-deprecated-gpu-targets to suppress warning).
+/tmp/qwen38_mtp_20260908/qsa_t512_p3.cu(25): warning #177-D: variable "sm70_longctx::kSmemBytes" was declared but never referenced
+  constexpr int kSmemBytes = 2 * kSmemKV * sizeof(__half) +
+                ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_ZN12sm70_longctx18qsa_prefill_kernelEPK6__halfPKhS4_PKiS6_S6_S6_iifPS0_' for 'sm_70'
+ptxas info    : Function properties for _ZN12sm70_longctx18qsa_prefill_kernelEPK6__halfPKhS4_PKiS6_S6_S6_iifPS0_
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 1 barriers, 48 bytes cumulative stack size, 38144 bytes smem, 432 bytes cmem[0]
+ptxas info    : Compile time = 149.446 ms
+ptxas info    : Compiling entry function '_ZN12sm70_longctx25qsa_indexer_decode_kernelEPK6__halfS2_PKiS4_iifPf' for 'sm_70'
+ptxas info    : Function properties for _ZN12sm70_longctx25qsa_indexer_decode_kernelEPK6__halfS2_PKiS4_iifPf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 31 registers, used 1 barriers, 1024 bytes smem, 408 bytes cmem[0]
+ptxas info    : Compile time = 142.676 ms
+ptxas info    : Compiling entry function '_ZN12sm70_longctx25qsa_decode_partial_kernelEPK6__halfPKhS4_PKiS6_S6_S6_iiiifPS0_Pf' for 'sm_70'
+ptxas info    : Function properties for _ZN12sm70_longctx25qsa_decode_partial_kernelEPK6__halfPKhS4_PKiS6_S6_S6_iiiifPS0_Pf
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 64 registers, used 1 barriers, 38144 bytes smem, 448 bytes cmem[0]
+ptxas info    : Compile time = 123.489 ms
+ptxas info    : Compiling entry function '_ZN12sm70_longctx21decode_partial_kernelEPK6__halfPKhS4_PKiS6_iiiffPS0_Pf' for 'sm_70'
+ptxas info    : Function properties for _ZN12sm70_longctx21decode_partial_kernelEPK6__halfPKhS4_PKiS6_iiiffPS0_Pf
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 63 registers, used 1 barriers, 48 bytes cumulative stack size, 38016 bytes smem, 432 bytes cmem[0]
+ptxas info    : Compile time = 123.524 ms

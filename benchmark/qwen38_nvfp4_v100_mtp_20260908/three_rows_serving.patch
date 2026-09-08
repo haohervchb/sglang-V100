@@ -1,0 +1,147 @@
+--- a/python/sglang/jit_kernel/sm70_dense_gemv.py
++++ b/python/sglang/jit_kernel/sm70_dense_gemv.py
+@@ -32,7 +32,7 @@
+         and weight.dtype == torch.float16
+         and weight.device == x.device
+         and x.ndim == 2
+-        and x.shape[0] in (1, 2, 4)
++        and x.shape[0] in (1, 2, 3, 4)
+         and weight.ndim == 2
+         and x.shape[1] == weight.shape[1]
+         and bias is None
+--- a/python/sglang/jit_kernel/sm70_hc_mix.py
++++ b/python/sglang/jit_kernel/sm70_hc_mix.py
+@@ -54,7 +54,7 @@
+     # The caller has already checked the exact SM70 mix geometry and dtype.
+     return (
+         os.environ.get("SGLANG_SM70_MTP_HC_GATE", "1") == "1"
+-        and x.shape[0] in (2, 4)
++        and x.shape[0] in (2, 3, 4)
+         and weight.shape == (4, 10240)
+         and weight.device == x.device
+         and weight.dtype == torch.float16
+--- a/python/sglang/jit_kernel/sm70_qwen_fusions.py
++++ b/python/sglang/jit_kernel/sm70_qwen_fusions.py
+@@ -57,7 +57,7 @@
+     return (
+         os.environ.get("SGLANG_SM70_MTP_QKVZBA", "1") == "1"
+         and x.ndim == 2
+-        and x.shape[0] in (2, 4)
++        and x.shape[0] in (2, 3, 4)
+         and x.is_contiguous()
+         and qkv_ba_supported(x[:1], weight, tail)
+     )
+--- a/python/sglang/srt/layers/hc_mix_triton.py
++++ b/python/sglang/srt/layers/hc_mix_triton.py
+@@ -74,7 +74,7 @@
+     if (
+         hc_count == 4
+         and x.ndim == 2
+-        and x.shape[0] in (1, 2, 4)
++        and x.shape[0] in (1, 2, 3, 4)
+         and x.shape[1] == 10240
+         and w_down.shape == (320, 10240)
+         and x.data_ptr() % 16 == 0
+@@ -113,7 +113,7 @@
+         and (
+             x.shape[0] == 1
+             or (
+-                x.shape[0] in (2, 4)
++                x.shape[0] in (2, 3, 4)
+                 and os.environ.get("SGLANG_SM70_HC_NATIVE", "1") == "1"
+                 and os.environ.get("SGLANG_SM70_MTP_HC", "1") == "1"
+                 and x.data_ptr() % 16 == 0
+@@ -169,7 +169,7 @@
+         hc_count == 4
+         and hidden_size == 2560
+         and x.ndim == 2
+-        and x.shape[0] in (1, 2, 4)
++        and x.shape[0] in (1, 2, 3, 4)
+         and x.shape[1] == 10240
+         and activated_down.shape == (x.shape[0], 320)
+         and w_up.shape == (10240, 320)
+--- a/python/sglang/srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py
++++ b/python/sglang/srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py
+@@ -299,7 +299,7 @@
+     if (
+         os.environ.get("SGLANG_SM70_MTP_GDN", "1") == "1"
+         and (B, N, H, HV, K, V) == (1, 1, 4, 12, 128, 128)
+-        and T in (2, 4)
++        and T in (2, 3, 4)
+         and q.is_cuda
+         and q.dtype == torch.float16
+         and intermediate_states_buffer is not None
+--- a/python/sglang/jit_kernel/csrc/elementwise/sm70_small_gemm.cuh
++++ b/python/sglang/jit_kernel/csrc/elementwise/sm70_small_gemm.cuh
+@@ -40,7 +40,7 @@
+ }
+ template <int M, int NT, int L>
+ void run(tvm::ffi::TensorView x, tvm::ffi::TensorView w, tvm::ffi::TensorView o) {
+-  static_assert(M == 2 || M == 4);
++  static_assert(M >= 2 && M <= 4);
+   using namespace host;
+   auto dev = SymbolicDevice{};
+   dev.set_options<kDLCUDA>();
+--- a/python/sglang/jit_kernel/csrc/elementwise/sm70_hc_batch.cuh
++++ b/python/sglang/jit_kernel/csrc/elementwise/sm70_hc_batch.cuh
+@@ -121,7 +121,7 @@
+ }
+ template <int M>
+ void down_run(tvm::ffi::TensorView x, tvm::ffi::TensorView w, tvm::ffi::TensorView o) {
+-  static_assert(M == 2 || M == 4);
++  static_assert(M >= 2 && M <= 4);
+   using namespace host;
+   auto dev = SymbolicDevice{};
+   dev.set_options<kDLCUDA>();
+@@ -141,7 +141,7 @@
+ }
+ template <int M>
+ void up_run(tvm::ffi::TensorView a, tvm::ffi::TensorView x, tvm::ffi::TensorView w, tvm::ffi::TensorView o) {
+-  static_assert(M == 2 || M == 4);
++  static_assert(M >= 2 && M <= 4);
+   using namespace host;
+   auto dev = SymbolicDevice{};
+   dev.set_options<kDLCUDA>();
+--- a/python/sglang/jit_kernel/csrc/elementwise/sm70_hc_gate.cuh
++++ b/python/sglang/jit_kernel/csrc/elementwise/sm70_hc_gate.cuh
+@@ -12,7 +12,7 @@
+     tvm::ffi::TensorView inject,
+     tvm::ffi::TensorView o,
+     tvm::ffi::TensorView partials) {
+-  static_assert(M == 2 || M == 4);
++  static_assert(M >= 2 && M <= 4);
+   using namespace host;
+   auto dev = SymbolicDevice{};
+   dev.set_options<kDLCUDA>();
+@@ -43,7 +43,7 @@
+   TensorMatcher({rows, 2560}).with_dtype<half>().with_device(dev).verify(y);
+   TensorMatcher({rows, 10240}).with_dtype<half>().with_device(dev).verify(residual).verify(output);
+   TensorMatcher({rows, 8, 4}).with_dtype<float>().with_device(dev).verify(partials);
+-  RuntimeCheck(rows.unwrap() == 2 || rows.unwrap() == 4, "Expected two or four rows");
++  RuntimeCheck(rows.unwrap() >= 2 && rows.unwrap() <= 4, "Expected two or four rows");
+   RuntimeCheck(
+       reinterpret_cast<uintptr_t>(y.data_ptr()) % 16 == 0 &&
+           reinterpret_cast<uintptr_t>(residual.data_ptr()) % 16 == 0 &&
+--- a/python/sglang/jit_kernel/csrc/elementwise/sm70_qwen_gdn.cuh
++++ b/python/sglang/jit_kernel/csrc/elementwise/sm70_qwen_gdn.cuh
+@@ -66,7 +66,7 @@
+     tvm::ffi::TensorView z,
+     tvm::ffi::TensorView b,
+     tvm::ffi::TensorView a) {
+-  static_assert(M == 2 || M == 4);
++  static_assert(M >= 2 && M <= 4);
+   using namespace host;
+   auto dev = SymbolicDevice{};
+   dev.set_options<kDLCUDA>();
+--- a/python/sglang/jit_kernel/sm70_small_gemm.py
++++ b/python/sglang/jit_kernel/sm70_small_gemm.py
+@@ -32,6 +32,9 @@
+     (4, 62080, 2560): (128, 32),
+ }
+ 
++# Isolated experiment: preserve the four-row reduction geometry at three rows.
++_CONFIGS.update({(3, n, k): config for (m, n, k), config in list(_CONFIGS.items()) if m == 4})
++
+ 
+ def shape_supported(x, weight):
+     return (

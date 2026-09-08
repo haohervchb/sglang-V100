@@ -120,9 +120,9 @@ def _parse_compressed(text_config) -> QSAProfile:
         compress_ratio=ratio,
         # The compressed indexer consumes the Qwen4-Exp layer's own (m)rope.
         rope_mode=QSA_ROPE_MROPE,
-        # Draft-extend stays eager: the static graph width cannot express the
-        # dynamic accepted-token count.
-        draft_extend_cuda_graph=False,
+        # The compressed backend refreshes per-row lengths on device. V2
+        # writes a fixed draft window and selects the accepted seed afterward.
+        draft_extend_cuda_graph=True,
     )
 
 

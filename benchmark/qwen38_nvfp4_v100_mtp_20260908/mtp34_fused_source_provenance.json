@@ -1,0 +1,27 @@
+{
+  "base_commit": "ddea10a60f07a133a6524038b69883c8844c4c28",
+  "branch": "perf/qwen38-nvfp4-v100-prefill-decode",
+  "sha256": {
+    "python/sglang/jit_kernel/sm70_dense_gemv.py": "9e789443e39c2dd31ba1ceff8f70a0ff05b9800d8ad342569d2980519eaaf2ed",
+    "python/sglang/jit_kernel/sm70_hc_mix.py": "f46c8b5f48522de632049470b666a62bd8b2d380e8a55acd96daffe7ebf0bb3d",
+    "python/sglang/jit_kernel/sm70_qwen_fusions.py": "cc5e175e0fd65f6416c2d9cb01f675128dc10fa66b8ab400722d14f1322f8842",
+    "python/sglang/srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py": "c4fcd47a5a3a33dd1a729cd30961ab29919efc0a19113a95fff0086999803026",
+    "python/sglang/srt/layers/attention/qsa/config.py": "9e46bf19715f00c21079d37d68a50846c821501ae86c5949b273fd4073f35dd3",
+    "python/sglang/srt/layers/hc_mix_triton.py": "74c0ed322bc041b72b5db9bb9911fb67d92e5d443b246f93c67dd6e6348997a1",
+    "python/sglang/srt/managers/utils.py": "f2b82b1a8a6c7fee621be703d26310ff3df06c937e3d660ec41f40d3d8fa40c6",
+    "python/sglang/srt/speculative/draft_utils.py": "0fa5f5746d7817020ae21a4201f33681824e6cca3b91fb22bcefc21662dfc316",
+    "python/sglang/srt/speculative/eagle_worker_v2.py": "9f5cb4696abe2bd837a2b71213a6ca7ba4d8ec7a4649afdd1449ee8e4ad054d2",
+    "test/manual/layers/test_qsa_graph_metadata_tiles.py": "1df39d7e04f8139bd98a20972be1c8b853604d50a3938293a8d6a9794b904be9",
+    "test/manual/layers/test_sm70_hc_mix.py": "c5c7cbd1ac8ab58ea885fb8995362dfee76d701af8e80ae5cc34370a542e1b62",
+    "test/manual/layers/test_sm70_qwen_fusions.py": "c2c035d65a481a6ecea52be56a6972b475158e17a3ff61fe594a4dc7c08bd0d2",
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_hc_batch.cuh": "db0d7d14016762909358ccad5a1b754ce1bb26ed44defa22156dfd3ebd079dfa",
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_qwen_batch_fusions.cuh": "1401b030b3acbb23661955ef5ebcf0d4255ef0b5084f0a6e22366f3cb3106643",
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_small_gemm.cuh": "a1d031dda6d019956749e18b57c991ab536af20b3169a521400912b90aa44476",
+    "python/sglang/jit_kernel/sm70_small_gemm.py": "1a6b11090d154a7094eb7fb1d6e6eaed571140ba7a4477b04f6e28b4b52e2612",
+    "test/manual/layers/test_overlap_result_copy_lifetime.py": "09e40a28d6bb9a18e12fc5c1d42946811a608f54e8bdcdb857ab13235ae74ffd",
+    "test/manual/layers/test_sm70_gdn_verify_tiles.py": "ea8b0e35f4b855088375bc2d0bc8b305f4c14e7871c2c70b234d1a26357ff239",
+    "test/manual/layers/test_sm70_small_gemm.py": "723158aeeab1026f0f9ca598226758a3c349f6dbcdba04e5bd2f6fcd55ba8307",
+    "test/registered/unit/spec/test_qsa_draft_extend_graph_backend.py": "b78c8fed226a23b6ff2b77acb56e80be1d7dd96bac66e52f5a44ba469835860c"
+  },
+  "marlin_binary_sha256": "1bc45f4d83a120f98bf2bb36099ab8832286af774fc366c52f82e7bc5fd6d0f4"
+}

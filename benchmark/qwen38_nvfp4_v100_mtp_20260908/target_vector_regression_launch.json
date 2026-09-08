@@ -1,0 +1,21 @@
+{
+  "pid": 182350,
+  "command": [
+    "bash",
+    "scripts/serve_qwen38_flash_next_nvfp4_v100.sh",
+    "RadixArk/Qwen3.8-Flash-Next-NVFP4"
+  ],
+  "env": {
+    "CUDA_HOME": "/usr/local/cuda-12.8",
+    "HF_HUB_OFFLINE": "1",
+    "PYTHONPATH": "/home/rah/sglang-V100/python",
+    "PORT": "8082",
+    "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+    "CXX": "/usr/bin/g++-12",
+    "TORCH_CUDA_ARCH_LIST": "7.0",
+    "MAX_JOBS": "2",
+    "SGLANG_SM70_DENSE_GEMV": "1",
+    "SGLANG_SM70_QWEN_FUSIONS": "1"
+  },
+  "commit": "ddea10a60f07a133a6524038b69883c8844c4c28"
+}

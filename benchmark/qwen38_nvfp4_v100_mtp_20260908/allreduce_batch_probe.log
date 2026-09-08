@@ -1,0 +1,62 @@
+W0908 07:41:24.305000 114131 site-packages/torch/distributed/run.py:803]
+W0908 07:41:24.305000 114131 site-packages/torch/distributed/run.py:803] *****************************************
+W0908 07:41:24.305000 114131 site-packages/torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0908 07:41:24.305000 114131 site-packages/torch/distributed/run.py:803] *****************************************
+[Gloo] Rank 0 is connected to 3 peer ranks. Expected number of connected peer ranks is : 3
+[Gloo] Rank 2 is connected to 3 peer ranks. Expected number of connected peer ranks is : 3
+[Gloo] Rank [Gloo] Rank 13 is connected to  is connected to 33 peer ranks.  peer ranks. Expected number of connected peer ranks is : Expected number of connected peer ranks is : 33
+
+[Gloo] Rank 3 is connected to 3 peer ranks. Expected number of connected peer ranks is : 3
+[Gloo] Rank 0 is connected to 3 peer ranks. Expected number of connected peer ranks is : 3
+[Gloo] Rank 2 is connected to 3 peer ranks. Expected number of connected peer ranks is : 3
+[Gloo] Rank 1 is connected to 3 peer ranks. Expected number of connected peer ranks is : 3
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PUSH", "blocks": null, "threads": null, "us": 3.399040102958679, "rank_us": [3.3715200424194336, 3.3932799100875854, 3.367680013179779, 3.399040102958679]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 1, "threads": 128, "us": 6.221439838409424, "rank_us": [6.171519756317139, 6.165120005607605, 6.156799793243408, 6.221439838409424]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 1, "threads": 256, "us": 5.1283198595047, "rank_us": [5.082880258560181, 5.084800124168396, 5.1283198595047, 5.112320184707642]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 1, "threads": 512, "us": 4.716799855232239, "rank_us": [4.66623991727829, 4.670720100402832, 4.716799855232239, 4.674560129642487]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 2, "threads": 128, "us": 4.844160079956055, "rank_us": [4.8102399706840515, 4.811519980430603, 4.844160079956055, 4.815999865531921]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 2, "threads": 256, "us": 4.334720075130463, "rank_us": [4.293760061264038, 4.279040098190308, 4.334720075130463, 4.274559915065765]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 2, "threads": 512, "us": 3.935360014438629, "rank_us": [3.909119963645935, 3.92192006111145, 3.9347198605537415, 3.935360014438629]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 4, "threads": 128, "us": 4.145919978618622, "rank_us": [4.103679955005646, 4.120959937572479, 4.145919978618622, 4.131839871406555]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 4, "threads": 256, "us": 3.6403200030326843, "rank_us": [3.639039993286133, 3.6403200030326843, 3.633280098438263, 3.6396801471710205]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 4, "threads": 512, "us": 3.937920033931732, "rank_us": [3.917439877986908, 3.906559944152832, 3.937920033931732, 3.9078399538993835]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 8, "threads": 128, "us": 3.550719916820526, "rank_us": [3.5155200958251953, 3.53983998298645, 3.479039967060089, 3.550719916820526]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 8, "threads": 256, "us": 3.6511999368667603, "rank_us": [3.6447998881340027, 3.6511999368667603, 3.6345601081848145, 3.641600012779236]}
+{"rows": 2, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 8, "threads": 512, "us": 3.943679928779602, "rank_us": [3.9084801077842712, 3.9052799344062805, 3.914240002632141, 3.943679928779602]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 1, "threads": 128, "us": 6.062719821929932, "rank_us": [6.056320071220398, 6.053760051727295, 6.062719821929932, 6.044800281524658]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 1, "threads": 256, "us": 5.390719771385193, "rank_us": [5.358719825744629, 5.3779202699661255, 5.390719771385193, 5.3753602504730225]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 1, "threads": 512, "us": 5.445119738578796, "rank_us": [5.4150402545928955, 5.4124802350997925, 5.445119738578796, 5.428479909896851]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 2, "threads": 128, "us": 6.042879819869995, "rank_us": [6.005759835243225, 6.005120277404785, 6.042879819869995, 6.023039817810059]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 2, "threads": 256, "us": 5.809280276298523, "rank_us": [5.8028799295425415, 5.787519812583923, 5.809280276298523, 5.78495979309082]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 2, "threads": 512, "us": 5.868160128593445, "rank_us": [5.83296000957489, 5.838720202445984, 5.868160128593445, 5.854719877243042]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 4, "threads": 128, "us": 5.853440165519714, "rank_us": [5.828480124473572, 5.838080048561096, 5.852800011634827, 5.853440165519714]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 4, "threads": 256, "us": 5.8265602588653564, "rank_us": [5.796480178833008, 5.810559988021851, 5.824000239372253, 5.8265602588653564]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 4, "threads": 512, "us": 5.901439785957336, "rank_us": [5.900160074234009, 5.852159857749939, 5.901439785957336, 5.850239992141724]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 8, "threads": 128, "us": 5.886719822883606, "rank_us": [5.8636802434921265, 5.853440165519714, 5.886719822883606, 5.848320126533508]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 8, "threads": 256, "us": 5.838080048561096, "rank_us": [5.80735981464386, 5.79584002494812, 5.838080048561096, 5.814399719238281]}
+{"rows": 2, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 8, "threads": 512, "us": 5.8745598793029785, "rank_us": [5.850239992141724, 5.847679972648621, 5.8745598793029785, 5.856000185012817]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PUSH", "blocks": null, "threads": null, "us": 3.6473599076271057, "rank_us": [3.619840145111084, 3.529599905014038, 3.6473599076271057, 3.59360009431839]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 1, "threads": 128, "us": 9.550719857215881, "rank_us": [9.544320106506348, 9.513599872589111, 9.550719857215881, 9.524480104446411]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 1, "threads": 256, "us": 6.716160178184509, "rank_us": [6.693120002746582, 6.69376015663147, 6.716160178184509, 6.685439944267273]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 1, "threads": 512, "us": 5.8348798751831055, "rank_us": [5.8265602588653564, 5.825920104980469, 5.822719931602478, 5.8348798751831055]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 2, "threads": 128, "us": 6.361600160598755, "rank_us": [6.338559985160828, 6.345599889755249, 6.361600160598755, 6.305279731750488]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 2, "threads": 256, "us": 5.262079834938049, "rank_us": [5.227519869804382, 5.208960175514221, 5.262079834938049, 5.221760272979736]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 2, "threads": 512, "us": 4.844160079956055, "rank_us": [4.824320077896118, 4.842880070209503, 4.844160079956055, 4.8051199316978455]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 4, "threads": 128, "us": 4.866560101509094, "rank_us": [4.8422399163246155, 4.837760031223297, 4.866560101509094, 4.846720099449158]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 4, "threads": 256, "us": 4.441600143909454, "rank_us": [4.421760141849518, 4.433279931545258, 4.438399970531464, 4.441600143909454]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 4, "threads": 512, "us": 3.9897599816322327, "rank_us": [3.9603200554847717, 3.9558398723602295, 3.9827200770378113, 3.9897599816322327]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 8, "threads": 128, "us": 4.381439983844757, "rank_us": [4.380159974098206, 4.275200068950653, 4.381439983844757, 4.320000112056732]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 8, "threads": 256, "us": 3.8124799728393555, "rank_us": [3.798399865627289, 3.776000142097473, 3.8124799728393555, 3.792000114917755]}
+{"rows": 4, "algo": "AllReduceAlgo.ONE_SHOT_PULL", "blocks": 8, "threads": 512, "us": 4.023039937019348, "rank_us": [4.023039937019348, 3.969919979572296, 4.010240137577057, 3.9603200554847717]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 1, "threads": 128, "us": 6.910079717636108, "rank_us": [6.820480227470398, 6.873599886894226, 6.910079717636108, 6.893439888954163]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 1, "threads": 256, "us": 6.444159746170044, "rank_us": [6.428160071372986, 6.401919722557068, 6.444159746170044, 6.366080045700073]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 1, "threads": 512, "us": 5.849599838256836, "rank_us": [5.824000239372253, 5.794559717178345, 5.849599838256836, 5.782399773597717]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 2, "threads": 128, "us": 6.4953601360321045, "rank_us": [6.4639997482299805, 6.3916802406311035, 6.4953601360321045, 6.435199975967407]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 2, "threads": 256, "us": 6.070399880409241, "rank_us": [6.058880090713501, 6.053119897842407, 6.070399880409241, 6.062080264091492]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 2, "threads": 512, "us": 5.8694398403167725, "rank_us": [5.8425599336624146, 5.839359760284424, 5.8694398403167725, 5.831040143966675]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 4, "threads": 128, "us": 5.792639851570129, "rank_us": [5.761280059814453, 5.792639851570129, 5.788800120353699, 5.771520137786865]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 4, "threads": 256, "us": 6.017280220985413, "rank_us": [6.0127997398376465, 6.008319854736328, 6.017280220985413, 5.999360084533691]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 4, "threads": 512, "us": 6.462079882621765, "rank_us": [6.433280110359192, 6.415359973907471, 6.462079882621765, 6.424959897994995]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 8, "threads": 128, "us": 5.804799795150757, "rank_us": [5.782399773597717, 5.78495979309082, 5.804799795150757, 5.773440003395081]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 8, "threads": 256, "us": 6.0467201471328735, "rank_us": [6.023679971694946, 6.023679971694946, 6.0467201471328735, 6.034560203552246]}
+{"rows": 4, "algo": "AllReduceAlgo.TWO_SHOT_PULL", "blocks": 8, "threads": 512, "us": 6.44864022731781, "rank_us": [6.433280110359192, 6.413440108299255, 6.44864022731781, 6.404479742050171]}

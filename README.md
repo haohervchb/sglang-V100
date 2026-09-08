@@ -516,6 +516,15 @@ the target. The setting is three speculative steps with four draft tokens. It
 keeps the same E5M2 KV cache and full-context, single-request memory
 configuration as target-only.
 
+The September 8 host optimization work enables QSA draft-extend graph capture,
+two/four-token projections and HC mixing, narrower recurrent-attention tiles,
+and CUDA attention/expert kernel improvements on V100. Two ordinary prose/code
+requests at each of 1K, 8K, 25K and 70K context measure
+**108.4–119.1 decode tok/s** over 1,024 output
+tokens; this completed optimization pass does not achieve consistent 120 tok/s. See the
+[MTP measurements and validation](benchmark/qwen38_nvfp4_v100_mtp_20260908/README.md)
+for per-context results, acceptance counts and the asynchronous result-copy fix.
+
 ```bash
 cd "$HOME/sglang-V100"
 

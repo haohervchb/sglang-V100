@@ -79,3 +79,42 @@ def test_page_tiles_and_graph_replay(rows, pages):
             torch.testing.assert_close(
                 actual, reference.to(actual.dtype), rtol=0, atol=0
             )
+
+
+@pytest.mark.parametrize("bs", [1, 2])
+def test_draft_extend_layout_replay_with_changing_lengths(bs):
+    from sglang.srt.layers.attention.qsa.graph_metadata import _qsa_graph_layout_kernel
+
+    capacity = bs * 4
+    seq = torch.full((bs,), 25000, dtype=torch.int32, device="cuda")
+    req = torch.arange(1, bs + 1, dtype=torch.int32, device="cuda")
+    extend = torch.full_like(seq, 4)
+    outputs = [
+        torch.empty(capacity, dtype=torch.int32, device="cuda") for _ in range(3)
+    ]
+
+    def run():
+        _qsa_graph_layout_kernel[(bs + 1,)](
+            seq, req, extend, *outputs, bs, capacity, 0, 0, MODE=2, num_warps=1
+        )
+
+    run()
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        run()
+    for lens in ([4] * bs, [1] * bs, [2, 3][:bs], [0] * bs, [4] * bs):
+        extend.copy_(torch.tensor(lens, device="cuda", dtype=torch.int32))
+        seq.add_(1)
+        req.add_(1)
+        graph.replay()
+        expected = [[], [], []]
+        for length, total, slot in zip(lens, seq.tolist(), req.tolist()):
+            expected[0].extend(range(total - length + 1, total + 1))
+            expected[1].extend([total - length] * length)
+            expected[2].extend([slot] * length)
+        padding = capacity - sum(lens)
+        for actual, values, fill in zip(outputs, expected, [1, 0, 0]):
+            reference = torch.tensor(
+                values + [fill] * padding, device="cuda", dtype=torch.int32
+            )
+            torch.testing.assert_close(actual, reference, rtol=0, atol=0)

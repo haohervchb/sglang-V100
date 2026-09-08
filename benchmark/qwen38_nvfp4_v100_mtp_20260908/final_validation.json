@@ -1,0 +1,156 @@
+{
+  "ruff": {
+    "exit_code": 0,
+    "output": "All checks passed!\n",
+    "command": [
+      "/home/rah/miniconda3/envs/sglang-v100/bin/ruff",
+      "check",
+      "--select=F401,F821",
+      "python/sglang/jit_kernel/sm70_dense_gemv.py",
+      "python/sglang/jit_kernel/sm70_hc_mix.py",
+      "python/sglang/jit_kernel/sm70_qwen_fusions.py",
+      "python/sglang/srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py",
+      "python/sglang/srt/layers/attention/qsa/config.py",
+      "python/sglang/srt/layers/hc_mix_triton.py",
+      "python/sglang/srt/layers/hyperconnection.py",
+      "python/sglang/srt/managers/utils.py",
+      "python/sglang/srt/models/qwen3_5.py",
+      "python/sglang/srt/speculative/draft_utils.py",
+      "python/sglang/srt/speculative/eagle_worker_v2.py",
+      "test/manual/layers/test_qsa_graph_metadata_tiles.py",
+      "test/manual/layers/test_sm70_hc_mix.py",
+      "python/sglang/jit_kernel/sm70_small_gemm.py",
+      "test/manual/layers/test_overlap_result_copy_lifetime.py",
+      "test/manual/layers/test_sm70_gdn_projections.py",
+      "test/manual/layers/test_sm70_gdn_verify_tiles.py",
+      "test/manual/layers/test_sm70_hc_gate.py",
+      "test/manual/layers/test_sm70_nvfp4_scale_loads.py",
+      "test/manual/layers/test_sm70_qsa_decode.py",
+      "test/manual/layers/test_sm70_small_gemm.py",
+      "test/registered/unit/spec/test_qsa_draft_extend_graph_backend.py"
+    ]
+  },
+  "black": {
+    "exit_code": 0,
+    "output": "All done! \u2728 \ud83c\udf70 \u2728\n22 files would be left unchanged.\n",
+    "command": [
+      "/tmp/qwen38_nvfp4_perf_20260907/format_venv/bin/black",
+      "--check",
+      "python/sglang/jit_kernel/sm70_dense_gemv.py",
+      "python/sglang/jit_kernel/sm70_hc_mix.py",
+      "python/sglang/jit_kernel/sm70_qwen_fusions.py",
+      "python/sglang/srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py",
+      "python/sglang/srt/layers/attention/qsa/config.py",
+      "python/sglang/srt/layers/hc_mix_triton.py",
+      "python/sglang/srt/layers/hyperconnection.py",
+      "python/sglang/srt/managers/utils.py",
+      "python/sglang/srt/models/qwen3_5.py",
+      "python/sglang/srt/speculative/draft_utils.py",
+      "python/sglang/srt/speculative/eagle_worker_v2.py",
+      "test/manual/layers/test_qsa_graph_metadata_tiles.py",
+      "test/manual/layers/test_sm70_hc_mix.py",
+      "python/sglang/jit_kernel/sm70_small_gemm.py",
+      "test/manual/layers/test_overlap_result_copy_lifetime.py",
+      "test/manual/layers/test_sm70_gdn_projections.py",
+      "test/manual/layers/test_sm70_gdn_verify_tiles.py",
+      "test/manual/layers/test_sm70_hc_gate.py",
+      "test/manual/layers/test_sm70_nvfp4_scale_loads.py",
+      "test/manual/layers/test_sm70_qsa_decode.py",
+      "test/manual/layers/test_sm70_small_gemm.py",
+      "test/registered/unit/spec/test_qsa_draft_extend_graph_backend.py"
+    ]
+  },
+  "isort": {
+    "exit_code": 0,
+    "output": "",
+    "command": [
+      "/tmp/qwen38_nvfp4_perf_20260907/format_venv/bin/isort",
+      "--check-only",
+      "python/sglang/jit_kernel/sm70_dense_gemv.py",
+      "python/sglang/jit_kernel/sm70_hc_mix.py",
+      "python/sglang/jit_kernel/sm70_qwen_fusions.py",
+      "python/sglang/srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py",
+      "python/sglang/srt/layers/attention/qsa/config.py",
+      "python/sglang/srt/layers/hc_mix_triton.py",
+      "python/sglang/srt/layers/hyperconnection.py",
+      "python/sglang/srt/managers/utils.py",
+      "python/sglang/srt/models/qwen3_5.py",
+      "python/sglang/srt/speculative/draft_utils.py",
+      "python/sglang/srt/speculative/eagle_worker_v2.py",
+      "test/manual/layers/test_qsa_graph_metadata_tiles.py",
+      "test/manual/layers/test_sm70_hc_mix.py",
+      "python/sglang/jit_kernel/sm70_small_gemm.py",
+      "test/manual/layers/test_overlap_result_copy_lifetime.py",
+      "test/manual/layers/test_sm70_gdn_projections.py",
+      "test/manual/layers/test_sm70_gdn_verify_tiles.py",
+      "test/manual/layers/test_sm70_hc_gate.py",
+      "test/manual/layers/test_sm70_nvfp4_scale_loads.py",
+      "test/manual/layers/test_sm70_qsa_decode.py",
+      "test/manual/layers/test_sm70_small_gemm.py",
+      "test/registered/unit/spec/test_qsa_draft_extend_graph_backend.py"
+    ]
+  },
+  "new_cuda_headers": {
+    "exit_code": 0,
+    "output": "",
+    "command": [
+      "/tmp/qwen38_nvfp4_perf_20260907/format_venv/bin/clang-format",
+      "--dry-run",
+      "--Werror",
+      "python/sglang/jit_kernel/csrc/elementwise/sm70_hc_batch.cuh",
+      "python/sglang/jit_kernel/csrc/elementwise/sm70_hc_gate.cuh",
+      "python/sglang/jit_kernel/csrc/elementwise/sm70_qwen_gdn.cuh",
+      "python/sglang/jit_kernel/csrc/elementwise/sm70_small_gemm.cuh"
+    ]
+  },
+  "diff_whitespace": {
+    "exit_code": 0,
+    "output": "",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ]
+  },
+  "ci_registration": {
+    "exit_code": 1,
+    "preexisting_unchanged_files": [
+      "test/registered/unit/hybrid_linear/test_deferred_mamba_state_ops.py",
+      "test/registered/unit/layers/attention/test_bfla_sparse_sm70.py",
+      "test/registered/unit/layers/attention/test_gdn_tilelang_sm70.py",
+      "test/registered/unit/layers/attention/test_paged_decode_tilelang_sm70.py",
+      "test/registered/unit/layers/attention/test_qwen_sparse_sm70_routing.py",
+      "test/registered/unit/layers/attention/test_sm70_fp8_kv_scratch.py",
+      "test/registered/unit/layers/moe/test_sm70_nvfp4_moe_decode.py",
+      "test/registered/unit/layers/quantization/test_sm70_turbomind_awq.py",
+      "test/registered/unit/layers/quantization/test_sm70_turbomind_fp8.py",
+      "test/registered/unit/layers/test_greedy_tp_top1.py",
+      "test/registered/unit/layers/test_tilelang_gemma_rmsnorm_sm70.py",
+      "test/registered/unit/spec/test_dflash2.py",
+      "test/registered/unit/spec/test_eagle_worker_v2_import.py",
+      "test/registered/unit/spec/test_v100_speculative.py"
+    ],
+    "new_test_registered": true
+  },
+  "regression_tests": {
+    "passed": 123,
+    "log": "final_regression_tests.log"
+  },
+  "cpu_dispatch_tests": {
+    "passed": 6,
+    "log": "final_cpu_tests.log"
+  },
+  "source_changes_since_serving": [
+    "python/sglang/srt/layers/hyperconnection.py",
+    "test/registered/unit/spec/test_qsa_draft_extend_graph_backend.py"
+  ],
+  "source_change_notes": "Only import spacing and CPU CI registration changed after serving validation; no kernel or dispatch behavior changed.",
+  "existing_cuda_formatting": {
+    "python/sglang/jit_kernel/csrc/sm70_longctx_decode.cu": {
+      "parent_already_fails": true
+    },
+    "python/sglang/jit_kernel/csrc/sm70_nvfp4_moe_decode.cu": {
+      "parent_already_fails": true
+    }
+  }
+}

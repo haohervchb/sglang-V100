@@ -225,6 +225,30 @@ __device__ __forceinline__ __half2 load_scale_pair(
       __ushort_as_half(static_cast<uint16_t>(encoded[logical1]) << 7));
 }
 
+// Packed scales have eight adjacent bytes per qword. Load the whole group
+// once and interleave bytes directly into the original FP16 scale pairs.
+// The scalar specialization retains support for unaligned metadata views.
+template <bool VectorScales>
+__device__ __forceinline__ void load_scales8(const uint8_t* encoded, half2* out) {
+  if constexpr (VectorScales) {
+    const uint2 raw = *reinterpret_cast<const uint2*>(encoded);
+    const uint32_t bits[4] = {
+        __byte_perm(raw.x, 0, 0x4240) << 7,
+        __byte_perm(raw.x, 0, 0x4341) << 7,
+        __byte_perm(raw.y, 0, 0x4240) << 7,
+        __byte_perm(raw.y, 0, 0x4341) << 7};
+#pragma unroll
+    for (int p = 0; p < 4; ++p)
+      out[p] = *reinterpret_cast<const half2*>(&bits[p]);
+  } else {
+#pragma unroll
+    for (int p = 0; p < 4; ++p)
+      out[p] = load_scale_pair(encoded, kScaleLogicalToStored[2 * p],
+                              kScaleLogicalToStored[2 * p + 1]);
+  }
+}
+
+template <bool VectorScales>
 __global__ void __launch_bounds__(kThreads, 2)
 gate_up_partial_kernel(const __half* __restrict__ input,
                        const uint32_t* __restrict__ weight,
@@ -264,12 +288,7 @@ gate_up_partial_kernel(const __half* __restrict__ input,
   for (int group_it = 0; group_it < kGroupsPerSplit; ++group_it) {
     const int group = group_begin + group_it;
     __half2 scale[4];
-#pragma unroll
-    for (int p = 0; p < 4; ++p) {
-      const uint8_t* scale_base = expert_scales + group * kGateUp + n_base;
-      scale[p] = load_scale_pair(scale_base, kScaleLogicalToStored[2 * p],
-                                 kScaleLogicalToStored[2 * p + 1]);
-    }
+    load_scales8<VectorScales>(expert_scales + group * kGateUp + n_base, scale);
 #pragma unroll
     for (int r = 0; r < kGroupSize; ++r) {
       const int k = group * kGroupSize + r;
@@ -330,6 +349,7 @@ gate_up_reduce_silu_kernel(const float* __restrict__ partials,
   activated[work] = __float2half_rn((gate / (1.0f + __expf(-gate))) * up);
 }
 
+template <bool VectorScales>
 __global__ void __launch_bounds__(kThreads, 2)
 down_partial_kernel(const __half* __restrict__ activated,
                     const uint32_t* __restrict__ weight,
@@ -376,12 +396,7 @@ down_partial_kernel(const __half* __restrict__ activated,
   for (int group_it = 0; group_it < kGroupsPerSplit; ++group_it) {
     const int group = group_begin + group_it;
     __half2 scale[4];
-#pragma unroll
-    for (int p = 0; p < 4; ++p) {
-      const uint8_t* scale_base = expert_scales + group * kHidden + n_base;
-      scale[p] = load_scale_pair(scale_base, kScaleLogicalToStored[2 * p],
-                                 kScaleLogicalToStored[2 * p + 1]);
-    }
+    load_scales8<VectorScales>(expert_scales + group * kHidden + n_base, scale);
 #pragma unroll
     for (int r = 0; r < kGroupSize; ++r) {
       const int k = group * kGroupSize + r;
@@ -476,7 +491,10 @@ void decode(torch::Tensor input, torch::Tensor w13, torch::Tensor w2,
   const at::cuda::OptionalCUDAGuard guard(device_of(input));
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream(input.get_device());
   const int gate_up_work = num_routes * kSplitK * (kGateUp / 8);
-  gate_up_partial_kernel<<<(gate_up_work + kThreads - 1) / kThreads, kThreads,
+  const auto gate_kernel = (reinterpret_cast<uintptr_t>(w13_scales.data_ptr()) % 8 == 0)
+                               ? gate_up_partial_kernel<true>
+                               : gate_up_partial_kernel<false>;
+  gate_kernel<<<(gate_up_work + kThreads - 1) / kThreads, kThreads,
                            0, stream>>>(
       reinterpret_cast<const __half*>(input.data_ptr<at::Half>()),
       reinterpret_cast<const uint32_t*>(w13.data_ptr<int>()),
@@ -489,7 +507,10 @@ void decode(torch::Tensor input, torch::Tensor w13, torch::Tensor w2,
       topk_ids.data_ptr<int>(), num_routes,
       reinterpret_cast<__half*>(activated.data_ptr<at::Half>()));
   const int down_work = num_routes * kDownSplitK * (kHidden / 8);
-  down_partial_kernel<<<(down_work + kThreads - 1) / kThreads, kThreads, 0,
+  const auto down_kernel = (reinterpret_cast<uintptr_t>(w2_scales.data_ptr()) % 8 == 0)
+                               ? down_partial_kernel<true>
+                               : down_partial_kernel<false>;
+  down_kernel<<<(down_work + kThreads - 1) / kThreads, kThreads, 0,
                         stream>>>(
       reinterpret_cast<const __half*>(activated.data_ptr<at::Half>()),
       reinterpret_cast<const uint32_t*>(w2.data_ptr<int>()),

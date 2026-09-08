@@ -1,4 +1,4 @@
-"""Measured batch-one FP16 fusions for Qwen3.8 on Volta."""
+"""Measured small-batch FP16 fusions for Qwen3.8 on Volta."""
 
 import os
 
@@ -15,6 +15,8 @@ def enabled() -> bool:
 def gate_supported(x, weight, value, bias=None) -> bool:
     return (
         enabled()
+        and x.ndim == 2
+        and x.shape[0] == 1
         and tuple(weight.shape) == (1, 2560)
         and value.shape == (1, 2560)
         and value.dtype == torch.float16
@@ -26,13 +28,19 @@ def gate_supported(x, weight, value, bias=None) -> bool:
 
 def gate_up_supported(x, weight) -> bool:
     return (
-        enabled() and tuple(weight.shape) == (320, 2560) and gemv_supported(x, weight)
+        enabled()
+        and x.ndim == 2
+        and x.shape[0] == 1
+        and tuple(weight.shape) == (320, 2560)
+        and gemv_supported(x, weight)
     )
 
 
 def qkv_ba_supported(x, weight, tail) -> bool:
     return (
         enabled()
+        and x.ndim == 2
+        and x.shape[0] == 1
         and isinstance(weight, torch.Tensor)
         and isinstance(tail, torch.Tensor)
         and tuple(weight.shape) == (4096, 2560)
@@ -42,6 +50,16 @@ def qkv_ba_supported(x, weight, tail) -> bool:
         and tail.is_contiguous()
         and tail.data_ptr() % 16 == 0
         and gemv_supported(x, weight)
+    )
+
+
+def qkvzba_supported(x, weight, tail) -> bool:
+    return (
+        os.environ.get("SGLANG_SM70_MTP_QKVZBA", "1") == "1"
+        and x.ndim == 2
+        and x.shape[0] in (2, 4)
+        and x.is_contiguous()
+        and qkv_ba_supported(x[:1], weight, tail)
     )
 
 
@@ -107,3 +125,23 @@ def qkv_ba(x, weight, tail):
     output = torch.empty((1, 4120), dtype=x.dtype, device=x.device)
     _projection_module().qkv_ba(x, weight, tail, output)
     return output[:, :4096], output[:, 4096:]
+
+
+@cache_once
+def _gdn_module(rows):
+    return load_jit(
+        "sm70_qwen_gdn",
+        rows,
+        cuda_files=["elementwise/sm70_qwen_gdn.cuh"],
+        cuda_wrappers=[("run", f"sglang::sm70_qwen_gdn::run<{rows},64>")],
+    )
+
+
+def qkvzba(x, weight, tail):
+    rows = x.shape[0]
+    qkv = torch.empty((rows, 2560), dtype=x.dtype, device=x.device)
+    z = torch.empty((rows, 1536), dtype=x.dtype, device=x.device)
+    b = torch.empty((rows, 12), dtype=x.dtype, device=x.device)
+    a = torch.empty_like(b)
+    _gdn_module(rows).run(x, weight, tail, qkv, z, b, a)
+    return qkv, z.view(rows, 12, 128), b, a

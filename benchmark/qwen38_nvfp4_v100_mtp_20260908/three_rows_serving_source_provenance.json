@@ -1,0 +1,12 @@
+{
+  "jit_kernel/sm70_dense_gemv.py": "d8c2e1a9ae680939a64ad6b83478f1238ec4abdcadaae195253a1988ec60313e",
+  "jit_kernel/sm70_hc_mix.py": "c910f3ecf5259d1c39cc0dd9e5ce442e72388a2bffb2db34e2e6d9cf165b41d3",
+  "jit_kernel/sm70_qwen_fusions.py": "5530512cf52e560d95786643da623cc90e76175a55e5e039688a7bd373107bc5",
+  "srt/layers/hc_mix_triton.py": "33bd6287b6853c65eaf10f55ab172e61eb07abaa218a652b64924fafb3c4944f",
+  "srt/layers/attention/fla/fused_sigmoid_gating_recurrent.py": "3b0a4c04be4b9dd1fd712a6e6d4bd2a17dea2510d3e79a30fb7e8ca65aff8d84",
+  "jit_kernel/csrc/elementwise/sm70_small_gemm.cuh": "4da7fe66862854de612a0d2e77bc6fd8edddab4640d7d04d1288493760d78ac0",
+  "jit_kernel/csrc/elementwise/sm70_hc_batch.cuh": "c44814a05572e51b92e8d2f3e944c7ce80b58392acc4099d1393359e72ba6704",
+  "jit_kernel/csrc/elementwise/sm70_hc_gate.cuh": "7633bcdda4d0be0d573f7a98927f213fff39858e63d32a167dd40068401eb55e",
+  "jit_kernel/csrc/elementwise/sm70_qwen_gdn.cuh": "992c4b1396848dc03f66d9196deb213f367b01004e26ec53da0384224a7f4240",
+  "jit_kernel/sm70_small_gemm.py": "0ab12c0e15b436454205154195b1df0b96ee4fd0719046045b48be81ea49cf9e"
+}
