@@ -225,6 +225,8 @@ FROM base AS runtime
 ENV NCCL_P2P_LEVEL=NVL \
     SGLANG_MAMBA_CONV_DTYPE=float16 \
     SGLANG_MAMBA_SSM_DTYPE=float16 \
+    SGLANG_SM70_DENSE_GEMV=1 \
+    SGLANG_SM70_QWEN_FUSIONS=1 \
     HF_HOME=/root/.cache/huggingface \
     FLASHINFER_WORKSPACE_BASE=/root/sglang-v100-jit \
     TILELANG_CACHE_DIR=/root/sglang-v100-jit/tilelang \
@@ -235,7 +237,7 @@ ENV NCCL_P2P_LEVEL=NVL \
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /opt/deps/flashinfer-sm70 /opt/deps/flashinfer-sm70
 COPY --from=builder /opt/sglang/python /opt/sglang/python
-COPY scripts/smoke_v100.sh /opt/sglang/scripts/smoke_v100.sh
+COPY scripts/smoke_v100.sh scripts/serve_qwen38_flash_next_nvfp4_v100.sh /opt/sglang/scripts/
 COPY docker/v100-entrypoint.sh /usr/local/bin/v100-entrypoint
 RUN chmod +x /opt/sglang/scripts/smoke_v100.sh /usr/local/bin/v100-entrypoint
 

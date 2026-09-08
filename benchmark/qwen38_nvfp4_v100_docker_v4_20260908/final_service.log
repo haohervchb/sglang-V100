@@ -1,0 +1,19 @@
+mtp natural 1000 {'prefill_tok_s': 10.72, 'decode_tok_s': 0.64, 'round_ms': -0.63}
+mtp natural 8192 {'prefill_tok_s': -0.32, 'decode_tok_s': 2.86, 'round_ms': -0.65}
+mtp natural 25000 {'prefill_tok_s': -0.76, 'decode_tok_s': 1.68, 'round_ms': 0.54}
+mtp natural 70000 {'prefill_tok_s': -0.41, 'decode_tok_s': -0.66, 'round_ms': -0.32}
+mtp random 1000 {'prefill_tok_s': 1.92, 'decode_tok_s': -0.05, 'round_ms': 0.02}
+mtp random 8192 {'prefill_tok_s': -1.0, 'decode_tok_s': -6.97, 'round_ms': -0.28}
+mtp random 25000 {'prefill_tok_s': -0.98, 'decode_tok_s': 13.59, 'round_ms': 0.37}
+mtp random 70000 {'prefill_tok_s': -0.61, 'decode_tok_s': 9.63, 'round_ms': 0.66}
+target random 1000 {'prefill_tok_s': -2.86, 'decode_tok_s': -0.03}
+target random 25000 {'prefill_tok_s': -0.35, 'decode_tok_s': -0.01}
+PARITY REQUIRES INVESTIGATION
+NO REGRESSIONS True
+{'name': 'mtp_natural_1000_prefill_tok_s', 'passed': False, 'delta_percent': 10.718013631447132, 'regression': False}
+qwen38-flash-next-mtp-v4
+response service_final Explain why the sky appears blue in three sentences. identical IDs True
+response service_final Write a Python function that returns the first n Fibonacci numbers. identical IDs True
+response service_final Calculate 37 multiplied by 19 and show the steps. identical IDs True
+response service_final What is the difference between a stack and a queue? Give one use for each. identical IDs True
+SERVICE READY {'container_name': 'qwen38-flash-next-mtp-v4', 'container_id': '2b42e3c1128c37f69c1067282e811f9d46e4f3d401a3d3130922277b40002d7f', 'image_id': 'sha256:aeccb5c5e485f80f41d9952c97c44ecc2edd2bf752f61ced1d198d58e205d830', 'running': True, 'started_at': '2026-09-08T22:08:58.042022421Z', 'api': 'http://127.0.0.1:8082/v1', 'image_tags': ['sglang-v100:v100-qwen38-flash-next-v4', 'sglang-v100:latest'], 'published': False, 'short_response_ids_match': True}

@@ -1,0 +1,37 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from v100-qwen38-flash-next-v4.Dockerfile
+#1 transferring dockerfile: 1.23kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v3@sha256:da2714e969a492464610a1bdf58fcbbc0d2cf587b0633117ca505d13f3e7b617
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 48B done
+#3 DONE 0.0s
+
+#4 [1/4] FROM docker.io/geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v3@sha256:da2714e969a492464610a1bdf58fcbbc0d2cf587b0633117ca505d13f3e7b617
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 36.34MB 0.9s done
+#5 DONE 0.9s
+
+#6 [2/4] COPY python/sglang /opt/sglang/python/sglang
+#6 DONE 2.2s
+
+#7 [3/4] COPY scripts/serve_qwen38_flash_next_nvfp4_v100.sh      scripts/smoke_v100.sh /opt/sglang/scripts/
+#7 DONE 0.0s
+
+#8 [4/4] RUN python -m compileall -q /opt/sglang/python/sglang     && test -f /opt/sglang/python/sglang/jit_kernel/_sm70_marlin_v100_moe.abi3.so     && test -f /opt/sglang/python/sglang/jit_kernel/_sm70_marlin_v100_dense.abi3.so     && bash -n /opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100.sh
+#8 5.898 /opt/sglang/python/sglang/srt/utils/rpd_utils.py:318: SyntaxWarning: invalid escape sequence '\('
+#8 5.898   """
+#8 DONE 6.5s
+
+#9 exporting to image
+#9 exporting layers
+#9 exporting layers 1.1s done
+#9 writing image sha256:aeccb5c5e485f80f41d9952c97c44ecc2edd2bf752f61ced1d198d58e205d830 done
+#9 naming to docker.io/library/sglang-v100:v100-qwen38-flash-next-v4 done
+#9 DONE 1.1s

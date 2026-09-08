@@ -1,0 +1,586 @@
+{
+  "tolerance_fraction": 0.05,
+  "comparisons": [
+    {
+      "mode": "mtp",
+      "scenario": "natural",
+      "input_len": 1000,
+      "host": {
+        "prefill_tok_s": [
+          2971.594021713111,
+          2933.2266239899227
+        ],
+        "decode_tok_s": [
+          117.8057491350979,
+          115.81128045716196
+        ],
+        "round_ms": [
+          21.622575301234875,
+          21.618511355538345
+        ],
+        "lowest_window_tok_s": 109.57082205174498
+      },
+      "docker": {
+        "prefill_tok_s": [
+          3267.0519388870994,
+          3270.64818853489
+        ],
+        "decode_tok_s": [
+          118.5136198627952,
+          116.59449336241495
+        ],
+        "round_ms": [
+          21.493425688465518,
+          21.47329097164435
+        ],
+        "lowest_window_tok_s": 110.27643085636466
+      },
+      "changes_percent": {
+        "prefill_tok_s": 10.718013631447132,
+        "decode_tok_s": 0.6382598201649659,
+        "round_ms": -0.6345122610843967
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "natural",
+      "input_len": 8192,
+      "host": {
+        "prefill_tok_s": [
+          5440.8633906236755,
+          5437.308545642968
+        ],
+        "decode_tok_s": [
+          112.39681910604081,
+          122.58301623010512
+        ],
+        "round_ms": [
+          21.847909141360525,
+          21.810764044189245
+        ],
+        "lowest_window_tok_s": 107.63670158261044
+      },
+      "docker": {
+        "prefill_tok_s": [
+          5425.467068038036,
+          5418.156312966938
+        ],
+        "decode_tok_s": [
+          117.42088139976039,
+          124.28910684285907
+        ],
+        "round_ms": [
+          21.693447121384303,
+          21.681198864131083
+        ],
+        "lowest_window_tok_s": 107.30557432732483
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.31759523074358365,
+        "decode_tok_s": 2.864140617362265,
+        "round_ms": -0.6505630595489476
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "natural",
+      "input_len": 25000,
+      "host": {
+        "prefill_tok_s": [
+          4732.1564649615875,
+          4724.907029906432
+        ],
+        "decode_tok_s": [
+          115.1544788989446,
+          120.5633896224118
+        ],
+        "round_ms": [
+          21.68878709269767,
+          21.66698287216692
+        ],
+        "lowest_window_tok_s": 105.58565277512568
+      },
+      "docker": {
+        "prefill_tok_s": [
+          4693.619644562671,
+          4691.56389157812
+        ],
+        "decode_tok_s": [
+          113.99302710692862,
+          125.68026417888655
+        ],
+        "round_ms": [
+          21.803411632120923,
+          21.785185862924557
+        ],
+        "lowest_window_tok_s": 108.14743992023271
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.7600663648524297,
+        "decode_tok_s": 1.6780326367580312,
+        "round_ms": 0.5370162503619769
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "natural",
+      "input_len": 70000,
+      "host": {
+        "prefill_tok_s": [
+          4616.4945071130505,
+          4643.404710431541
+        ],
+        "decode_tok_s": [
+          113.74938830591843,
+          124.02165381974858
+        ],
+        "round_ms": [
+          22.282787653590006,
+          22.135717646387395
+        ],
+        "lowest_window_tok_s": 111.44996363810888
+      },
+      "docker": {
+        "prefill_tok_s": [
+          4609.103943024598,
+          4612.899435086156
+        ],
+        "decode_tok_s": [
+          114.43760767841836,
+          121.77349208346361
+        ],
+        "round_ms": [
+          22.148780604267575,
+          22.129092267948504
+        ],
+        "lowest_window_tok_s": 108.22966698160975
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.40924678059172104,
+        "decode_tok_s": -0.6560691116290651,
+        "round_ms": -0.31660774447849205
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "random",
+      "input_len": 1000,
+      "host": {
+        "prefill_tok_s": [
+          2653.7756718365868,
+          2391.2451199540274
+        ],
+        "decode_tok_s": [
+          138.76264103499295,
+          120.55217392440127
+        ],
+        "round_ms": [
+          21.45205772853401,
+          21.613861281427997
+        ],
+        "lowest_window_tok_s": 98.30230364980872
+      },
+      "docker": {
+        "prefill_tok_s": [
+          2571.6230781536046,
+          2570.0884054012804
+        ],
+        "decode_tok_s": [
+          137.94774100584783,
+          121.22473319559641
+        ],
+        "round_ms": [
+          21.57878167733332,
+          21.49394678536806
+        ],
+        "lowest_window_tok_s": 98.84720238620531
+      },
+      "changes_percent": {
+        "prefill_tok_s": 1.9165568538708433,
+        "decode_tok_s": -0.05489110137122388,
+        "round_ms": 0.015811697267609226
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "random",
+      "input_len": 8192,
+      "host": {
+        "prefill_tok_s": [
+          5379.385005159295,
+          5398.103013462993
+        ],
+        "decode_tok_s": [
+          154.0192671933681,
+          144.38094102261815
+        ],
+        "round_ms": [
+          21.94230640996647,
+          21.55729131583539
+        ],
+        "lowest_window_tok_s": 119.24145972763935
+      },
+      "docker": {
+        "prefill_tok_s": [
+          5355.4844012984695,
+          5314.546797917536
+        ],
+        "decode_tok_s": [
+          143.26501467235516,
+          134.34366073227775
+        ],
+        "round_ms": [
+          21.725206347112582,
+          21.65409884794038
+        ],
+        "lowest_window_tok_s": 98.00278297666452
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.9970488412569645,
+        "decode_tok_s": -6.967666991808585,
+        "round_ms": -0.27653711077320065
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "random",
+      "input_len": 25000,
+      "host": {
+        "prefill_tok_s": [
+          4708.49637717483,
+          4698.76934749674
+        ],
+        "decode_tok_s": [
+          146.34965438860766,
+          135.7617251370814
+        ],
+        "round_ms": [
+          21.93398652953882,
+          21.612110616897507
+        ],
+        "lowest_window_tok_s": 86.57064784593356
+      },
+      "docker": {
+        "prefill_tok_s": [
+          4666.331546522634,
+          4648.418070630515
+        ],
+        "decode_tok_s": [
+          150.61797217916344,
+          169.82293153854977
+        ],
+        "round_ms": [
+          21.86063491607157,
+          21.84713745030382
+        ],
+        "lowest_window_tok_s": 139.4715798439691
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.983453749752039,
+        "decode_tok_s": 13.586663627843443,
+        "round_ms": 0.3712737318235293
+      }
+    },
+    {
+      "mode": "mtp",
+      "scenario": "random",
+      "input_len": 70000,
+      "host": {
+        "prefill_tok_s": [
+          4625.040732427777,
+          4632.826491626212
+        ],
+        "decode_tok_s": [
+          109.20454813015027,
+          147.26251169082744
+        ],
+        "round_ms": [
+          22.011499609703055,
+          22.004964412920344
+        ],
+        "lowest_window_tok_s": 61.603636547296624
+      },
+      "docker": {
+        "prefill_tok_s": [
+          4605.34168533532,
+          4596.455644891342
+        ],
+        "decode_tok_s": [
+          143.83369972199776,
+          137.32116605523115
+        ],
+        "round_ms": [
+          22.178607369578042,
+          22.127511402238305
+        ],
+        "lowest_window_tok_s": 116.33622668787136
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.6056459060208241,
+        "decode_tok_s": 9.626111818603157,
+        "round_ms": 0.658060013735029
+      }
+    },
+    {
+      "mode": "target",
+      "scenario": "random",
+      "input_len": 1000,
+      "host": {
+        "prefill_tok_s": [
+          2775.3136769868506,
+          2792.884965704957
+        ],
+        "decode_tok_s": [
+          74.296664277712,
+          74.2718961789603
+        ],
+        "lowest_window_tok_s": 73.898534689218
+      },
+      "docker": {
+        "prefill_tok_s": [
+          2684.557899321311,
+          2724.161244880511
+        ],
+        "decode_tok_s": [
+          74.2697245904421,
+          74.25944989421079
+        ],
+        "lowest_window_tok_s": 73.90121654253592
+      },
+      "changes_percent": {
+        "prefill_tok_s": -2.8641129514892616,
+        "decode_tok_s": -0.026510300630455674
+      }
+    },
+    {
+      "mode": "target",
+      "scenario": "random",
+      "input_len": 25000,
+      "host": {
+        "prefill_tok_s": [
+          4896.590921530555,
+          4881.28961196448
+        ],
+        "decode_tok_s": [
+          73.56163507026002,
+          73.54815611705136
+        ],
+        "lowest_window_tok_s": 73.52791628584883
+      },
+      "docker": {
+        "prefill_tok_s": [
+          4882.556359343738,
+          4860.9688554500135
+        ],
+        "decode_tok_s": [
+          73.55568067987129,
+          73.53932193003531
+        ],
+        "lowest_window_tok_s": 73.5098364137024
+      },
+      "changes_percent": {
+        "prefill_tok_s": -0.35135752153644395,
+        "decode_tok_s": -0.010052748552913382
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "mtp_natural_1000_prefill_tok_s",
+      "passed": false,
+      "delta_percent": 10.718013631447132,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_1000_decode_tok_s",
+      "passed": true,
+      "delta_percent": 0.6382598201649659,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_1000_round_ms",
+      "passed": true,
+      "delta_percent": -0.6345122610843967,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_8192_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.31759523074358365,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_8192_decode_tok_s",
+      "passed": true,
+      "delta_percent": 2.864140617362265,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_8192_round_ms",
+      "passed": true,
+      "delta_percent": -0.6505630595489476,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_25000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.7600663648524297,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_25000_decode_tok_s",
+      "passed": true,
+      "delta_percent": 1.6780326367580312,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_25000_round_ms",
+      "passed": true,
+      "delta_percent": 0.5370162503619769,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_70000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.40924678059172104,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_70000_decode_tok_s",
+      "passed": true,
+      "delta_percent": -0.6560691116290651,
+      "regression": false
+    },
+    {
+      "name": "mtp_natural_70000_round_ms",
+      "passed": true,
+      "delta_percent": -0.31660774447849205,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_1000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": 1.9165568538708433,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_1000_round_ms",
+      "passed": true,
+      "delta_percent": 0.015811697267609226,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_8192_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.9970488412569645,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_8192_round_ms",
+      "passed": true,
+      "delta_percent": -0.27653711077320065,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_25000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.983453749752039,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_25000_round_ms",
+      "passed": true,
+      "delta_percent": 0.3712737318235293,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_70000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.6056459060208241,
+      "regression": false
+    },
+    {
+      "name": "mtp_random_70000_round_ms",
+      "passed": true,
+      "delta_percent": 0.658060013735029,
+      "regression": false
+    },
+    {
+      "name": "target_random_1000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -2.8641129514892616,
+      "regression": false
+    },
+    {
+      "name": "target_random_1000_decode_tok_s",
+      "passed": true,
+      "delta_percent": -0.026510300630455674,
+      "regression": false
+    },
+    {
+      "name": "target_random_25000_prefill_tok_s",
+      "passed": true,
+      "delta_percent": -0.35135752153644395,
+      "regression": false
+    },
+    {
+      "name": "target_random_25000_decode_tok_s",
+      "passed": true,
+      "delta_percent": -0.010052748552913382,
+      "regression": false
+    },
+    {
+      "name": "mtp_server_config",
+      "passed": true,
+      "differences": []
+    },
+    {
+      "name": "host_mtp_completed_and_responses",
+      "passed": true,
+      "details": {
+        "completed": true,
+        "short_response_ids_match_before": true,
+        "short_response_ids_match_after": true
+      }
+    },
+    {
+      "name": "docker_mtp_completed_and_responses",
+      "passed": true,
+      "details": {
+        "completed": true,
+        "short_response_ids_match_before": true,
+        "short_response_ids_match_after": true
+      }
+    },
+    {
+      "name": "target_server_config",
+      "passed": true,
+      "differences": []
+    },
+    {
+      "name": "host_target_completed_and_responses",
+      "passed": true,
+      "details": {
+        "completed": true,
+        "short_response_ids_match_before": true,
+        "short_response_ids_match_after": true
+      }
+    },
+    {
+      "name": "docker_target_completed_and_responses",
+      "passed": true,
+      "details": {
+        "completed": true,
+        "short_response_ids_match_before": true,
+        "short_response_ids_match_after": true
+      }
+    },
+    {
+      "name": "application_source_matches",
+      "passed": true,
+      "files_checked": 3083
+    }
+  ],
+  "passed": false,
+  "no_regression_over_tolerance": true
+}

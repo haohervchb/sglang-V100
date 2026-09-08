@@ -1,0 +1,254 @@
+[
+  {
+    "suite": "docker_mtp_before_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_before_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_before_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_before_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_after_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_after_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_after_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_mtp_after_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_before_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_before_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_before_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_before_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_after_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_after_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_after_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "docker_target_after_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_before_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_before_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_before_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_before_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_after_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_after_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_after_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_mtp_after_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_before_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_before_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_before_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_before_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_after_responses",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_after_responses",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_after_responses",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "host_target_after_responses",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "service_final",
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "service_final",
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "service_final",
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  },
+  {
+    "suite": "service_final",
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": true,
+    "identical_text": true,
+    "max_logprob_error": 0.0
+  }
+]

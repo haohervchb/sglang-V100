@@ -1,0 +1,9 @@
+SGLang V100 environment is ready: 2.9.1+cu128
+FlashInfer SM70 sampling: /opt/deps/flashinfer-sm70/flashinfer/sampling.py
+Attention: SGLang TileLang SM70 package
+SM70 kernel: /opt/venv/lib/python3.12/site-packages/sgl_kernel/sm70/common_ops.abi3.so
+SM70 Marlin repack: registered
+SM70 TurboMind FP8: registered
+SM70 TurboMind FP16 MoE: registered
+SM70 TurboMind exact AWQ dequantizer: registered
+NCCL: 2.27.5

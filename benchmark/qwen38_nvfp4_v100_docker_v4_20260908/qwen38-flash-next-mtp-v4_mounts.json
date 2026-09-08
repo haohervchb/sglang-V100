@@ -1,0 +1,1 @@
+[{"Type":"volume","Name":"sglang-v100-jit-v4","Source":"/var/lib/docker/volumes/sglang-v100-jit-v4/_data","Destination":"/root/sglang-v100-jit","Driver":"local","Mode":"z","RW":true,"Propagation":""},{"Type":"bind","Source":"/home/rah/.cache/huggingface","Destination":"/root/.cache/huggingface","Mode":"ro","RW":false,"Propagation":"rprivate"}]
