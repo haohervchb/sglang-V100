@@ -1,0 +1,23 @@
+Rechecking MTP throughput on corrected image
+qwen38-v4-mm-mtp
+Isolated main target launched 244347
+Isolated main target ready
+{"name": "image_color", "passed": true, "text": " Red", "elapsed_s": 1.1455082100001164}
+{"name": "image_swap_without_flush", "passed": true, "text": " Blue", "elapsed_s": 1.0453398990212008}
+{"name": "image_repeat_without_flush", "passed": true, "text": " Red", "elapsed_s": 0.5175883790361695}
+{"name": "image_followup", "passed": true, "text": "Square", "elapsed_s": 0.3463071639998816}
+{"name": "ocr", "passed": false, "text": "V10 CHECK 4827", "error": "AssertionError: V10 CHECK 4827", "elapsed_s": 0.8185709060053341}
+{"name": "chart", "passed": true, "text": "BETA 7", "elapsed_s": 1.1041853769565932}
+{"name": "multiple_images", "passed": true, "text": "red, blue", "elapsed_s": 0.7322294320329092}
+{"name": "image_streaming", "passed": true, "text": "On the left is a red circle, and on the right is a blue square.", "elapsed_s": 0.6620107350172475}
+{"name": "image_chunked_prefill", "passed": true, "text": "Blue", "elapsed_s": 2.3899216660065576}
+{"name": "video_order", "passed": true, "text": "red, green, blue", "elapsed_s": 0.6286714790039696}
+{"name": "video_reversed_without_flush", "passed": true, "text": "blue, green, red", "elapsed_s": 0.5785563520039432}
+{"name": "text_after_multimodal", "passed": true, "text": "42", "elapsed_s": 0.27004279696848243}
+Main baseline suite exit 1
+qwen38-v4-mm-mtp
+Restoring validated Docker MTP service
+{"name": "image_color", "passed": true, "text": " Red", "elapsed_s": 1.1653939239913598}
+{"name": "video_order", "passed": true, "text": "red, green, blue", "elapsed_s": 0.5728929180186242}
+{"name": "text_after_multimodal", "passed": true, "text": "42", "elapsed_s": 0.4965666269999929}
+Docker service restored and final checks passed

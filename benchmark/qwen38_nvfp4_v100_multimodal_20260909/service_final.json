@@ -1,0 +1,48 @@
+{
+  "checked_at_utc": "2026-09-09T05:15:29.459498+00:00",
+  "container_name": "/qwen38-flash-next-mtp-v4",
+  "container_id": "62801361fdd236d7e9671c0f95207c9038de078215c8ebada285956a770e5d3a",
+  "image_id": "sha256:4373c93d636ff83fba0e06eb0c88c10edee07621d7ba505eef8f51d9c84601af",
+  "image_tags": [
+    "sglang-v100:latest",
+    "sglang-v100:v100-qwen38-flash-next-v4",
+    "sglang-v100:v100-qwen38-flash-next-v4-mm"
+  ],
+  "state": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 246911,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-09-08T22:49:18.9368219Z",
+    "FinishedAt": "2026-09-08T22:42:56.109807825Z"
+  },
+  "mounts": [
+    {
+      "Type": "bind",
+      "Source": "/home/rah/.cache/huggingface",
+      "Destination": "/root/.cache/huggingface",
+      "Mode": "ro",
+      "RW": false,
+      "Propagation": "rprivate"
+    },
+    {
+      "Type": "volume",
+      "Name": "sglang-v100-jit-v4",
+      "Source": "/var/lib/docker/volumes/sglang-v100-jit-v4/_data",
+      "Destination": "/root/sglang-v100-jit",
+      "Driver": "local",
+      "Mode": "z",
+      "RW": true,
+      "Propagation": ""
+    }
+  ],
+  "api": "http://127.0.0.1:8082/v1",
+  "health_status": 200,
+  "application_source_revision": "3b9bf5b0b043c8978b5a40cf3ffb113dc4724c2c",
+  "final_image_video_text_checks_passed": true
+}

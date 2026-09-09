@@ -1,0 +1,227 @@
+[
+  {
+    "file": "ffmpeg_7%3a6.1.1-3ubuntu5_amd64.deb",
+    "package_version": "Package: ffmpeg\nVersion: 7:6.1.1-3ubuntu5",
+    "sha256": "1a23baace5f2688a47e28119aedae6993cd638e6279a7227dfc52d9a337a1c17"
+  },
+  {
+    "file": "libass9_1%3a0.17.1-2build1_amd64.deb",
+    "package_version": "Package: libass9\nVersion: 1:0.17.1-2build1",
+    "sha256": "a3dd7b4e6fa05d0d6607739b3c1f60a305f2fb78d9f6e8b8e38d10d0b4fc4052"
+  },
+  {
+    "file": "libavdevice60_7%3a6.1.1-3ubuntu5_amd64.deb",
+    "package_version": "Package: libavdevice60\nVersion: 7:6.1.1-3ubuntu5",
+    "sha256": "62c55a1209332142eb01488894b3443060e59b44940189469ac7f8fbe03406ca"
+  },
+  {
+    "file": "libavfilter9_7%3a6.1.1-3ubuntu5_amd64.deb",
+    "package_version": "Package: libavfilter9\nVersion: 7:6.1.1-3ubuntu5",
+    "sha256": "083b800aaf4fd1de817fb8dc12995e6a277c3500159c4a0fa21d36a76b6208ea"
+  },
+  {
+    "file": "libavformat60_7%3a6.1.1-3ubuntu5_amd64.deb",
+    "package_version": "Package: libavformat60\nVersion: 7:6.1.1-3ubuntu5",
+    "sha256": "3a855488d50b4ebe04425e5f690e00ebd65d70e60f85c9765d5823a2f82b4969"
+  },
+  {
+    "file": "libblas3_3.12.0-3build1.1_amd64.deb",
+    "package_version": "Package: libblas3\nVersion: 3.12.0-3build1.1",
+    "sha256": "1b0ef0ad0893ff77bf7d5ab75723771788e16137ea1efde557dbac7b7b83a758"
+  },
+  {
+    "file": "libbluray2_1%3a1.3.4-1build1_amd64.deb",
+    "package_version": "Package: libbluray2\nVersion: 1:1.3.4-1build1",
+    "sha256": "2cfb2a7e4b6170efcfb96e0dbe3e9321b648acc43883ab4e7c248216de18ea6f"
+  },
+  {
+    "file": "libbs2b0_3.1.0+dfsg-7build1_amd64.deb",
+    "package_version": "Package: libbs2b0\nVersion: 3.1.0+dfsg-7build1",
+    "sha256": "67d8af009d520e0b6f63e39d6d04d8c02e681f89858fb301b808a6c356068e2c"
+  },
+  {
+    "file": "libchromaprint1_1.5.1-5_amd64.deb",
+    "package_version": "Package: libchromaprint1\nVersion: 1.5.1-5",
+    "sha256": "ff766f8382fff4e5d3b267e4cb93f31e1805ebbb9a619cc8c805b9a2355baeea"
+  },
+  {
+    "file": "libcjson1_1.7.17-1_amd64.deb",
+    "package_version": "Package: libcjson1\nVersion: 1.7.17-1",
+    "sha256": "43d758e214612877ec9029f2384bdbb0a6eeba6e74bb2cd3e7a60f4108947c41"
+  },
+  {
+    "file": "libdc1394-25_2.2.6-4build1_amd64.deb",
+    "package_version": "Package: libdc1394-25\nVersion: 2.2.6-4build1",
+    "sha256": "0f4a0768152636f2f941d3a29d24925be77f869b3d90a13f1694fef792a89810"
+  },
+  {
+    "file": "libfftw3-double3_3.3.10-1ubuntu3_amd64.deb",
+    "package_version": "Package: libfftw3-double3\nVersion: 3.3.10-1ubuntu3",
+    "sha256": "ff9396076103b305efe741e9acff11d52a040c6d95527c0f2dbd11e82a11bab8"
+  },
+  {
+    "file": "libflite1_2.2-6build3_amd64.deb",
+    "package_version": "Package: libflite1\nVersion: 2.2-6build3",
+    "sha256": "367f1d0da5cd38759a0515eafc27aa133b2d7bf99308cac34831df0212e96b75"
+  },
+  {
+    "file": "libgfortran5_14.2.0-4ubuntu2~24.04.1_amd64.deb",
+    "package_version": "Package: libgfortran5\nVersion: 14.2.0-4ubuntu2~24.04.1",
+    "sha256": "2b05896c477275ad3473bb63a5ac5a5b8a7e4a6ad6ed7cb23c442ccd1abc28f5"
+  },
+  {
+    "file": "libgme0_0.6.3-7build1_amd64.deb",
+    "package_version": "Package: libgme0\nVersion: 0.6.3-7build1",
+    "sha256": "a54fa608501f87f9e5064b60c75fc1bb62735c9f9ba9f7680cb804bb5eae2027"
+  },
+  {
+    "file": "liblapack3_3.12.0-3build1.1_amd64.deb",
+    "package_version": "Package: liblapack3\nVersion: 3.12.0-3build1.1",
+    "sha256": "05ced5049d4fd393e0ae6dc71211e7c07ed0c85e8099649d679cf4b5a1aed59b"
+  },
+  {
+    "file": "liblilv-0-0_0.24.22-1build1_amd64.deb",
+    "package_version": "Package: liblilv-0-0\nVersion: 0.24.22-1build1",
+    "sha256": "5fd6b6861a021e8148c9086d36b70eea28a503dd4c2f2b922f56789d2967d0ad"
+  },
+  {
+    "file": "libmbedcrypto7t64_2.28.8-1_amd64.deb",
+    "package_version": "Package: libmbedcrypto7t64\nVersion: 2.28.8-1",
+    "sha256": "1f0b795a2274f68edddaf2567d738fcee43383c2c4ba802d54ba3b710bbb3228"
+  },
+  {
+    "file": "libmysofa1_1.3.2+dfsg-2ubuntu2_amd64.deb",
+    "package_version": "Package: libmysofa1\nVersion: 1.3.2+dfsg-2ubuntu2",
+    "sha256": "a3b5bb4bcc6ce996700f0120722b1c10af08e9dd1e0d497782edcea90079d4af"
+  },
+  {
+    "file": "libnorm1t64_1.5.9+dfsg-3.1build1_amd64.deb",
+    "package_version": "Package: libnorm1t64\nVersion: 1.5.9+dfsg-3.1build1",
+    "sha256": "0ff2047ae4ccf2d1b5f338922f98a8652344ee1c0f18dc80a419753d06582cc6"
+  },
+  {
+    "file": "libopenal-data_1%3a1.23.1-4build1_all.deb",
+    "package_version": "Package: libopenal-data\nVersion: 1:1.23.1-4build1",
+    "sha256": "0de2f2b7a29fa337432fa044ce6c238bc511b83dac14d68a32673d9803cbab83"
+  },
+  {
+    "file": "libopenal1_1%3a1.23.1-4build1_amd64.deb",
+    "package_version": "Package: libopenal1\nVersion: 1:1.23.1-4build1",
+    "sha256": "1781774a540ab7c9baccc41b49592e3b427c5820c64e390af4868d6a861ef8c7"
+  },
+  {
+    "file": "libopenmpt0t64_0.7.3-1.1build3_amd64.deb",
+    "package_version": "Package: libopenmpt0t64\nVersion: 0.7.3-1.1build3",
+    "sha256": "512814f1ebdf8fe31b8185826ba08f7933998b7a7ac1599fac39717dbaaae6ff"
+  },
+  {
+    "file": "libpgm-5.3-0t64_5.3.128~dfsg-2.1build1_amd64.deb",
+    "package_version": "Package: libpgm-5.3-0t64\nVersion: 5.3.128~dfsg-2.1build1",
+    "sha256": "9382625866a207b3da34f541799d10203a5693e5928c8d08f6d10be1c545d0a5"
+  },
+  {
+    "file": "libplacebo338_6.338.2-2build1_amd64.deb",
+    "package_version": "Package: libplacebo338\nVersion: 6.338.2-2build1",
+    "sha256": "9c173df229673887df3cce7d4a26de15f7477a62cd1391f9a88c346018ecad1f"
+  },
+  {
+    "file": "libpocketsphinx3_0.8.0+real5prealpha+1-15ubuntu5_amd64.deb",
+    "package_version": "Package: libpocketsphinx3\nVersion: 0.8.0+real5prealpha+1-15ubuntu5",
+    "sha256": "26987384225666ec8d065fa05e484be9cd5967e28ac3bda20d1f818617e2b930"
+  },
+  {
+    "file": "libpostproc57_7%3a6.1.1-3ubuntu5_amd64.deb",
+    "package_version": "Package: libpostproc57\nVersion: 7:6.1.1-3ubuntu5",
+    "sha256": "f0984bf6bff85dc29a44f650841b01a0594775f628b7a4bf5dd45d85d82cb2a7"
+  },
+  {
+    "file": "librabbitmq4_0.11.0-1ubuntu0.2_amd64.deb",
+    "package_version": "Package: librabbitmq4\nVersion: 0.11.0-1ubuntu0.2",
+    "sha256": "37a300e68d3de6e60c98969d561adf718e3eddc388a0b4d922ce15f391fe3a22"
+  },
+  {
+    "file": "librist4_0.2.10+dfsg-2_amd64.deb",
+    "package_version": "Package: librist4\nVersion: 0.2.10+dfsg-2",
+    "sha256": "c8050889949e75064db8c9c25c7e41d4d2a79be7a60e6537f9d9ab54774495dd"
+  },
+  {
+    "file": "librubberband2_3.3.0+dfsg-2build1_amd64.deb",
+    "package_version": "Package: librubberband2\nVersion: 3.3.0+dfsg-2build1",
+    "sha256": "96ebaf773ad933a5269859cb3b09488b7b0b58387ebfbd7b7c469dd2b32d5d8b"
+  },
+  {
+    "file": "libsdl2-2.0-0_2.30.0+dfsg-1ubuntu3.1_amd64.deb",
+    "package_version": "Package: libsdl2-2.0-0\nVersion: 2.30.0+dfsg-1ubuntu3.1",
+    "sha256": "a2e733f1339272f22cf7777d454b5d4f71e27335d89d4c99cf41e1ce1bb5c462"
+  },
+  {
+    "file": "libserd-0-0_0.32.2-1_amd64.deb",
+    "package_version": "Package: libserd-0-0\nVersion: 0.32.2-1",
+    "sha256": "5ede35e66656c136b6a803aebeac92b2c061ec4d147820a730dd9c2a1315f57a"
+  },
+  {
+    "file": "libsndio7.0_1.9.0-0.3build3_amd64.deb",
+    "package_version": "Package: libsndio7.0\nVersion: 1.9.0-0.3build3",
+    "sha256": "b3944745ee48ea2c7a851fb78a617d34bb731a2f956a2c213cc9dffcaba35382"
+  },
+  {
+    "file": "libsord-0-0_0.16.16-2build1_amd64.deb",
+    "package_version": "Package: libsord-0-0\nVersion: 0.16.16-2build1",
+    "sha256": "a330fa014ee2eb48053395fb91fa39d95ca910e582d515254f50ef944240303c"
+  },
+  {
+    "file": "libsphinxbase3t64_0.8+5prealpha+1-17build2_amd64.deb",
+    "package_version": "Package: libsphinxbase3t64\nVersion: 0.8+5prealpha+1-17build2",
+    "sha256": "80c184d04290cd1a55d6abac7c4b9f15bbf736e43a410857f992eba16b005a4c"
+  },
+  {
+    "file": "libsratom-0-0_0.6.16-1build1_amd64.deb",
+    "package_version": "Package: libsratom-0-0\nVersion: 0.6.16-1build1",
+    "sha256": "a103c98906a7587718dabd52dfcd0af2dff6ff567781100bc8cf07de05bfc30d"
+  },
+  {
+    "file": "libsrt1.5-gnutls_1.5.3-1build2_amd64.deb",
+    "package_version": "Package: libsrt1.5-gnutls\nVersion: 1.5.3-1build2",
+    "sha256": "77bf75aaa74be9552d5a3b05349d15dc6e00f3a854a12ad0dfffea0df3bd6523"
+  },
+  {
+    "file": "libssh-gcrypt-4_0.10.6-2ubuntu0.5_amd64.deb",
+    "package_version": "Package: libssh-gcrypt-4\nVersion: 0.10.6-2ubuntu0.5",
+    "sha256": "ae5179eb5b44c5e258d5bec75dca8578064c0a0956dd0402762e65c8a7b9e208"
+  },
+  {
+    "file": "libswscale7_7%3a6.1.1-3ubuntu5_amd64.deb",
+    "package_version": "Package: libswscale7\nVersion: 7:6.1.1-3ubuntu5",
+    "sha256": "2c17ae58b35112aace5179d7deea51faa20e82e04847b257f339376b11744e22"
+  },
+  {
+    "file": "libudfread0_1.1.2-1build1_amd64.deb",
+    "package_version": "Package: libudfread0\nVersion: 1.1.2-1build1",
+    "sha256": "9340c4bdb5954ed98a81eb7979c25187d0c4d95b633cac29eefe1f5b31c05162"
+  },
+  {
+    "file": "libunibreak5_5.1-2build1_amd64.deb",
+    "package_version": "Package: libunibreak5\nVersion: 5.1-2build1",
+    "sha256": "62576c95652b6c0a02e3d0fe9e2da6d0666c375d71c43da9d884c77417956ae4"
+  },
+  {
+    "file": "libvidstab1.1_1.1.0-2build1_amd64.deb",
+    "package_version": "Package: libvidstab1.1\nVersion: 1.1.0-2build1",
+    "sha256": "345caabe592ee7733c2142bdfb3fe18a97da4ee7372f57d574b698d58e3fd431"
+  },
+  {
+    "file": "libzimg2_3.0.5+ds1-1build1_amd64.deb",
+    "package_version": "Package: libzimg2\nVersion: 3.0.5+ds1-1build1",
+    "sha256": "6c3d3e87277ff906011da1ceac5e44057df3710a53df3eab59675b02eea1ff12"
+  },
+  {
+    "file": "libzix-0-0_0.4.2-2build1_amd64.deb",
+    "package_version": "Package: libzix-0-0\nVersion: 0.4.2-2build1",
+    "sha256": "3bd3271411e9f25d03e16ca430da9551200b28e854ba9b606f819c23a4dc4992"
+  },
+  {
+    "file": "libzmq5_4.3.5-1build2_amd64.deb",
+    "package_version": "Package: libzmq5\nVersion: 4.3.5-1build2",
+    "sha256": "fff197d2a164e3ec83fef23afd55bad93971b3327d7353db9a305a199d55d402"
+  }
+]

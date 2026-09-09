@@ -1,5 +1,12 @@
 # Qwen3.8 NVFP4: Docker v4 versus the optimized host
 
+September 9 follow-up: image/video validation found missing FFmpeg shared
+libraries. The v4 Dockerfile now installs them. The rebuilt image, current
+service and additional validation are recorded in the
+[multimodal report](../qwen38_nvfp4_v100_multimodal_20260909/README.md).
+The measurements and image/service identifiers below describe the original
+text-validation run; application source is unchanged by the dependency fix.
+
 The Docker and fresh host benchmarks are complete, measured September 8–9,
 2026. **Docker target-only decode matches the host within 0.03%; prose/code
 MTP per-context mean decode rates match within 2.9%.** Estimated MTP round

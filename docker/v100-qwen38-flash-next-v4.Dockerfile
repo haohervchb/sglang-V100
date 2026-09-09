@@ -13,6 +13,12 @@ ENV SGLANG_SM70_DENSE_GEMV=1 \
     CXX=/usr/bin/g++-12 \
     MAX_JOBS=2
 
+# TorchCodec's wheel requires the FFmpeg shared libraries for video input.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -c 'from torchcodec.decoders import VideoDecoder'
+
 COPY python/sglang /opt/sglang/python/sglang
 COPY scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
      scripts/smoke_v100.sh /opt/sglang/scripts/

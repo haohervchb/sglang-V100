@@ -188,7 +188,9 @@ docker volume create sglang-v100-jit
 ### Build and serve the optimized Qwen3.8 Docker v4 image
 
 The v4 overlay packages the September 8 target-only and MTP optimizations on
-the pinned v3 native SM70 stack. Build the local image from this checkout:
+the pinned v3 native SM70 stack. It includes FFmpeg shared libraries for video
+decoding. See the [image/video validation and baseline comparison](benchmark/qwen38_nvfp4_v100_multimodal_20260909/README.md).
+Build the local image from this checkout:
 
 ```bash
 docker build --network=host \

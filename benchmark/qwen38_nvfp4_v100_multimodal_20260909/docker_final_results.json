@@ -1,0 +1,232 @@
+{
+  "tag": "docker_final",
+  "fixtures": {
+    "chart.png": "0c0b3594f82f8c54b81335e6e515e1e35d04e5dc5474d2b1e2f9af92b026afcf",
+    "forward.mp4": "db91571d0e6e155540c32e85f197f29a0b3f53d29f42b72c5d470473fdeac529",
+    "ocr.png": "94646155b6d367d512e6c48103f7bd2b1a237597993fc9b2c40cc4daf2e2a371",
+    "reverse.mp4": "44f99aa70d1a949f31e9ed6a77a625c6a133dd25192ed55b00aed35b51f16d3a",
+    "scene_a.png": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029",
+    "scene_b.png": "0cebb6e4b071c277b95ddeee5385cb86e940ef878275cebbb377ea4c0b6e2e58"
+  },
+  "cases": [
+    {
+      "name": "image_color",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "What color is the circle? Reply with only the color name."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "red",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "69a4d94f04d443fca7a4f5b46927fcb9",
+        "object": "chat.completion",
+        "created": 1788907976,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": " Red",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 411,
+          "total_tokens": 413,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": " Red",
+      "usage": {
+        "prompt_tokens": 411,
+        "total_tokens": 413,
+        "completion_tokens": 2,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 1.1653939239913598
+    },
+    {
+      "name": "video_order",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "video_url",
+                "video_url": {
+                  "url": {
+                    "decoded_sha256": "db91571d0e6e155540c32e85f197f29a0b3f53d29f42b72c5d470473fdeac529"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "List the three background colors in chronological order, separated by commas. Output only the three color names."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "red green blue",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "79266f49e2f44e31ad8ba0a2dcec738b",
+        "object": "chat.completion",
+        "created": 1788907976,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "red, green, blue",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 264,
+          "total_tokens": 270,
+          "completion_tokens": 6,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "red, green, blue",
+      "usage": {
+        "prompt_tokens": 264,
+        "total_tokens": 270,
+        "completion_tokens": 6,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.5728929180186242
+    },
+    {
+      "name": "text_after_multimodal",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is 19 + 23? Output only the number."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "42",
+      "flushed_cache": false,
+      "status_code": 200,
+      "response": {
+        "id": "9488cd0615094b13b57cc9a045d61186",
+        "object": "chat.completion",
+        "created": 1788907977,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 27,
+          "total_tokens": 30,
+          "completion_tokens": 3,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "42",
+      "usage": {
+        "prompt_tokens": 27,
+        "total_tokens": 30,
+        "completion_tokens": 3,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.4965666269999929
+    }
+  ],
+  "passed": true,
+  "health_status": 200
+}

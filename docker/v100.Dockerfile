@@ -18,7 +18,7 @@ ENV CUDA_HOME=/usr/local/cuda \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-      build-essential ca-certificates cmake curl git g++-12 libnuma-dev \
+      build-essential ca-certificates cmake curl ffmpeg git g++-12 libnuma-dev \
       ninja-build patch pkg-config protobuf-compiler python3.12 python3.12-dev \
       python3-pip python3-venv \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python \
