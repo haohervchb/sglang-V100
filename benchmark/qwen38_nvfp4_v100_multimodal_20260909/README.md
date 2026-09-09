@@ -17,10 +17,13 @@ not reported as a complete ground-truth pass.
 The initial Docker run additionally failed both video requests. Installing
 FFmpeg fixes those HTTP 500 failures. The rebuilt image passes the native
 V100 smoke script, and three further image/video/text checks pass after
-restarting the final MTP container. The local image is tagged
-`sglang-v100:v100-qwen38-flash-next-v4` and `sglang-v100:latest`; container
-`qwen38-flash-next-mtp-v4` serves `http://127.0.0.1:8082/v1`. It has not been
-pushed to a registry. [Service record](service_final.json).
+restarting the final MTP container. The validated image is published as
+`geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4` and
+`geesegeesegeese/sglang-v100:latest`, both at manifest digest
+`sha256:9aa44672321e21e38e6727a218cd67710e683c195fc2fc713f482e85e2d61735`.
+The registry image configuration digest matches the validated image ID below.
+Container `qwen38-flash-next-mtp-v4` serves `http://127.0.0.1:8082/v1`.
+[Publication verification](publication.json), [service record](service_final.json).
 
 The dependency fix also preserves text decode performance:
 

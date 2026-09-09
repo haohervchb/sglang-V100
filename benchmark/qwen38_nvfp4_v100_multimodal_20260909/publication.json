@@ -1,0 +1,26 @@
+{
+  "verified_at_utc": "2026-09-09T05:42:13.432385+00:00",
+  "validated_application_revision": "3b9bf5b0b043c8978b5a40cf3ffb113dc4724c2c",
+  "merged_main_commit": "3915136bc7",
+  "registry_matches_validated_image": true,
+  "tags": [
+    {
+      "tag": "geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4",
+      "manifest_digest": "sha256:9aa44672321e21e38e6727a218cd67710e683c195fc2fc713f482e85e2d61735",
+      "image_config_digest": "sha256:4373c93d636ff83fba0e06eb0c88c10edee07621d7ba505eef8f51d9c84601af",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      }
+    },
+    {
+      "tag": "geesegeesegeese/sglang-v100:latest",
+      "manifest_digest": "sha256:9aa44672321e21e38e6727a218cd67710e683c195fc2fc713f482e85e2d61735",
+      "image_config_digest": "sha256:4373c93d636ff83fba0e06eb0c88c10edee07621d7ba505eef8f51d9c84601af",
+      "platform": {
+        "architecture": "amd64",
+        "os": "linux"
+      }
+    }
+  ]
+}
