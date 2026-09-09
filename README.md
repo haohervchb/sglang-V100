@@ -4,14 +4,16 @@ SGLang serving commands and measured performance for SM70 V100 GPUs.
 
 [Performance](#current-v100-performance) · [Install](#install-on-the-host) ·
 [Docker](#docker) · [Latest models](#latest-model-serving-guides) ·
-[Older models](#older-model-serving-guides)
+[Older models](#older-model-serving-guides) · [Attribution](#references-and-attribution)
 
 **Docker image:** [geesegeesegeese/sglang-v100](https://hub.docker.com/r/geesegeesegeese/sglang-v100/tags)
 
 ## Current V100 performance
 
-All currently documented model checkpoints are listed below. Unless a row says
-otherwise, LLM results use TP4, one cold request, and 256 greedy output tokens.
+Models are grouped newest to oldest by when V100 serving support was added
+here, with configurations kept together. All current rows are retained. Unless
+a row says otherwise, LLM results use TP4, one cold request, and 256 greedy
+output tokens.
 Prefill is the exact input length divided by client time to first token; decode
 excludes that first-token time. The measurements came from separate tuning
 runs, so treat this as a practical reference rather than a perfectly controlled
@@ -22,7 +24,6 @@ configuration has no comparable retained end-to-end benchmark.
 
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, Docker v4; 2K output | 2,704 tok/s | 74.265 tok/s | 4,872 tok/s | 73.548 tok/s | Fresh host decode matched within 0.03%; [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md) |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | MTP-3/4, E5M2 KV, Docker v4; prose/code, 1K output | 3,269 tok/s | 117.55 tok/s | 4,693 tok/s | 119.84 tok/s | 1K–70K mean decode within 2.9% of fresh host; individual requests 114–126 tok/s; [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md) |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, optimized host source | 2,444 tok/s | 73.46 tok/s | 4,865 tok/s | 71.96 tok/s | **25K→8K: 71.83 decode tok/s; slowest 256-token window: 71.71.** [Source benchmark and limits](benchmark/qwen38_nvfp4_v100_70tps_20260907/README.md); source changes are included in Docker v4 |
@@ -32,13 +33,14 @@ configuration has no comparable retained end-to-end benchmark.
 | `Qwen/Qwen3.8-27B-FP8` | DFlash2-8, E5M2 KV | 1,803 tok/s | 136.6 tok/s | 2,701 tok/s | 102.3 tok/s | 118.1 tok/s warm short decode; **cold 150K: 134; cold 200K: 112 tok/s**; 79.2 tok/s at 70K (warm); [docker 1K/25K runs](benchmark/qwen38_27b_fp8_dflash2_e5m2_v100_20260821/README.md)‡ |
 | `Qwen/Qwen3.8-27B` | DFlash2-8, FP16 KV | 2,094 tok/s | 86.7 tok/s | 2,992 tok/s | 68.6 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dflash2_v100_20260821/README.md) |
 | `Qwen/Qwen3.8-27B` | DSpark-7, FP16 KV | 2,020 tok/s | 73.6 tok/s | 3,001 tok/s | 74.5 tok/s | [docker 1K/25K runs](benchmark/qwen38_27b_fp16_dspark_v100_20260821/README.md) |
+| `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
 | `Qwen/Qwen3.6-27B-FP8` | DFlash-16, FP16 KV | 2,774 tok/s | 154.0 tok/s | 3,128 tok/s | 126.2 tok/s | [13-point TP2/TP4 sweep](benchmark/qwen36_27b_fp8_tp_scaling_20260802/README.md) |
-| `Qwen/Qwen3.6-27B` | FP16, DFlash-16 | 3,261 tok/s | 101.2 tok/s | 3,631 tok/s | 86.6 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
+| `poolside/Laguna-S-2.1-INT4` | Marlin, DFlash-8 | 3,334 tok/s† | 77.3 tok/s | 4,327 tok/s† | 67.0 tok/s | [Context sweep](benchmark/dflash_v100_20260716/README.md) and [Laguna tuning](https://github.com/haohervchb/sglang-V100/commit/491bb6095a) |
 | `Qwen/Qwen3.6-35B-A3B` | FP16, DFlash-16 | 4,240 tok/s | 150.1 tok/s | 12,258 tok/s | 136.4 tok/s | [35B optimization results](https://github.com/haohervchb/sglang-V100/commit/7b8615f26e) |
+| `Qwen/Qwen3.6-27B` | FP16, DFlash-16 | 3,261 tok/s | 101.2 tok/s | 3,631 tok/s | 86.6 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
 | `QuantTrio/Qwen3.6-35B-A3B-AWQ` | AWQ target/DFlash | — | — | — | — | Supported; comparable run not retained |
 | `Qwen/Qwen3.5-122B-A10B-GPTQ-Int4` | GPTQ-Marlin, DFlash-16 | 3,426 tok/s | 109.2 tok/s | 4,718 tok/s | 81.9 tok/s | [Audited context sweep](benchmark/dflash_v100_20260716/README.md) |
 | `QuantTrio/Qwen3.5-122B-A10B-AWQ` | AWQ-Marlin target only | — | — | — | — | Supported; comparable run not retained |
-| `poolside/Laguna-S-2.1-INT4` | Marlin, DFlash-8 | 3,334 tok/s† | 77.3 tok/s | 4,327 tok/s† | 67.0 tok/s | [Context sweep](benchmark/dflash_v100_20260716/README.md) and [Laguna tuning](https://github.com/haohervchb/sglang-V100/commit/491bb6095a) |
 
 Target-only and MTP modes are also supported where commands are provided
 below. †Laguna prefill comes from the retained DFlash sweep; its later Marlin
@@ -55,21 +57,6 @@ than the standard 256-token output. Its 1K prefill and decode columns are
 derived from TTFT and mean TPOT. The 25K-input columns are empty because that
 validation did not rerun a 25K-prompt point. The c4 figures are aggregate output
 throughput for four exact 8,192-input/1,024-output requests.
-
-## Older model serving guides
-
-Each guide keeps the model's target-only, speculative and Docker examples
-where available. The performance table above retains all measured models.
-
-| Model checkpoint | Serving guide |
-| --- | --- |
-| `Qwen/Qwen3.6-27B-FP8` | [Target-only, DFlash and Docker](docs/v100/models/qwen36-27b-fp8.md) |
-| `Qwen/Qwen3.6-27B` | [FP16 target-only, DFlash and MTP](docs/v100/models/qwen36-27b.md) |
-| `Qwen/Qwen3.6-35B-A3B` | [FP16 target-only and DFlash](docs/v100/models/qwen36-35b-a3b.md) |
-| `QuantTrio/Qwen3.6-35B-A3B-AWQ` | [AWQ target-only and DFlash](docs/v100/models/qwen36-35b-a3b-awq.md) |
-| `Qwen/Qwen3.5-122B-A10B-GPTQ-Int4` | [GPTQ target-only, DFlash and MTP](docs/v100/models/qwen35-122b-a10b-gptq-int4.md) |
-| `QuantTrio/Qwen3.5-122B-A10B-AWQ` | [AWQ target-only](docs/v100/models/qwen35-122b-a10b-awq.md) |
-| `poolside/Laguna-S-2.1-INT4` | [Target-only and DFlash](docs/v100/models/laguna-s-2-1-int4.md) |
 
 ## Install on the host
 
@@ -393,6 +380,21 @@ curl -sS -L "http://127.0.0.1:30010/v1/videos/$video_id/content" \
 For W8A16 with DiT offload, first/last-frame requests and reference-media
 generation, see the [full MiniMax-H3 guide](docs/v100/models/minimax-h3.md).
 
+## Older model serving guides
+
+Each guide keeps the model's target-only, speculative and Docker examples
+where available. The performance table above retains all measured models.
+
+| Model checkpoint | Serving guide |
+| --- | --- |
+| `Qwen/Qwen3.6-27B-FP8` | [Target-only, DFlash and Docker](docs/v100/models/qwen36-27b-fp8.md) |
+| `poolside/Laguna-S-2.1-INT4` | [Target-only and DFlash](docs/v100/models/laguna-s-2-1-int4.md) |
+| `Qwen/Qwen3.6-35B-A3B` | [FP16 target-only and DFlash](docs/v100/models/qwen36-35b-a3b.md) |
+| `Qwen/Qwen3.6-27B` | [FP16 target-only, DFlash and MTP](docs/v100/models/qwen36-27b.md) |
+| `QuantTrio/Qwen3.6-35B-A3B-AWQ` | [AWQ target-only and DFlash](docs/v100/models/qwen36-35b-a3b-awq.md) |
+| `Qwen/Qwen3.5-122B-A10B-GPTQ-Int4` | [GPTQ target-only, DFlash and MTP](docs/v100/models/qwen35-122b-a10b-gptq-int4.md) |
+| `QuantTrio/Qwen3.5-122B-A10B-AWQ` | [AWQ target-only](docs/v100/models/qwen35-122b-a10b-awq.md) |
+
 ## OpenAI-compatible chat request
 
 This example targets the Flash Next host launcher above. Use the model name
@@ -411,5 +413,24 @@ curl -sS http://127.0.0.1:30000/v1/chat/completions \
 
 ## References and attribution
 
-See [upstream projects, licenses and pinned revisions](docs/v100/references.md)
-for the framework, kernel, toolchain and model sources used by this fork.
+<!-- Keep the full references and attribution in this main README. -->
+
+The following upstream projects were used as code dependencies, algorithmic
+references, performance references, or model assets for the V100 work in this
+repository. The relationship column states which kind of use applies.
+
+| Work in this repository | Upstream project | Relationship | License / revision |
+| --- | --- | --- | --- |
+| SGLang serving runtime and model integration | [sgl-project/sglang](https://github.com/sgl-project/sglang) | Framework this V100 fork is based on. | Apache-2.0 |
+| TileLang attention, FP8-KV bridge, GDN, and fused normalization kernels | [tile-ai/tilelang](https://github.com/tile-ai/tilelang) | Kernel language, compiler, and runtime; host and Docker currently install `tilelang==0.1.8`. | MIT / `0.1.8` |
+| SM70 long-context attention and FP8 optimization campaign | [1CatAI/1Cat-vLLM](https://github.com/1CatAI/1Cat-vLLM/tree/6ada86ed64af6d1a7b3cb0f34df237fd86f06d48) | Performance and design reference for D=256 paged attention, dense-KV gathering, K-axis splitting, FP8 E5M2 KV conversion, and long-context decode. | Apache-2.0 / `6ada86e` |
+| Chunked GDN / gated-delta-rule algorithm | [QwenLM/FlashQLA](https://github.com/QwenLM/FlashQLA/tree/v0.1.2) | Algorithm and API reference for chunk-64 KKT solving, gating, recurrent-state propagation, and variable-length GDN prefill. | MIT / `v0.1.2` |
+| GDN utility and correctness-reference operators | [fla-org/flash-linear-attention](https://github.com/fla-org/flash-linear-attention) | Source of the adapted FLA utilities already carried under `python/sglang/srt/layers/attention/fla`; also used as the numerical reference for the SM70 GDN path. | MIT |
+| TurboMind GEMM and MoE kernel lineage | [InternLM/lmdeploy](https://github.com/InternLM/lmdeploy) | Original TurboMind project and kernel architecture. | Apache-2.0 |
+| SM70 TurboMind FP8, AWQ, and FP16-MoE build source | [1CatAI/1Cat-vLLM](https://github.com/1CatAI/1Cat-vLLM/tree/6ada86ed64af6d1a7b3cb0f34df237fd86f06d48/csrc/sm70_turbomind) | Pinned sparse source snapshot used to build the current SGLang TurboMind adapter; its embedded TurboMind sources derive from LMDeploy. | Apache-2.0 / `6ada86e` |
+| SM70 Marlin GPTQ/AWQ dense and MoE kernels | [zhinianqin/marlin_v100](https://github.com/zhinianqin/marlin_v100/tree/6d72a49939701d26b15b617a4cd2423174adb2d1) | Native extension built by `scripts/setup_v100_marlin.sh`, with the compatibility and Qwen tuning patches in this repository. | Apache-2.0 / `6d72a49` |
+| QPN8 SM70 W8A16 decode kernel | [dnv2003/v100-skinny](https://github.com/dnv2003/v100-skinny) | Kernel architecture adapted for Qwen3.8 block-wise scales; this repository adds its own word-parallel FP8 decoder and paired gate/up SiLU epilogue. | MIT |
+| FlashInfer sampling and remaining SM70-compatible runtime operations | [haohervchb/flashinfer](https://github.com/haohervchb/flashinfer/tree/c3c40a7b90b792fc59f90f8f55c9e2de9c1b6833), derived from [flashinfer-ai/flashinfer](https://github.com/flashinfer-ai/flashinfer) | Pinned source dependency with this repository's reduced SM70 compatibility patch. | Apache-2.0 / `c3c40a7` |
+| Tensor-core templates used by TurboMind and Marlin builds | [NVIDIA/CUTLASS](https://github.com/NVIDIA/cutlass) | Header/template build dependency. TurboMind uses `da5e086`; Marlin uses CUTLASS `v4.2.1`. | BSD-3-Clause |
+| Qwen3.8 DFlash2 speculative decoding | [z-lab/Qwen3.8-27B-DFlash2](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2) | Draft checkpoint, published block configuration, and model contract used by the DFlash2 integration and benchmarks. | Apache-2.0 / model revision `ac04198` |
+| Qwen3.8 DSpark speculative decoding | [RadixArk/Qwen3.8-27B-DSpark](https://huggingface.co/RadixArk/Qwen3.8-27B-DSpark) | Draft checkpoint and model configuration used by the DSpark serving path and benchmarks. | See model card |
