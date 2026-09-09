@@ -16,8 +16,8 @@ both the environment and the server arguments.
   excludes the first generated token.
 
 The complete server command is the
-[Qwen3.8-27B-FP8 target-only command](../../README.md#qwen38-27b-fp8-target-only)
-in the top-level README.
+[Qwen3.8-27B-FP8 target-only command](../../docs/v100/models/qwen38-27b.md#qwen38-27b-fp8-target-only)
+in the model's serving guide.
 
 ## Cold-cache protocol
 
