@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import os
 import time
 from typing import List, Optional, Tuple
 
@@ -37,7 +38,10 @@ from sglang.srt.speculative.adaptive_runtime_state import (
     SpecRuntimeState,
 )
 from sglang.srt.speculative.base_spec_worker import BaseDraftWorker, BaseSpecWorker
-from sglang.srt.speculative.draft_utils import DraftBackendFactory
+from sglang.srt.speculative.draft_utils import (
+    DraftBackendFactory,
+    qsa_draft_extend_graph_backend,
+)
 from sglang.srt.speculative.eagle_draft_cuda_graph_runner import (
     EAGLEDraftCudaGraphRunner,
 )
@@ -325,6 +329,23 @@ class EagleDraftWorker(BaseDraftWorker):
                 self.draft_attn_backend, AiterMultiStepDraftBackend
             )
 
+        qsa_graph_backend = None
+        if (
+            _is_cuda
+            and torch.cuda.get_device_capability() == (7, 0)
+            and os.environ.get("SGLANG_SM70_QSA_DRAFT_EXTEND_GRAPH", "1") == "1"
+            and self.draft_runner.model_config.hf_config.architectures
+            == ["Qwen4ExpForCausalLMMTP"]
+        ):
+            qsa_graph_backend = qsa_draft_extend_graph_backend(
+                self.draft_extend_attn_backend, self.topk
+            )
+            if qsa_graph_backend is not None:
+                # The MTP model contains only full attention. Capture through
+                # QSA directly: the hybrid wrapper's linear backend has no
+                # DRAFT_EXTEND_V2 metadata and is not used by this forward.
+                self.draft_extend_attn_backend = qsa_graph_backend
+
         draft_extend_type = type(self.draft_extend_attn_backend)
         optional_mla_backend_type = (
             draft_extend_type.__module__,
@@ -345,6 +366,7 @@ class EagleDraftWorker(BaseDraftWorker):
         supports_cuda_draft_extend_graph = (_is_cuda or _is_musa) and (
             isinstance(self.draft_extend_attn_backend, TritonAttnBackend)
             or optional_mla_backend_type
+            or qsa_graph_backend is not None
         )
         # Capture extend
         # TODO: support draft extend cuda graph for more attention backends

@@ -18,7 +18,7 @@ ENV CUDA_HOME=/usr/local/cuda \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-      build-essential ca-certificates cmake curl git g++-12 libnuma-dev \
+      build-essential ca-certificates cmake curl ffmpeg git g++-12 libnuma-dev \
       ninja-build patch pkg-config protobuf-compiler python3.12 python3.12-dev \
       python3-pip python3-venv \
     && ln -sf /usr/bin/python3.12 /usr/local/bin/python \
@@ -225,6 +225,8 @@ FROM base AS runtime
 ENV NCCL_P2P_LEVEL=NVL \
     SGLANG_MAMBA_CONV_DTYPE=float16 \
     SGLANG_MAMBA_SSM_DTYPE=float16 \
+    SGLANG_SM70_DENSE_GEMV=1 \
+    SGLANG_SM70_QWEN_FUSIONS=1 \
     HF_HOME=/root/.cache/huggingface \
     FLASHINFER_WORKSPACE_BASE=/root/sglang-v100-jit \
     TILELANG_CACHE_DIR=/root/sglang-v100-jit/tilelang \
@@ -235,7 +237,7 @@ ENV NCCL_P2P_LEVEL=NVL \
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /opt/deps/flashinfer-sm70 /opt/deps/flashinfer-sm70
 COPY --from=builder /opt/sglang/python /opt/sglang/python
-COPY scripts/smoke_v100.sh /opt/sglang/scripts/smoke_v100.sh
+COPY scripts/smoke_v100.sh scripts/serve_qwen38_flash_next_nvfp4_v100.sh /opt/sglang/scripts/
 COPY docker/v100-entrypoint.sh /usr/local/bin/v100-entrypoint
 RUN chmod +x /opt/sglang/scripts/smoke_v100.sh /usr/local/bin/v100-entrypoint
 

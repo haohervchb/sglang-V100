@@ -1,0 +1,21 @@
+............................                                             [100%]
+=============================== warnings summary ===============================
+../miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464
+  /home/rah/miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+python/sglang/srt/layers/attention/fla/utils.py:223
+  /home/rah/sglang-V100/python/sglang/srt/layers/attention/fla/utils.py:223: UserWarning: Triton is not supported on current platform, roll back to CPU.
+    warnings.warn(
+
+registered/unit/layers/attention/test_qwen_sparse_sm70_routing.py::test_dense_prefill_retains_mtp_seed_indices[False-False]
+  /home/rah/sglang-V100/python/sglang/srt/layers/quantization/awq/awq.py:55: UserWarning: Only CUDA, HIP and XPU support AWQ currently.
+    warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+
+registered/unit/layers/attention/test_qwen_sparse_sm70_routing.py::test_dense_prefill_retains_mtp_seed_indices[False-False]
+  /home/rah/sglang-V100/python/sglang/srt/layers/quantization/gguf.py:64: UserWarning: Only CUDA, MUSA and NPU support GGUF quantization currently.
+    warnings.warn(f"Only CUDA, MUSA and NPU support GGUF quantization currently.")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+28 passed, 4 warnings in 12.53s

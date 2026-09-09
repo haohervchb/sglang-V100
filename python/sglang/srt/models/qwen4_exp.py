@@ -1480,6 +1480,10 @@ class Qwen4ExpAttentionDecoderLayer(
             get_qsa_indexer_metadata,
             resolve_qsa_sparse_backend,
         )
+        from sglang.srt.layers.attention.qsa.qsa_indexer import QSAIndexer
+        from sglang.srt.layers.attention.qwen_sparse_attn_backend import (
+            use_sm70_qsa_dense_prefill,
+        )
 
         backend = get_attn_backend()
         sparse_backend = resolve_qsa_sparse_backend(backend)
@@ -1493,16 +1497,27 @@ class Qwen4ExpAttentionDecoderLayer(
         indexer_metadata = get_qsa_indexer_metadata(
             backend, self.layer_id, forward_batch
         )
+        should_capture = getattr(
+            sparse_backend, "should_capture_mtp_sparse_indices", None
+        )
+        capture_indices = should_capture is not None and should_capture(forward_batch)
+        indexer_kwargs = {}
+        if (
+            isinstance(self.indexer, QSAIndexer)
+            and not capture_indices
+            and use_sm70_qsa_dense_prefill(forward_batch, hidden_states.device)
+        ):
+            # MTP draft prefill seeds sparse selections for its next decode;
+            # it needs the indices even when this attention pass is dense.
+            indexer_kwargs["skip_prefill_selection"] = True
         topk_indices = self.indexer(
             hidden_states,
             positions,
             forward_batch,
             indexer_metadata,
+            **indexer_kwargs,
         )
-        should_capture = getattr(
-            sparse_backend, "should_capture_mtp_sparse_indices", None
-        )
-        if should_capture is not None and should_capture(forward_batch):
+        if capture_indices:
             sparse_backend.capture_mtp_sparse_indices(
                 topk_indices, forward_batch, self.layer_id, metadata=indexer_metadata
             )

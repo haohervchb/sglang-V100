@@ -4,6 +4,7 @@ import msgspec
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from sglang.srt.layers.hc_mix_triton import (
     fused_hc_mix,
     fused_hc_mix_supported,
@@ -247,16 +248,28 @@ class GatedResidual(HyperConnectionBase):
             hyper_input_normed = self.hc_norm(
                 hyper_input.unflatten(-1, (self.hc_count, self.hidden_size))
             ).flatten(-2)
+        gate_partials = None
         if sm70_hc_down_gemv_silu_supported(
             hyper_input_normed,
             self.input_mix_weight_down.weight,
             self.input_mix_weight_up.weight,
         ):
-            activated_mix_weight_down_out = sm70_hc_down_gemv_silu(
-                hyper_input_normed,
-                self.input_mix_weight_down.weight,
-                self.hc_count,
-            )
+            from sglang.jit_kernel.sm70_hc_mix import gate_supported, hc_down_with_gate
+
+            if getattr(self, "_split_combine_ok", False) and gate_supported(
+                hyper_input_normed, self.block_inject_weight.weight
+            ):
+                activated_mix_weight_down_out, gate_partials = hc_down_with_gate(
+                    hyper_input_normed,
+                    self.input_mix_weight_down.weight,
+                    self.block_inject_weight.weight,
+                )
+            else:
+                activated_mix_weight_down_out = sm70_hc_down_gemv_silu(
+                    hyper_input_normed,
+                    self.input_mix_weight_down.weight,
+                    self.hc_count,
+                )
             mixed_input = sm70_hc_up_gemv_reduce(
                 activated_mix_weight_down_out,
                 hyper_input_normed,
@@ -306,9 +319,15 @@ class GatedResidual(HyperConnectionBase):
                 self.hc_count,
                 self.hidden_size,
             ).to(self.params_dtype)
+        if gate_partials is not None:
+            return mixed_input, (hyper_input, hyper_input_normed, gate_partials)
         return mixed_input, (hyper_input, hyper_input_normed)
 
     def combine(self, block_output: torch.Tensor, residuals) -> torch.Tensor:
+        if len(residuals) == 3:
+            from sglang.jit_kernel.sm70_hc_mix import hc_apply_gate
+
+            return hc_apply_gate(block_output, residuals[0], residuals[2])
         hyper_input, hyper_input_normed = residuals
         assert hyper_input.shape[-1] == self.hc_count * self.hidden_size
         assert block_output.shape[-1] == self.hidden_size

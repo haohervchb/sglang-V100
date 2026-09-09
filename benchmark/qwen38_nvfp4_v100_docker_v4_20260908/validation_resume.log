@@ -1,0 +1,6 @@
+RUN docker_target
+DONE docker_target
+RUN host_mtp
+DONE host_mtp
+RUN host_target
+DONE host_target

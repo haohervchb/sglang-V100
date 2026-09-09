@@ -1,0 +1,74 @@
+{
+  "pass1": {
+    "runs": 3,
+    "median_prefill_tok_s": 4872.0955835528985,
+    "median_decode_tok_s": 63.20626699921233,
+    "min_decode_tok_s": 63.120485790239975,
+    "max_decode_tok_s": 63.21860574283448,
+    "min_window_tok_s": 63.09235254104167,
+    "max_window_tok_s": 63.24267561550937
+  },
+  "gemv": {
+    "runs": 3,
+    "median_prefill_tok_s": 4903.587888986381,
+    "median_decode_tok_s": 67.6457251610263,
+    "min_decode_tok_s": 67.58931266347798,
+    "max_decode_tok_s": 67.66718262324923,
+    "min_window_tok_s": 67.56060592561197,
+    "max_window_tok_s": 67.68386936725477
+  },
+  "fused": {
+    "runs": 3,
+    "median_prefill_tok_s": 4922.074648371568,
+    "median_decode_tok_s": 69.662435971048,
+    "min_decode_tok_s": 69.58215527901305,
+    "max_decode_tok_s": 69.68915412599465,
+    "min_window_tok_s": 69.55763305013106,
+    "max_window_tok_s": 69.70600547073883
+  },
+  "nocopy": {
+    "runs": 3,
+    "median_prefill_tok_s": 4906.079234878735,
+    "median_decode_tok_s": 70.03614940309059,
+    "min_decode_tok_s": 69.94241071402388,
+    "max_decode_tok_s": 70.04094838284651,
+    "min_window_tok_s": 69.8965010165846,
+    "max_window_tok_s": 70.08396568840071
+  },
+  "final70": {
+    "runs": 3,
+    "median_prefill_tok_s": 4900.833516699102,
+    "median_decode_tok_s": 70.10844901477137,
+    "min_decode_tok_s": 70.05535133545142,
+    "max_decode_tok_s": 70.15054866306255,
+    "min_window_tok_s": 70.01600963307442,
+    "max_window_tok_s": 70.18112417185056
+  },
+  "hc_tuned": {
+    "runs": 3,
+    "median_prefill_tok_s": 4928.9307704732455,
+    "median_decode_tok_s": 70.07032454359624,
+    "min_decode_tok_s": 69.9781755036867,
+    "max_decode_tok_s": 70.08490560172416,
+    "min_window_tok_s": 69.92364959052333,
+    "max_window_tok_s": 70.10570340747024
+  },
+  "pairs_ple": {
+    "runs": 3,
+    "median_prefill_tok_s": 4893.439092333453,
+    "median_decode_tok_s": 70.06686308292996,
+    "min_decode_tok_s": 69.9889274305797,
+    "max_decode_tok_s": 70.06805447212247,
+    "min_window_tok_s": 69.97256495984647,
+    "max_window_tok_s": 70.10255196637134
+  },
+  "qsa_merge": {
+    "runs": 3,
+    "median_prefill_tok_s": 4876.302263133232,
+    "median_decode_tok_s": 71.9769830930908,
+    "min_decode_tok_s": 71.87447948794983,
+    "max_decode_tok_s": 71.996786844831,
+    "min_window_tok_s": 71.82449468092972,
+    "max_window_tok_s": 72.01633090508699
+  }
+}

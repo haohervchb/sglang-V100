@@ -393,10 +393,25 @@ class Qwen2MoeSparseMoeBlock(nn.Module):
                         shared_output,
                     )
                 else:
-                    shared_output = (
-                        F.sigmoid(self.shared_expert_gate(hidden_states))
-                        * shared_output
+                    from sglang.jit_kernel.sm70_qwen_fusions import (
+                        gate,
+                        gate_supported,
                     )
+
+                    if gate_supported(
+                        hidden_states,
+                        self.shared_expert_gate.weight,
+                        shared_output,
+                        self.shared_expert_gate.bias,
+                    ):
+                        shared_output = gate(
+                            hidden_states, self.shared_expert_gate.weight, shared_output
+                        )
+                    else:
+                        shared_output = (
+                            F.sigmoid(self.shared_expert_gate(hidden_states))
+                            * shared_output
+                        )
 
         return shared_output
 
@@ -458,7 +473,12 @@ class Qwen2MoeSparseMoeBlock(nn.Module):
     ) -> torch.Tensor:
         current_stream = torch.cuda.current_stream()
         self.alt_stream.wait_stream(current_stream)
-        shared_output = self._forward_shared_experts(hidden_states.clone())
+        shared_input = (
+            hidden_states
+            if getattr(self.experts.quant_method, "preserves_input", False)
+            else hidden_states.clone()
+        )
+        shared_output = self._forward_shared_experts(shared_input)
 
         with torch.cuda.stream(self.alt_stream):
             router_output = self._forward_router_experts(hidden_states)

@@ -1,0 +1,32 @@
+launched target cbf59fab78e1ca5fe757c2f7573bc4c4d2017ef475f17bee981beda4a6c4c7f0
+ready target
+{"name": "image_color", "passed": true, "text": " Red", "elapsed_s": 1.1346699349815026}
+{"name": "image_swap_without_flush", "passed": true, "text": " Blue", "elapsed_s": 1.052503352984786}
+{"name": "image_repeat_without_flush", "passed": true, "text": " Red", "elapsed_s": 0.6227575599914417}
+{"name": "image_followup", "passed": true, "text": "Square", "elapsed_s": 0.34295160498004407}
+{"name": "ocr", "passed": false, "text": "V10 CHECK 4827", "error": "AssertionError: V10 CHECK 4827", "elapsed_s": 0.7909181190188974}
+{"name": "chart", "passed": true, "text": "BETA 7", "elapsed_s": 1.0935430690296926}
+{"name": "multiple_images", "passed": true, "text": "red, blue", "elapsed_s": 0.6774974390282296}
+{"name": "image_streaming", "passed": true, "text": "On the left is a red circle, and on the right is a blue square.", "elapsed_s": 0.5739784660399891}
+{"name": "image_chunked_prefill", "passed": true, "text": "Blue", "elapsed_s": 2.183381693030242}
+{"name": "video_order", "passed": true, "text": "red, green, blue", "elapsed_s": 1.202638246002607}
+{"name": "video_reversed_without_flush", "passed": true, "text": "blue, green, red", "elapsed_s": 0.56550889700884}
+{"name": "text_after_multimodal", "passed": true, "text": "42", "elapsed_s": 0.2696351089980453}
+suite exit target 1
+qwen38-v4-mm-target
+launched mtp 62801361fdd236d7e9671c0f95207c9038de078215c8ebada285956a770e5d3a
+ready mtp
+{"name": "image_color", "passed": true, "text": " Red", "elapsed_s": 1.1655323519953527}
+{"name": "image_swap_without_flush", "passed": true, "text": " Blue", "elapsed_s": 1.0763283830019645}
+{"name": "image_repeat_without_flush", "passed": true, "text": " Red", "elapsed_s": 0.6418996420106851}
+{"name": "image_followup", "passed": true, "text": "Square", "elapsed_s": 0.3635417609475553}
+{"name": "ocr", "passed": false, "text": "V10 CHECK 4827", "error": "AssertionError: V10 CHECK 4827", "elapsed_s": 0.7520636059925891}
+{"name": "chart", "passed": true, "text": "BETA 7", "elapsed_s": 1.0788915400044061}
+{"name": "multiple_images", "passed": true, "text": "red, blue", "elapsed_s": 0.7152774339774624}
+{"name": "image_streaming", "passed": true, "text": "On the left is a red circle, and on the right is a blue square.", "elapsed_s": 0.474254997971002}
+{"name": "image_chunked_prefill", "passed": true, "text": "Blue", "elapsed_s": 2.257959246984683}
+{"name": "video_order", "passed": true, "text": "red, green, blue", "elapsed_s": 0.60247620602604}
+{"name": "video_reversed_without_flush", "passed": true, "text": "blue, green, red", "elapsed_s": 0.581424797012005}
+{"name": "text_after_multimodal", "passed": true, "text": "42", "elapsed_s": 0.2757753329933621}
+suite exit mtp 1
+all suites finished; Docker MTP left running

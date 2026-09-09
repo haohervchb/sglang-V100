@@ -1,0 +1,15 @@
+{"m": 2, "down_threads": 128, "up_threads": 128, "torch_us": 35.02778385671809, "native_us": 23.537253417278894, "max_error": 6.103515625e-05, "old_max_error": 0.000244140625}
+{"m": 2, "down_threads": 256, "up_threads": 128, "torch_us": 35.02778385671809, "native_us": 22.373326520665387, "max_error": 6.103515625e-05, "old_max_error": 0.000244140625}
+{"m": 2, "down_threads": 256, "up_threads": 256, "torch_us": 35.02778385671809, "native_us": 22.310523878751326, "max_error": 6.103515625e-05, "old_max_error": 0.000244140625}
+{"m": 2, "down_threads": 512, "up_threads": 128, "torch_us": 35.02778385671809, "native_us": 22.930138489072398, "max_error": 6.103515625e-05, "old_max_error": 0.000244140625}
+{"m": 2, "down_threads": 512, "up_threads": 256, "torch_us": 35.02778385671809, "native_us": 22.88851188405288, "max_error": 6.103515625e-05, "old_max_error": 0.000244140625}
+{"m": 4, "down_threads": 128, "up_threads": 128, "torch_us": 32.834775187624594, "native_us": 30.200501247694856, "max_error": 6.103515625e-05, "old_max_error": 0.000244140625}
+{"m": 4, "down_threads": 256, "up_threads": 128, "torch_us": 32.834775187624594, "native_us": 26.70560063727038, "max_error": 0.0001220703125, "old_max_error": 0.000244140625}
+{"m": 4, "down_threads": 256, "up_threads": 256, "torch_us": 32.834775187624594, "native_us": 26.809434645337163, "max_error": 0.0001220703125, "old_max_error": 0.000244140625}
+{"m": 4, "down_threads": 512, "up_threads": 128, "torch_us": 32.834775187624594, "native_us": 29.329424338049073, "max_error": 0.0001220703125, "old_max_error": 0.000244140625}
+{"m": 4, "down_threads": 512, "up_threads": 256, "torch_us": 32.834775187624594, "native_us": 29.670331679359183, "max_error": 0.0001220703125, "old_max_error": 0.000244140625}
+{"m": 8, "down_threads": 128, "up_threads": 128, "torch_us": 33.502910163376356, "native_us": 39.791590762029855, "max_error": 0.0001220703125, "old_max_error": 0.00048828125}
+{"m": 8, "down_threads": 256, "up_threads": 128, "torch_us": 33.502910163376356, "native_us": 44.2904890076188, "max_error": 0.0001220703125, "old_max_error": 0.00048828125}
+{"m": 8, "down_threads": 256, "up_threads": 256, "torch_us": 33.502910163376356, "native_us": 49.38335956395559, "max_error": 0.0001220703125, "old_max_error": 0.00048828125}
+{"m": 8, "down_threads": 512, "up_threads": 128, "torch_us": 33.502910163376356, "native_us": 57.2351045780704, "max_error": 0.0001220703125, "old_max_error": 0.00048828125}
+{"m": 8, "down_threads": 512, "up_threads": 256, "torch_us": 33.502910163376356, "native_us": 63.401312489930525, "max_error": 0.0001220703125, "old_max_error": 0.00048828125}

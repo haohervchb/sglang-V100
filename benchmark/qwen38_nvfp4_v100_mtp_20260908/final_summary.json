@@ -1,0 +1,371 @@
+{
+  "selected_configuration": "mtp34_vector (three draft steps, four verification tokens)",
+  "consistent_120_tok_s_achieved": false,
+  "three_token_configuration_selected": false,
+  "measurement_notes": "TP4 V100 SXM2 32GB, single request; cold inputs, greedy generation, EOS ignored; warmups excluded. Two different prompts per input length, not statistical repetitions. Decode excludes first observed batch. Round time is estimated as mean accepted length / client decode throughput.",
+  "results": {
+    "mtp34_base": [
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 2232.6727232242565,
+        "decode_tok_s": 69.74222439821368,
+        "minimum_window_tok_s": 67.67341088568445,
+        "mean_accepted_tokens_per_round": 2.7379679144385025,
+        "estimated_round_ms": 39.258396732591606
+      },
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 2209.3082899337755,
+        "decode_tok_s": 61.494785249807684,
+        "minimum_window_tok_s": 51.248774388614,
+        "mean_accepted_tokens_per_round": 2.4150943396226414,
+        "estimated_round_ms": 39.2731567369803
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 5287.192981263226,
+        "decode_tok_s": 91.05315634911796,
+        "minimum_window_tok_s": 85.54065617163307,
+        "mean_accepted_tokens_per_round": 3.4478114478114477,
+        "estimated_round_ms": 37.86591905273196
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 5227.623793079486,
+        "decode_tok_s": 79.79211064265432,
+        "minimum_window_tok_s": 62.619424837071584,
+        "mean_accepted_tokens_per_round": 3.011764705882353,
+        "estimated_round_ms": 37.745143995130256
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4620.1569825190745,
+        "decode_tok_s": 76.69444387133956,
+        "minimum_window_tok_s": 67.87449363862079,
+        "mean_accepted_tokens_per_round": 3.0476190476190474,
+        "estimated_round_ms": 39.7371555719427
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4617.5906558208035,
+        "decode_tok_s": 75.81328308140614,
+        "minimum_window_tok_s": 48.72212005112938,
+        "mean_accepted_tokens_per_round": 3.002932551319648,
+        "estimated_round_ms": 39.60958329815614
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4619.875491261544,
+        "decode_tok_s": 103.3451877359173,
+        "minimum_window_tok_s": 102.07160164358942,
+        "mean_accepted_tokens_per_round": 3.9844357976653697,
+        "estimated_round_ms": 38.55463311796366
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4612.336933978378,
+        "decode_tok_s": 82.82499914486583,
+        "minimum_window_tok_s": 67.26275344474672,
+        "mean_accepted_tokens_per_round": 3.170278637770898,
+        "estimated_round_ms": 38.27683272565923
+      }
+    ],
+    "mtp34_vector": [
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 2634.734888489274,
+        "decode_tok_s": 139.02605140649806,
+        "minimum_window_tok_s": 130.10625877891673,
+        "mean_accepted_tokens_per_round": 2.9767441860465116,
+        "estimated_round_ms": 21.41141286781435
+      },
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 2629.4632331447765,
+        "decode_tok_s": 122.05122700913309,
+        "minimum_window_tok_s": 99.52568966937214,
+        "mean_accepted_tokens_per_round": 2.6055979643765905,
+        "estimated_round_ms": 21.34839631052307
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 5274.788734611792,
+        "decode_tok_s": 121.61932212822174,
+        "minimum_window_tok_s": 84.30106755005802,
+        "mean_accepted_tokens_per_round": 2.6189258312020463,
+        "estimated_round_ms": 21.533797305998345
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 5398.323713848006,
+        "decode_tok_s": 137.92903871277733,
+        "minimum_window_tok_s": 93.29531624609452,
+        "mean_accepted_tokens_per_round": 2.9681159420289855,
+        "estimated_round_ms": 21.519151947471872
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4706.507501173269,
+        "decode_tok_s": 148.07905520432934,
+        "minimum_window_tok_s": 130.92203297844975,
+        "mean_accepted_tokens_per_round": 3.220125786163522,
+        "estimated_round_ms": 21.745990894662167
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4692.461119146138,
+        "decode_tok_s": 172.01629216541767,
+        "minimum_window_tok_s": 163.0674427052933,
+        "mean_accepted_tokens_per_round": 3.7372262773722627,
+        "estimated_round_ms": 21.726001824166737
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4602.647941815455,
+        "decode_tok_s": 176.8020922186274,
+        "minimum_window_tok_s": 174.58231955798573,
+        "mean_accepted_tokens_per_round": 3.9844357976653697,
+        "estimated_round_ms": 22.536134882037217
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4620.49654956559,
+        "decode_tok_s": 138.89873516876997,
+        "minimum_window_tok_s": 113.17464854578498,
+        "mean_accepted_tokens_per_round": 3.056716417910448,
+        "estimated_round_ms": 22.006798076284575
+      }
+    ],
+    "mtp34_vector_natural": [
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 2971.077525722777,
+        "decode_tok_s": 118.01806576540386,
+        "minimum_window_tok_s": 113.35489946762182,
+        "mean_accepted_tokens_per_round": 2.5472636815920398,
+        "estimated_round_ms": 21.583675898022992
+      },
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 3156.9800302241206,
+        "decode_tok_s": 115.99105312426518,
+        "minimum_window_tok_s": 109.66776076830776,
+        "mean_accepted_tokens_per_round": 2.5036674816625917,
+        "estimated_round_ms": 21.585005172600056
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 5455.0780063888915,
+        "decode_tok_s": 116.24355263048002,
+        "minimum_window_tok_s": 111.89502859494118,
+        "mean_accepted_tokens_per_round": 2.5346534653465347,
+        "estimated_round_ms": 21.804679984306738
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 5455.047271290926,
+        "decode_tok_s": 118.11629220721959,
+        "minimum_window_tok_s": 105.94130171519578,
+        "mean_accepted_tokens_per_round": 2.5728643216080402,
+        "estimated_round_ms": 21.782467714904957
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4686.709945750846,
+        "decode_tok_s": 108.43719549017851,
+        "minimum_window_tok_s": 105.35817849697234,
+        "mean_accepted_tokens_per_round": 2.3758700696055683,
+        "estimated_round_ms": 21.910102514784775
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4680.7337253020605,
+        "decode_tok_s": 119.05969517151969,
+        "minimum_window_tok_s": 114.61987419921218,
+        "mean_accepted_tokens_per_round": 2.6055979643765905,
+        "estimated_round_ms": 21.884802918594037
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4624.964431690375,
+        "decode_tok_s": 113.88347089428594,
+        "minimum_window_tok_s": 109.43787630407245,
+        "mean_accepted_tokens_per_round": 2.5346534653465347,
+        "estimated_round_ms": 22.256552644934445
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4626.976598667816,
+        "decode_tok_s": 116.93070519020569,
+        "minimum_window_tok_s": 109.76471349866219,
+        "mean_accepted_tokens_per_round": 2.5924050632911393,
+        "estimated_round_ms": 22.170438971305234
+      }
+    ],
+    "mtp23_native_natural": [
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 2988.890529943785,
+        "decode_tok_s": 115.70622261826848,
+        "minimum_window_tok_s": 112.26595138665492,
+        "mean_accepted_tokens_per_round": 2.206896551724138,
+        "estimated_round_ms": 19.073274555034153
+      },
+      {
+        "input_len": 1000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 3009.3903933882884,
+        "decode_tok_s": 121.64502936202061,
+        "minimum_window_tok_s": 113.19755224447685,
+        "mean_accepted_tokens_per_round": 2.311512415349887,
+        "estimated_round_ms": 19.002111532816773
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 5449.95810452437,
+        "decode_tok_s": 114.69487020181587,
+        "minimum_window_tok_s": 109.82817392760747,
+        "mean_accepted_tokens_per_round": 2.2212581344902387,
+        "estimated_round_ms": 19.36667377173658
+      },
+      {
+        "input_len": 8192,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 5443.856948326413,
+        "decode_tok_s": 117.5031729825588,
+        "minimum_window_tok_s": 106.92654587027234,
+        "mean_accepted_tokens_per_round": 2.2755555555555556,
+        "estimated_round_ms": 19.365907301016634
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4683.693768707837,
+        "decode_tok_s": 109.34927007784869,
+        "minimum_window_tok_s": 101.95742963307625,
+        "mean_accepted_tokens_per_round": 2.128898128898129,
+        "estimated_round_ms": 19.468791400093565
+      },
+      {
+        "input_len": 25000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4675.35752581314,
+        "decode_tok_s": 124.78723343679151,
+        "minimum_window_tok_s": 115.92372494775483,
+        "mean_accepted_tokens_per_round": 2.4265402843601898,
+        "estimated_round_ms": 19.44542095798049
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260830,
+        "prefill_tok_s": 4619.9291381407675,
+        "decode_tok_s": 112.97740496284968,
+        "minimum_window_tok_s": 106.23928992837894,
+        "mean_accepted_tokens_per_round": 2.2212581344902387,
+        "estimated_round_ms": 19.66108298575856
+      },
+      {
+        "input_len": 70000,
+        "output_len": 1024,
+        "seed": 20260831,
+        "prefill_tok_s": 4638.659435515249,
+        "decode_tok_s": 119.71867180814837,
+        "minimum_window_tok_s": 111.54207491180591,
+        "mean_accepted_tokens_per_round": 2.327272727272727,
+        "estimated_round_ms": 19.439513420281084
+      }
+    ],
+    "target_vector_regression": [
+      {
+        "input_len": 1000,
+        "output_len": 2048,
+        "seed": 20260830,
+        "prefill_tok_s": 2775.3411670244354,
+        "decode_tok_s": 74.32259072256659,
+        "minimum_window_tok_s": 73.95581107255525
+      },
+      {
+        "input_len": 1000,
+        "output_len": 2048,
+        "seed": 20260831,
+        "prefill_tok_s": 2798.7418548235405,
+        "decode_tok_s": 74.27963498420164,
+        "minimum_window_tok_s": 73.89350727775266
+      },
+      {
+        "input_len": 25000,
+        "output_len": 2048,
+        "seed": 20260830,
+        "prefill_tok_s": 4916.449637513842,
+        "decode_tok_s": 73.58064182936154,
+        "minimum_window_tok_s": 73.56529314331695
+      },
+      {
+        "input_len": 25000,
+        "output_len": 2048,
+        "seed": 20260831,
+        "prefill_tok_s": 4922.79250163048,
+        "decode_tok_s": 73.54863614737323,
+        "minimum_window_tok_s": 73.52696898274405
+      }
+    ]
+  },
+  "median_random_round_cost_reduction_percent": 44.405455984366384
+}

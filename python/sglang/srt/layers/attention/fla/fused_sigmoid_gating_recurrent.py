@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 import torch
@@ -295,6 +296,23 @@ def fused_sigmoid_gating_delta_rule_update(
     HV = v.shape[2]
     N = B if cu_seqlens is None else len(cu_seqlens) - 1
     BK, BV = triton.next_power_of_2(K), min(triton.next_power_of_2(V), 32)
+    if (
+        os.environ.get("SGLANG_SM70_MTP_GDN", "1") == "1"
+        and (B, N, H, HV, K, V) == (1, 1, 4, 12, 128, 128)
+        and T in (2, 4)
+        and q.is_cuda
+        and q.dtype == torch.float16
+        and intermediate_states_buffer is not None
+        and intermediate_states_buffer.dtype == torch.float16
+        and disable_state_update
+        and not is_kda
+        and retrieve_parent_token is None
+        and torch.cuda.get_device_capability(q.device) == (7, 0)
+    ):
+        # BV=32 consumes 254 registers/thread and launches only 48 CTAs.
+        # Eight values expose 192 CTAs without changing the per-key reduction
+        # or the FP16 state store/reload boundary between verified tokens.
+        BV = 8
     NK, NV = triton.cdiv(K, BK), triton.cdiv(V, BV)
     assert NK == 1, "NK > 1 is not supported yet"
     num_stages = 3

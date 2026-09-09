@@ -1,0 +1,1327 @@
+{
+  "tag": "docker_mm_target",
+  "fixtures": {
+    "chart.png": "0c0b3594f82f8c54b81335e6e515e1e35d04e5dc5474d2b1e2f9af92b026afcf",
+    "forward.mp4": "db91571d0e6e155540c32e85f197f29a0b3f53d29f42b72c5d470473fdeac529",
+    "ocr.png": "94646155b6d367d512e6c48103f7bd2b1a237597993fc9b2c40cc4daf2e2a371",
+    "reverse.mp4": "44f99aa70d1a949f31e9ed6a77a625c6a133dd25192ed55b00aed35b51f16d3a",
+    "scene_a.png": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029",
+    "scene_b.png": "0cebb6e4b071c277b95ddeee5385cb86e940ef878275cebbb377ea4c0b6e2e58"
+  },
+  "cases": [
+    {
+      "name": "image_color",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "What color is the circle? Reply with only the color name."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "red",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "f68342a390d5484791e920c6351b5437",
+        "object": "chat.completion",
+        "created": 1788907033,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": " Red",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 411,
+          "total_tokens": 413,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": " Red",
+      "usage": {
+        "prompt_tokens": 411,
+        "total_tokens": 413,
+        "completion_tokens": 2,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 1.1346699349815026
+    },
+    {
+      "name": "image_swap_without_flush",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "0cebb6e4b071c277b95ddeee5385cb86e940ef878275cebbb377ea4c0b6e2e58"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "What color is the circle? Reply with only the color name."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "blue",
+      "flushed_cache": false,
+      "status_code": 200,
+      "response": {
+        "id": "17e2fd20e2954c819c8e73f87ea58483",
+        "object": "chat.completion",
+        "created": 1788907034,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": " Blue",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 411,
+          "total_tokens": 413,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": " Blue",
+      "usage": {
+        "prompt_tokens": 411,
+        "total_tokens": 413,
+        "completion_tokens": 2,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 1.052503352984786
+    },
+    {
+      "name": "image_repeat_without_flush",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "What color is the circle? Reply with only the color name."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "red",
+      "flushed_cache": false,
+      "status_code": 200,
+      "response": {
+        "id": "573d8770220f43b683348ee9cb041543",
+        "object": "chat.completion",
+        "created": 1788907035,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": " Red",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 411,
+          "total_tokens": 413,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": " Red",
+      "usage": {
+        "prompt_tokens": 411,
+        "total_tokens": 413,
+        "completion_tokens": 2,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.6227575599914417
+    },
+    {
+      "name": "image_followup",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "What color is the circle? Reply with only the color name."
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": " Red"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "What shape is on the right? Reply with only the shape name."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "square",
+      "flushed_cache": false,
+      "status_code": 200,
+      "response": {
+        "id": "26e9c031deda44bdb2a8c5428b1b2d9e",
+        "object": "chat.completion",
+        "created": 1788907035,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Square",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 440,
+          "total_tokens": 442,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "Square",
+      "usage": {
+        "prompt_tokens": 440,
+        "total_tokens": 442,
+        "completion_tokens": 2,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.34295160498004407
+    },
+    {
+      "name": "ocr",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "94646155b6d367d512e6c48103f7bd2b1a237597993fc9b2c40cc4daf2e2a371"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "Transcribe the text exactly. Output only the text."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "v100 check 4827",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "a911a39ff72c46e3afe6a816a7ae07c9",
+        "object": "chat.completion",
+        "created": 1788907036,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "V10 CHECK 4827",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 313,
+          "total_tokens": 323,
+          "completion_tokens": 10,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "V10 CHECK 4827",
+      "usage": {
+        "prompt_tokens": 313,
+        "total_tokens": 323,
+        "completion_tokens": 10,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": false,
+      "error": "AssertionError: V10 CHECK 4827",
+      "elapsed_s": 0.7909181190188974
+    },
+    {
+      "name": "chart",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "0c0b3594f82f8c54b81335e6e515e1e35d04e5dc5474d2b1e2f9af92b026afcf"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "Which bar is tallest and what is its value? Reply with only the label and number."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "beta 7",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "cf0eb60ef2364cec8285ddc6ba4a2d29",
+        "object": "chat.completion",
+        "created": 1788907037,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "BETA 7",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 416,
+          "total_tokens": 421,
+          "completion_tokens": 5,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "BETA 7",
+      "usage": {
+        "prompt_tokens": 416,
+        "total_tokens": 421,
+        "completion_tokens": 5,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 1.0935430690296926
+    },
+    {
+      "name": "multiple_images",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029"
+                  }
+                }
+              },
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "0cebb6e4b071c277b95ddeee5385cb86e940ef878275cebbb377ea4c0b6e2e58"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "Give the circle colors in image order, separated by a comma. Output only the two color names."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "red blue",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "6d42a7b6bffa47e9abe191228c6bc935",
+        "object": "chat.completion",
+        "created": 1788907038,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "red, blue",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 804,
+          "total_tokens": 808,
+          "completion_tokens": 4,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "red, blue",
+      "usage": {
+        "prompt_tokens": 804,
+        "total_tokens": 808,
+        "completion_tokens": 4,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.6774974390282296
+    },
+    {
+      "name": "image_streaming",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "1ec25fee34f473b7fd4b1afd917b073cf92faed36df985adc4f78c59dd87e029"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "Describe both shapes, their colors and their left/right positions in one sentence."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        }
+      },
+      "expected": [
+        "red",
+        "circle",
+        "left",
+        "blue",
+        "square",
+        "right"
+      ],
+      "flushed_cache": true,
+      "status_code": 200,
+      "events": [
+        {
+          "elapsed_s": 0.35930689104134217,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "role": "assistant",
+                  "content": ""
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.35936850804137066,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": "On"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.35943520499859005,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " the"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.37267461098963395,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " left"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.38598720502341166,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " is"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.3994128010235727,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " a"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.41268942499300465,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " red"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.42602518503554165,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " circle"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.4393439310370013,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": ","
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.45281038800021634,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " and"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.46606258099200204,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " on"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.47939501103246585,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " the"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.49275039101485163,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " right"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.50602649099892,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " is"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.5193447410129011,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " a"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.5328172410372645,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " blue"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.5460907850065269,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": " square"
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.5595670780166984,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null,
+                  "content": "."
+                },
+                "logprobs": null,
+                "finish_reason": null,
+                "matched_stop": null
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.5737158330157399,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [
+              {
+                "index": 0,
+                "delta": {
+                  "reasoning_content": null
+                },
+                "logprobs": null,
+                "finish_reason": "stop",
+                "matched_stop": 248046
+              }
+            ]
+          }
+        },
+        {
+          "elapsed_s": 0.5737596990074962,
+          "data": {
+            "id": "a36eb0d1d5164d49a6a01f88430e2935",
+            "object": "chat.completion.chunk",
+            "created": 1788907038,
+            "model": "qwen",
+            "choices": [],
+            "usage": {
+              "prompt_tokens": 413,
+              "total_tokens": 431,
+              "completion_tokens": 18,
+              "prompt_tokens_details": null,
+              "reasoning_tokens": 0
+            }
+          }
+        }
+      ],
+      "text": "On the left is a red circle, and on the right is a blue square.",
+      "usage": {
+        "prompt_tokens": 413,
+        "total_tokens": 431,
+        "completion_tokens": 18,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.5739784660399891
+    },
+    {
+      "name": "image_chunked_prefill",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": {
+                    "decoded_sha256": "0cebb6e4b071c277b95ddeee5385cb86e940ef878275cebbb377ea4c0b6e2e58"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. This is unrelated background context. \nNow inspect the image. What color is the circle? Reply with only the color name."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "blue",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "c94a2c4611ee4de3a17c04e205148dbb",
+        "object": "chat.completion",
+        "created": 1788907040,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Blue",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 10017,
+          "total_tokens": 10019,
+          "completion_tokens": 2,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "Blue",
+      "usage": {
+        "prompt_tokens": 10017,
+        "total_tokens": 10019,
+        "completion_tokens": 2,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 2.183381693030242
+    },
+    {
+      "name": "video_order",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "video_url",
+                "video_url": {
+                  "url": {
+                    "decoded_sha256": "db91571d0e6e155540c32e85f197f29a0b3f53d29f42b72c5d470473fdeac529"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "List the three background colors in chronological order, separated by commas. Output only the three color names."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "red green blue",
+      "flushed_cache": true,
+      "status_code": 200,
+      "response": {
+        "id": "6154ccc515fe4477ba26a4ed004fb5bc",
+        "object": "chat.completion",
+        "created": 1788907042,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "red, green, blue",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 264,
+          "total_tokens": 270,
+          "completion_tokens": 6,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "red, green, blue",
+      "usage": {
+        "prompt_tokens": 264,
+        "total_tokens": 270,
+        "completion_tokens": 6,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 1.202638246002607
+    },
+    {
+      "name": "video_reversed_without_flush",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "video_url",
+                "video_url": {
+                  "url": {
+                    "decoded_sha256": "44f99aa70d1a949f31e9ed6a77a625c6a133dd25192ed55b00aed35b51f16d3a"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "List the three background colors in chronological order, separated by commas. Output only the three color names."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "blue green red",
+      "flushed_cache": false,
+      "status_code": 200,
+      "response": {
+        "id": "0f35ab6fd0fa499fb53093716932cd66",
+        "object": "chat.completion",
+        "created": 1788907042,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "blue, green, red",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 264,
+          "total_tokens": 270,
+          "completion_tokens": 6,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "blue, green, red",
+      "usage": {
+        "prompt_tokens": 264,
+        "total_tokens": 270,
+        "completion_tokens": 6,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.56550889700884
+    },
+    {
+      "name": "text_after_multimodal",
+      "request": {
+        "model": "qwen",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is 19 + 23? Output only the number."
+              }
+            ]
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 256,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "stream": false
+      },
+      "expected": "42",
+      "flushed_cache": false,
+      "status_code": 200,
+      "response": {
+        "id": "ad4a5bcf863247a6ac1090580d2163c7",
+        "object": "chat.completion",
+        "created": 1788907042,
+        "model": "qwen",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "42",
+              "reasoning_content": null,
+              "tool_calls": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "matched_stop": 248046
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 27,
+          "total_tokens": 30,
+          "completion_tokens": 3,
+          "prompt_tokens_details": null,
+          "reasoning_tokens": 0
+        },
+        "metadata": {
+          "weight_version": "default"
+        }
+      },
+      "text": "42",
+      "usage": {
+        "prompt_tokens": 27,
+        "total_tokens": 30,
+        "completion_tokens": 3,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "passed": true,
+      "elapsed_s": 0.2696351089980453
+    }
+  ],
+  "passed": false,
+  "health_status": 200
+}

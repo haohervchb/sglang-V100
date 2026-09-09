@@ -1,0 +1,8 @@
+{"op": "gate", "m": 2, "threads": 128, "baseline_us": 10.426422358291898, "candidate_us": 3.754565199506254, "max_error": 0.0}
+{"op": "gate", "m": 2, "threads": 256, "baseline_us": 10.426422358291898, "candidate_us": 3.316229016000774, "max_error": 0.0}
+{"op": "gate", "m": 2, "threads": 512, "baseline_us": 10.426422358291898, "candidate_us": 2.9742938586940104, "max_error": 0.0}
+{"op": "gate_up", "m": 2, "baseline_us": 6.8083501523025385, "candidate_us": 4.589318335948652, "max_error": 0.0}
+{"op": "gate", "m": 4, "threads": 128, "baseline_us": 9.326481134949404, "candidate_us": 3.7291575544558397, "max_error": 0.0}
+{"op": "gate", "m": 4, "threads": 256, "baseline_us": 9.326481134949404, "candidate_us": 3.39511319148977, "max_error": 0.0}
+{"op": "gate", "m": 4, "threads": 512, "baseline_us": 9.326481134949404, "candidate_us": 2.981125944182417, "max_error": 0.0}
+{"op": "gate_up", "m": 4, "baseline_us": 7.711961661495653, "candidate_us": 6.1137242234522695, "max_error": 0.0}

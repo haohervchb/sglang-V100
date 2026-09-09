@@ -11,14 +11,15 @@
 // native half2 FMA; FP32 reductions fuse SwiGLU and route-weighted summation.
 
 #include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
 #include <c10/cuda/CUDAException.h>
+#include <c10/cuda/CUDAGuard.h>
 #include <cuda_fp16.h>
 #include <torch/extension.h>
 
 #include <cfloat>
 #include <climits>
 #include <cstdint>
+#include <cub/block/block_radix_sort.cuh>
 
 namespace sm70_nvfp4_moe {
 
@@ -30,7 +31,9 @@ constexpr int kGateUp = 2 * kIntermediate;
 constexpr int kGroupSize = 16;
 constexpr int kSplitK = 40;
 constexpr int kDownSplitK = 5;
-constexpr int kThreads = 256;
+// At batch one, 256 threads give gate/up only 63 CTAs for 80 Volta SMs.
+// Two warps per CTA expose 250 CTAs without changing the reduction order.
+constexpr int kThreads = 64;
 constexpr float kMarlinScaleCompensation = 1.0f;
 
 __device__ __forceinline__ void warp_argmax(float& value, int& index) {
@@ -154,17 +157,63 @@ void topk10_softmax_kernel(const T* __restrict__ logits,
   }
 }
 
+__global__ void topk10_radix_half(const half* __restrict__ logits,
+                                  float* __restrict__ weights,
+                                  int* __restrict__ ids) {
+  // CUB's stable sort preserves lower-ID ties when the initial blocked order
+  // is expert-ID order. Carry the ID as a 16-bit value instead of adding nine
+  // sort-key bits: three six-bit passes suffice for all FP16 logits.
+  using Sort = cub::BlockRadixSort<uint16_t, 128, 512 / 128, uint16_t, 6>;
+  __shared__ typename Sort::TempStorage temp;
+  logits += blockIdx.x * 512;
+  weights += blockIdx.x * 10;
+  ids += blockIdx.x * 10;
+  uint16_t keys[512 / 128], values[512 / 128];
+#pragma unroll
+  for (int j = 0; j < 512 / 128; ++j) {
+    int id = threadIdx.x * (512 / 128) + j;
+    uint32_t b = __half_as_ushort(logits[id]);
+    if ((b & 0x7fff) == 0) b = 0;
+    uint32_t ordered = (b & 0x8000) ? (~b & 0xffff) : (b ^ 0x8000);
+    keys[j] = ordered;
+    values[j] = id;
+  }
+  Sort(temp).SortDescendingBlockedToStriped(keys, values, 0, 16);
+  if (threadIdx.x < 32) {
+    int id = values[0];
+    float v = __half2float(logits[id]);
+    float mx = __shfl_sync(0xffffffff, v, 0);
+    float w = threadIdx.x < 10 ? __expf(v - mx) : 0.f;
+    float sum = w;
+#pragma unroll
+    for (int s = 16; s > 0; s /= 2) sum += __shfl_down_sync(0xffffffff, sum, s);
+    sum = __shfl_sync(0xffffffff, sum, 0);
+    if (threadIdx.x < 10) {
+      ids[threadIdx.x] = id;
+      weights[threadIdx.x] = w / sum;
+    }
+  }
+}
+
 __device__ __constant__ int kScaleLogicalToStored[8] = {0, 2, 1, 3,
                                                         4, 6, 5, 7};
 
-__device__ __forceinline__ void dequant_fp4x4(uint32_t packed,
-                                               __half2* values) {
-  constexpr uint32_t kMask = 0x70007000u;
-  uint32_t out1 = (packed & 0x80008000u) | ((packed & kMask) >> 3);
-  packed <<= 4;
-  uint32_t out2 = (packed & 0x80008000u) | ((packed & kMask) >> 3);
-  values[1] = *reinterpret_cast<__half2*>(&out1);
-  values[0] = *reinterpret_cast<__half2*>(&out2);
+__device__ __forceinline__ void dequant_fp4x8(uint32_t packed,
+                                              __half2* values) {
+  // Expand even/odd nibbles once, then interleave zero bytes into four half2
+  // values with native PRMT instructions. This preserves the original packed
+  // column order and Marlin's scaled FP4 representation bit for bit.
+  const uint32_t even =
+      ((packed << 1) & 0x0e0e0e0eu) | ((packed << 4) & 0x80808080u);
+  packed >>= 4;
+  const uint32_t odd =
+      ((packed << 1) & 0x0e0e0e0eu) | ((packed << 4) & 0x80808080u);
+  uint32_t result[4] = {
+      __byte_perm(even, 0, 0x2404), __byte_perm(odd, 0, 0x2404),
+      __byte_perm(even, 0, 0x3414), __byte_perm(odd, 0, 0x3414)};
+#pragma unroll
+  for (int p = 0; p < 4; ++p)
+    values[p] = *reinterpret_cast<__half2*>(&result[p]);
 }
 
 // SGLang's SM70 Marlin preprocessing encodes a non-negative scale s as a
@@ -176,6 +225,30 @@ __device__ __forceinline__ __half2 load_scale_pair(
       __ushort_as_half(static_cast<uint16_t>(encoded[logical1]) << 7));
 }
 
+// Packed scales have eight adjacent bytes per qword. Load the whole group
+// once and interleave bytes directly into the original FP16 scale pairs.
+// The scalar specialization retains support for unaligned metadata views.
+template <bool VectorScales>
+__device__ __forceinline__ void load_scales8(const uint8_t* encoded, half2* out) {
+  if constexpr (VectorScales) {
+    const uint2 raw = *reinterpret_cast<const uint2*>(encoded);
+    const uint32_t bits[4] = {
+        __byte_perm(raw.x, 0, 0x4240) << 7,
+        __byte_perm(raw.x, 0, 0x4341) << 7,
+        __byte_perm(raw.y, 0, 0x4240) << 7,
+        __byte_perm(raw.y, 0, 0x4341) << 7};
+#pragma unroll
+    for (int p = 0; p < 4; ++p)
+      out[p] = *reinterpret_cast<const half2*>(&bits[p]);
+  } else {
+#pragma unroll
+    for (int p = 0; p < 4; ++p)
+      out[p] = load_scale_pair(encoded, kScaleLogicalToStored[2 * p],
+                              kScaleLogicalToStored[2 * p + 1]);
+  }
+}
+
+template <bool VectorScales>
 __global__ void __launch_bounds__(kThreads, 2)
 gate_up_partial_kernel(const __half* __restrict__ input,
                        const uint32_t* __restrict__ weight,
@@ -215,12 +288,7 @@ gate_up_partial_kernel(const __half* __restrict__ input,
   for (int group_it = 0; group_it < kGroupsPerSplit; ++group_it) {
     const int group = group_begin + group_it;
     __half2 scale[4];
-#pragma unroll
-    for (int p = 0; p < 4; ++p) {
-      const uint8_t* scale_base = expert_scales + group * kGateUp + n_base;
-      scale[p] = load_scale_pair(scale_base, kScaleLogicalToStored[2 * p],
-                                 kScaleLogicalToStored[2 * p + 1]);
-    }
+    load_scales8<VectorScales>(expert_scales + group * kGateUp + n_base, scale);
 #pragma unroll
     for (int r = 0; r < kGroupSize; ++r) {
       const int k = group * kGroupSize + r;
@@ -232,8 +300,7 @@ gate_up_partial_kernel(const __half* __restrict__ input,
                          r * 8 + qword_in_tile;
       const uint32_t packed = expert_weight[offset];
       __half2 value[4];
-      dequant_fp4x4(packed << 8, value);
-      dequant_fp4x4(packed, value + 2);
+      dequant_fp4x8(packed, value);
 #pragma unroll
       for (int p = 0; p < 4; ++p) {
         accum[p] = __hfma2(x, __hmul2(scale[p], value[p]), accum[p]);
@@ -282,6 +349,7 @@ gate_up_reduce_silu_kernel(const float* __restrict__ partials,
   activated[work] = __float2half_rn((gate / (1.0f + __expf(-gate))) * up);
 }
 
+template <bool VectorScales>
 __global__ void __launch_bounds__(kThreads, 2)
 down_partial_kernel(const __half* __restrict__ activated,
                     const uint32_t* __restrict__ weight,
@@ -328,12 +396,7 @@ down_partial_kernel(const __half* __restrict__ activated,
   for (int group_it = 0; group_it < kGroupsPerSplit; ++group_it) {
     const int group = group_begin + group_it;
     __half2 scale[4];
-#pragma unroll
-    for (int p = 0; p < 4; ++p) {
-      const uint8_t* scale_base = expert_scales + group * kHidden + n_base;
-      scale[p] = load_scale_pair(scale_base, kScaleLogicalToStored[2 * p],
-                                 kScaleLogicalToStored[2 * p + 1]);
-    }
+    load_scales8<VectorScales>(expert_scales + group * kHidden + n_base, scale);
 #pragma unroll
     for (int r = 0; r < kGroupSize; ++r) {
       const int k = group * kGroupSize + r;
@@ -345,8 +408,7 @@ down_partial_kernel(const __half* __restrict__ activated,
                          qword_in_tile * 4 + subtile + r * 32;
       const uint32_t packed = expert_weight[offset];
       __half2 value[4];
-      dequant_fp4x4(packed << 8, value);
-      dequant_fp4x4(packed, value + 2);
+      dequant_fp4x8(packed, value);
 #pragma unroll
       for (int p = 0; p < 4; ++p) {
         accum[p] = __hfma2(x, __hmul2(scale[p], value[p]), accum[p]);
@@ -429,7 +491,10 @@ void decode(torch::Tensor input, torch::Tensor w13, torch::Tensor w2,
   const at::cuda::OptionalCUDAGuard guard(device_of(input));
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream(input.get_device());
   const int gate_up_work = num_routes * kSplitK * (kGateUp / 8);
-  gate_up_partial_kernel<<<(gate_up_work + kThreads - 1) / kThreads, kThreads,
+  const auto gate_kernel = (reinterpret_cast<uintptr_t>(w13_scales.data_ptr()) % 8 == 0)
+                               ? gate_up_partial_kernel<true>
+                               : gate_up_partial_kernel<false>;
+  gate_kernel<<<(gate_up_work + kThreads - 1) / kThreads, kThreads,
                            0, stream>>>(
       reinterpret_cast<const __half*>(input.data_ptr<at::Half>()),
       reinterpret_cast<const uint32_t*>(w13.data_ptr<int>()),
@@ -442,7 +507,10 @@ void decode(torch::Tensor input, torch::Tensor w13, torch::Tensor w2,
       topk_ids.data_ptr<int>(), num_routes,
       reinterpret_cast<__half*>(activated.data_ptr<at::Half>()));
   const int down_work = num_routes * kDownSplitK * (kHidden / 8);
-  down_partial_kernel<<<(down_work + kThreads - 1) / kThreads, kThreads, 0,
+  const auto down_kernel = (reinterpret_cast<uintptr_t>(w2_scales.data_ptr()) % 8 == 0)
+                               ? down_partial_kernel<true>
+                               : down_partial_kernel<false>;
+  down_kernel<<<(down_work + kThreads - 1) / kThreads, kThreads, 0,
                         stream>>>(
       reinterpret_cast<const __half*>(activated.data_ptr<at::Half>()),
       reinterpret_cast<const uint32_t*>(w2.data_ptr<int>()),
@@ -478,7 +546,7 @@ void topk10_softmax(torch::Tensor logits, torch::Tensor topk_weights,
   const cudaStream_t stream =
       at::cuda::getCurrentCUDAStream(logits.get_device());
   if (logits.scalar_type() == at::kHalf) {
-    topk10_softmax_kernel<<<batch_size, 256, 0, stream>>>(
+    topk10_radix_half<<<batch_size, 128, 0, stream>>>(
         reinterpret_cast<const __half*>(logits.data_ptr<at::Half>()),
         topk_weights.data_ptr<float>(), topk_ids.data_ptr<int>());
   } else {

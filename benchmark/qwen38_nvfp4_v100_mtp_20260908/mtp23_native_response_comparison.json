@@ -1,0 +1,34 @@
+[
+  {
+    "prompt": "Explain why the sky appears blue in three sentences.",
+    "identical_ids": false,
+    "identical_text": false,
+    "tokens": 90,
+    "baseline_tokens": 90,
+    "max_logprob_error": null
+  },
+  {
+    "prompt": "Write a Python function that returns the first n Fibonacci numbers.",
+    "identical_ids": true,
+    "identical_text": true,
+    "tokens": 128,
+    "baseline_tokens": 128,
+    "max_logprob_error": 0.12929034233093262
+  },
+  {
+    "prompt": "Calculate 37 multiplied by 19 and show the steps.",
+    "identical_ids": false,
+    "identical_text": false,
+    "tokens": 128,
+    "baseline_tokens": 128,
+    "max_logprob_error": null
+  },
+  {
+    "prompt": "What is the difference between a stack and a queue? Give one use for each.",
+    "identical_ids": false,
+    "identical_text": false,
+    "tokens": 128,
+    "baseline_tokens": 128,
+    "max_logprob_error": null
+  }
+]

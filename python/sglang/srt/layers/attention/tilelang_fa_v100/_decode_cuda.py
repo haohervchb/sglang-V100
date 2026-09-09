@@ -202,6 +202,23 @@ def sm70_cuda_qsa_decode(
         partial_o,
         partial_lse,
     )
+    if (
+        1 <= batch <= 4
+        and heads == 6
+        and dim == 256
+        and max_splits <= 160
+        and torch.cuda.get_device_capability(q.device) == (7, 0)
+        and os.environ.get("SGLANG_SM70_QSA_COMBINE", "1") == "1"
+    ):
+        from sglang.jit_kernel.sm70_qsa_combine import combine
+
+        return combine(
+            partial_o,
+            partial_lse,
+            seq_lens,
+            indices.shape[1],
+            QSA_DECODE_TOKENS_PER_SPLIT,
+        )
     from ._kernels_paged_decode import _decode_combine_kernel
 
     combine = _decode_combine_kernel(

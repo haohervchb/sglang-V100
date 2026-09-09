@@ -23,6 +23,9 @@ configuration has no comparable retained end-to-end benchmark.
 | Model checkpoint | Measured configuration | 1K prefill | 1K decode | 25K prefill | 25K decode | Results |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
 | `MiniMaxAI/MiniMax-H3` | TP4 W4A16, 960×544, 15 s clip, 10 steps | — | — | — | — | ~500 s/video |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, local Docker v4; 2K output | 2,704 tok/s | 74.265 tok/s | 4,872 tok/s | 73.548 tok/s | Fresh host decode matched within 0.03%; [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md) |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | MTP-3/4, E5M2 KV, local Docker v4; prose/code, 1K output | 3,269 tok/s | 117.55 tok/s | 4,693 tok/s | 119.84 tok/s | 1K–70K mean decode within 2.9% of fresh host; individual requests 114–126 tok/s; [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md) |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, optimized host source | 2,444 tok/s | 73.46 tok/s | 4,865 tok/s | 71.96 tok/s | **25K→8K: 71.83 decode tok/s; slowest 256-token window: 71.71.** [Source benchmark and limits](benchmark/qwen38_nvfp4_v100_70tps_20260907/README.md); source changes are not in the published Docker image |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Target only, E5M2 KV, Docker v2 | 2,299 tok/s¶ | 60.2 tok/s¶ | — | — | **1K→25K: 60.09 output tok/s; 8K→1K at c4: 137.26 aggregate output tok/s.** [Fixed-image benchmark](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md); [Docker command](#serve-qwen38-flash-next-nvfp4-from-docker) |
 | `RadixArk/Qwen3.8-Flash-Next-NVFP4` | Built-in MTP-3/4, E5M2 KV, Docker v2 | 2,055 tok/s¶ | 88.2 tok/s¶ | — | — | **1K→25K: 88.07 output tok/s; 8K→1K at c4: 149.25 aggregate output tok/s.** Acceptance length: 3.493 and 3.089. [Fixed-image benchmark](benchmark/qwen38_flash_next_qsa_prefill_fix_v100_20260830/README.md); [Docker command](#serve-qwen38-flash-next-nvfp4-from-docker) |
 | `Qwen/Qwen3.8-27B-FP8` | Target only, E5M2 KV | 2,992 tok/s | 60.9 tok/s | 3,714 tok/s | 56.3 tok/s | **4K prefill/decode: 4,224/63.2; 70K decode: 59.1; 200K decode: 49.6 tok/s** with the SM70 CUDA split-KV decode partial and fused QPN8 gate/up path; [audited FP8 sweep](benchmark/qwen38_27b_fp8_target_e5m2_v100_20260822/README.md) |
@@ -52,6 +55,17 @@ than the standard 256-token output. Its 1K prefill and decode columns are
 derived from TTFT and mean TPOT. The 25K-input columns are empty because that
 validation did not rerun a 25K-prompt point. The c4 figures are aggregate output
 throughput for four exact 8,192-input/1,024-output requests.
+
+The [September 7–8 host source optimization](benchmark/qwen38_nvfp4_v100_70tps_20260907/README.md)
+reaches **4,876 prefill tok/s** and **71.87–72.00 decode tok/s**
+with 25K inputs and three 2K-output runs. An 8K-output run averages
+**71.83 decode tok/s** (slowest interval window: **71.71**).
+These target-only source results are separate from the Docker rows above.
+The [first-pass main comparison](benchmark/qwen38_nvfp4_v100_20260907/README.md)
+records the earlier 1K/8K/25K prefill and decode results. The later target-only
+and MTP changes are packaged in the locally built v4 image, with
+[September 8–9 Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md).
+The registry's published v3 image retains the earlier source.
 
 ### Historical Qwen3.8 Flash Next Docker v2 concurrency benchmark
 
@@ -170,6 +184,58 @@ Create the shared model and JIT caches used by the Docker examples:
 mkdir -p "$HOME/.cache/huggingface"
 docker volume create sglang-v100-jit
 ```
+
+### Build and serve the optimized Qwen3.8 Docker v4 image
+
+The v4 overlay packages the September 8 target-only and MTP optimizations on
+the pinned v3 native SM70 stack. It includes FFmpeg shared libraries for video
+decoding. See the [image/video validation and baseline comparison](benchmark/qwen38_nvfp4_v100_multimodal_20260909/README.md).
+Build the local image from this checkout:
+
+```bash
+docker build --network=host \
+  --build-arg SGLANG_SOURCE_REVISION="$(git rev-parse HEAD)" \
+  -f docker/v100-qwen38-flash-next-v4.Dockerfile \
+  -t sglang-v100:v100-qwen38-flash-next-v4 .
+```
+
+With the RadixArk model already present in the shared Hugging Face cache,
+start MTP with the same single-request configuration as the host benchmark:
+
+```bash
+docker run -d --name qwen38-flash-next-mtp-v4 \
+  --gpus all --network host --ipc host \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface:ro" \
+  -v sglang-v100-jit-v4:/root/sglang-v100-jit \
+  -e HF_HUB_OFFLINE=1 -e PORT=8082 \
+  -e TVM_FFI_CACHE_DIR=/root/sglang-v100-jit/tvm-ffi \
+  -e TORCH_EXTENSIONS_DIR=/root/sglang-v100-jit/torch_extensions \
+  -e SGLANG_V100_NVFP4_MOE_BUILD_DIR=/root/sglang-v100-jit/nvfp4_moe \
+  -e SGLANG_V100_DECODE_CUDA_BUILD_DIR=/root/sglang-v100-jit/longctx_decode \
+  sglang-v100:v100-qwen38-flash-next-v4 \
+  bash /opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
+  RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --speculative-algorithm EAGLE \
+  --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --speculative-num-steps 3 \
+  --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
+
+This uses TP4, E5M2 KV, 262,144-token context capacity, 8,192-token prefill
+chunks, memory fraction 0.80 and one running request. For target-only mode,
+choose another container name and omit the five speculative arguments. The
+API is available at `http://127.0.0.1:8082/v1`. Docker compiles the updated
+kernels into its own JIT cache on first use.
+
+See the [Docker/host comparison and reproduction commands](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md).
+The measured v4 target-only decode matches the host within 0.03%, and
+prose/code MTP per-context mean decode matches within 2.9% across 1K–70K.
+The 1K natural prefill mean is 10.7% faster in Docker; random-token output
+rates vary with acceptance, as recorded in the report.
+The v4 tag above is a local build. The v3 commands below retain the earlier
+four-request deployment configuration.
 
 ### Serve Qwen3.8 Flash Next NVFP4 from Docker
 
@@ -505,6 +571,15 @@ This loads the checkpoint's built-in MTP module from the same RadixArk repo as
 the target. The setting is three speculative steps with four draft tokens. It
 keeps the same E5M2 KV cache and full-context, single-request memory
 configuration as target-only.
+
+The September 8 host optimization work enables QSA draft-extend graph capture,
+two/four-token projections and HC mixing, narrower recurrent-attention tiles,
+and CUDA attention/expert kernel improvements on V100. Two ordinary prose/code
+requests at each of 1K, 8K, 25K and 70K context measure
+**108.4–119.1 decode tok/s** over 1,024 output
+tokens; this completed optimization pass does not achieve consistent 120 tok/s. See the
+[MTP measurements and validation](benchmark/qwen38_nvfp4_v100_mtp_20260908/README.md)
+for per-context results, acceptance counts and the asynchronous result-copy fix.
 
 ```bash
 cd "$HOME/sglang-V100"

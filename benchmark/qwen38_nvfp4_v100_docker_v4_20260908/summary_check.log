@@ -1,0 +1,13 @@
+mtp natural 1000 {'prefill_tok_s': 10.72, 'decode_tok_s': 0.64, 'round_ms': -0.63}
+mtp natural 8192 {'prefill_tok_s': -0.32, 'decode_tok_s': 2.86, 'round_ms': -0.65}
+mtp natural 25000 {'prefill_tok_s': -0.76, 'decode_tok_s': 1.68, 'round_ms': 0.54}
+mtp natural 70000 {'prefill_tok_s': -0.41, 'decode_tok_s': -0.66, 'round_ms': -0.32}
+mtp random 1000 {'prefill_tok_s': 1.92, 'decode_tok_s': -0.05, 'round_ms': 0.02}
+mtp random 8192 {'prefill_tok_s': -1.0, 'decode_tok_s': -6.97, 'round_ms': -0.28}
+mtp random 25000 {'prefill_tok_s': -0.98, 'decode_tok_s': 13.59, 'round_ms': 0.37}
+mtp random 70000 {'prefill_tok_s': -0.61, 'decode_tok_s': 9.63, 'round_ms': 0.66}
+target random 1000 {'prefill_tok_s': -2.86, 'decode_tok_s': -0.03}
+target random 25000 {'prefill_tok_s': -0.35, 'decode_tok_s': -0.01}
+PARITY REQUIRES INVESTIGATION
+NO REGRESSIONS True
+{'name': 'mtp_natural_1000_prefill_tok_s', 'passed': False, 'delta_percent': 10.718013631447132, 'regression': False}

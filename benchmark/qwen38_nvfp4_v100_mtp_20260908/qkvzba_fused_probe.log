@@ -1,0 +1,6 @@
+{"m": 2, "threads": 64, "baseline_us": 46.47974825809965, "candidate_us": 30.35099658214994, "bitwise_equal": true}
+{"m": 2, "threads": 128, "baseline_us": 46.47974825809965, "candidate_us": 31.164590786814507, "bitwise_equal": true}
+{"m": 2, "threads": 256, "baseline_us": 46.47974825809965, "candidate_us": 31.169421057103552, "bitwise_equal": true}
+{"m": 4, "threads": 64, "baseline_us": 47.82385916080115, "candidate_us": 30.093042138900092, "bitwise_equal": true}
+{"m": 4, "threads": 128, "baseline_us": 47.82385916080115, "candidate_us": 30.278401615729504, "bitwise_equal": true}
+{"m": 4, "threads": 256, "baseline_us": 47.82385916080115, "candidate_us": 30.484165915394215, "bitwise_equal": true}

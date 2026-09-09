@@ -12,6 +12,10 @@ export SGLANG_CUSTOM_ALLREDUCE_ALGO=${SGLANG_CUSTOM_ALLREDUCE_ALGO:-1stage}
 export SGLANG_MAMBA_CONV_DTYPE=${SGLANG_MAMBA_CONV_DTYPE:-float16}
 export SGLANG_MAMBA_SSM_DTYPE=${SGLANG_MAMBA_SSM_DTYPE:-float16}
 export SGLANG_SM70_FORCE_FP16=${SGLANG_SM70_FORCE_FP16:-1}
+# Measured batch-one Volta projections and Qwen fusions. Set either to 0
+# before launch to select the previous implementation for comparisons.
+export SGLANG_SM70_DENSE_GEMV=${SGLANG_SM70_DENSE_GEMV:-1}
+export SGLANG_SM70_QWEN_FUSIONS=${SGLANG_SM70_QWEN_FUSIONS:-1}
 export SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=${SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION:-0}
 # Dense flash-attn-v100 is faster than QSA's sparse gather at these bounded
 # prefill lengths. Set this to 0 to retain sparse QSA semantics everywhere.

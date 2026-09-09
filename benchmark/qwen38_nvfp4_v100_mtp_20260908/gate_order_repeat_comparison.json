@@ -1,0 +1,82 @@
+[
+  {
+    "input_len": 1000,
+    "task": "Write a detailed practical guide of at least 2000 words explaining how to investigate a slow web service. Cover reproducible measurements, CPU and memory costs, databases, concurrency, and ways to verify improvements. Use concrete examples and explain the reasoning behind each step.",
+    "decode_tok_s": [
+      115.54439593800059,
+      115.59311311816633
+    ],
+    "same_output_text": true,
+    "same_accept_histogram": true
+  },
+  {
+    "input_len": 1000,
+    "task": "Write a detailed Python tutorial of at least 2000 words on building a bounded in-memory cache. Include implementation examples, eviction policies, concurrency, expiration, testing, and operational tradeoffs. Explain each design decision and walk through realistic examples.",
+    "decode_tok_s": [
+      113.6733074490694,
+      113.66942224116907
+    ],
+    "same_output_text": true,
+    "same_accept_histogram": true
+  },
+  {
+    "input_len": 8192,
+    "task": "Write a detailed practical guide of at least 2000 words explaining how to investigate a slow web service. Cover reproducible measurements, CPU and memory costs, databases, concurrency, and ways to verify improvements. Use concrete examples and explain the reasoning behind each step.",
+    "decode_tok_s": [
+      112.78335872987707,
+      114.73729766482771
+    ],
+    "same_output_text": false,
+    "same_accept_histogram": false
+  },
+  {
+    "input_len": 8192,
+    "task": "Write a detailed Python tutorial of at least 2000 words on building a bounded in-memory cache. Include implementation examples, eviction policies, concurrency, expiration, testing, and operational tradeoffs. Explain each design decision and walk through realistic examples.",
+    "decode_tok_s": [
+      117.81937280306313,
+      117.79745464266487
+    ],
+    "same_output_text": true,
+    "same_accept_histogram": true
+  },
+  {
+    "input_len": 25000,
+    "task": "Write a detailed practical guide of at least 2000 words explaining how to investigate a slow web service. Cover reproducible measurements, CPU and memory costs, databases, concurrency, and ways to verify improvements. Use concrete examples and explain the reasoning behind each step.",
+    "decode_tok_s": [
+      112.22423328423736,
+      112.72054596290481
+    ],
+    "same_output_text": false,
+    "same_accept_histogram": false
+  },
+  {
+    "input_len": 25000,
+    "task": "Write a detailed Python tutorial of at least 2000 words on building a bounded in-memory cache. Include implementation examples, eviction policies, concurrency, expiration, testing, and operational tradeoffs. Explain each design decision and walk through realistic examples.",
+    "decode_tok_s": [
+      121.55927596793624,
+      117.20637227232821
+    ],
+    "same_output_text": false,
+    "same_accept_histogram": false
+  },
+  {
+    "input_len": 70000,
+    "task": "Write a detailed practical guide of at least 2000 words explaining how to investigate a slow web service. Cover reproducible measurements, CPU and memory costs, databases, concurrency, and ways to verify improvements. Use concrete examples and explain the reasoning behind each step.",
+    "decode_tok_s": [
+      106.9250158449351,
+      109.31223183859284
+    ],
+    "same_output_text": false,
+    "same_accept_histogram": false
+  },
+  {
+    "input_len": 70000,
+    "task": "Write a detailed Python tutorial of at least 2000 words on building a bounded in-memory cache. Include implementation examples, eviction policies, concurrency, expiration, testing, and operational tradeoffs. Explain each design decision and walk through realistic examples.",
+    "decode_tok_s": [
+      118.97958362406715,
+      116.11016086700276
+    ],
+    "same_output_text": false,
+    "same_accept_histogram": false
+  }
+]

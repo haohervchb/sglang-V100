@@ -1,0 +1,13 @@
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+../miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464
+  /home/rah/miniconda3/envs/sglang-v100/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+python/sglang/srt/layers/attention/fla/utils.py:223
+  /home/rah/sglang-V100/python/sglang/srt/layers/attention/fla/utils.py:223: UserWarning: Triton is not supported on current platform, roll back to CPU.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+7 passed, 2 warnings in 20.02s

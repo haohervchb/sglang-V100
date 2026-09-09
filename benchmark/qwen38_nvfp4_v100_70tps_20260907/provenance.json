@@ -1,0 +1,65 @@
+{
+  "measurement_dates": "2026-09-07 to 2026-09-08 Australia/Brisbane",
+  "environment": {
+    "python": "Python 3.12.13",
+    "packages": {
+      "torch": "2.9.1",
+      "triton": "3.5.1",
+      "transformers": "5.8.1"
+    },
+    "cuda_toolkit": "/usr/local/cuda-12.8",
+    "compiler": "/usr/bin/g++-12",
+    "gpu_snapshot": [
+      "name, driver_version, clocks.current.sm [MHz], clocks.current.memory [MHz]",
+      "Tesla V100-SXM2-32GB, 580.178.04, 1290 MHz, 877 MHz",
+      "Tesla V100-SXM2-32GB, 580.178.04, 1290 MHz, 877 MHz",
+      "Tesla V100-SXM2-32GB, 580.178.04, 1290 MHz, 877 MHz",
+      "Tesla V100-SXM2-32GB, 580.178.04, 1290 MHz, 877 MHz"
+    ]
+  },
+  "base_commit": "72ef2f5f367a6c15eb21cf1b708ad3557b805305",
+  "branch": "perf/qwen38-nvfp4-v100-prefill-decode",
+  "source_sha256": {
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_dense_gemv.cuh": "a8cdbf962b85319dca150ffb48985a0815b4de54e7dce26443f5ee54bfb5a829",
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_hc_mix.cuh": "668d85cd34af21fb6bfc015c5af3656f28db7e673b873d796fdc6044949fdf2a",
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_qsa_combine.cuh": "320baff0f8846f6b8ccbd006b4742a30f8be52d990a69a6f7e832c122f7325a7",
+    "python/sglang/jit_kernel/csrc/elementwise/sm70_qwen_fusions.cuh": "bf3c2b011517fec336d0a08946d55e32812f30fef776effba9fed8bfaa6caba2",
+    "python/sglang/jit_kernel/csrc/sm70_nvfp4_moe_decode.cu": "8cf5607b46ca7ef2bb45df54cd78df2934cb444c674010c243ffca193b287ec2",
+    "python/sglang/jit_kernel/moe_wna16_marlin.py": "42c4af1a80d18b5dcdaa589e03afaec310c3477669e5bb3323247c9ead568cf3",
+    "python/sglang/jit_kernel/sm70_dense_gemv.py": "ddeecdcb0e2d4d283c544ac8aa3d4cc2b80dc391265db84425ae6aeea9326a35",
+    "python/sglang/jit_kernel/sm70_hc_mix.py": "a4f7b0cd63bf5b93e63f24161c291d64dbc95146d138f77618fc4dd88b591995",
+    "python/sglang/jit_kernel/sm70_qsa_combine.py": "9defb3b4636ea4c9b7d7b4959965bf580610b1aa72dd913f2b6824fd440f1f67",
+    "python/sglang/jit_kernel/sm70_qwen_fusions.py": "c81df4d7e0c00610caafa71719a1aa53965789067f0eb77cbbbecf284133f94f",
+    "python/sglang/srt/layers/attention/qsa/graph_metadata.py": "2b0d7f49bc673f224cad35a52d7d1d0382cfa5fe2028574f3ef648e7e4e15bc5",
+    "python/sglang/srt/layers/attention/qsa/qsa_indexer.py": "710cc7b934d9a039cec7acfdb9d9eae0c278a84148e2e635eca6b5cc7718ac4b",
+    "python/sglang/srt/layers/attention/qwen_sparse_attn_backend.py": "920ce010b7eee84e61eb06f02e63140991758a7b0fd52940fc846af0f971e1ce",
+    "python/sglang/srt/layers/attention/tilelang_fa_v100/_decode_cuda.py": "9b3bef58a08c04c3edeb0648144c570fa28da2bb3144d34ceb09dae2aba984bb",
+    "python/sglang/srt/layers/hc_mix_triton.py": "2345e7b08a6fe001daf494f9223f91c9c0092419e1ccf6294df39672c17bc6fc",
+    "python/sglang/srt/layers/logits_processor.py": "b0ef3021b9afc7d981218c25ef9d717158fba3fbdd37e49b7a55746efa71bb8b",
+    "python/sglang/srt/layers/quantization/base_config.py": "5abd67d404fc2aa48ef811c94b65ce8b696893b6049694bd0324be05eb289616",
+    "python/sglang/srt/layers/quantization/modelopt_quant.py": "d0cc997284cbf7be5e9eb15bc2abba51e64c605906c4f7d60ff84fb24406d3a1",
+    "python/sglang/srt/layers/quantization/unquant.py": "a7b3bcd797cf9a5b0778faac3b2cc13eb8eeb266721a97d2f5149a9789472f7a",
+    "python/sglang/srt/layers/qwen4_ple.py": "596334405cf588bc0e64108a2d3ece94325efaa47ee183b82cc1b0890e6f527d",
+    "python/sglang/srt/models/qwen2_moe.py": "958a6700b2fb8eda8eb5ddbe13135a2b24887adde8ac4977ec5655957fc7f799",
+    "python/sglang/srt/models/qwen3_5.py": "bd1d5e79de7d80c345d3f6069905fbfbec4d157770c5b36a6640ea03189768a7",
+    "python/sglang/srt/models/qwen4_exp.py": "979533d0d4b50e4c360f56e0c32f66dc5d9987ef85edfee67166eb118bc21487",
+    "scripts/serve_qwen38_flash_next_nvfp4_v100.sh": "53780d15f1fa33e3dd7e156ca01a3751480fa6bbe90528e158dff12c71f21907",
+    "test/manual/layers/test_qsa_graph_metadata_tiles.py": "94204fa2e97100f915c3c4b7ebbf097d87202dc0229ab89a78ce77a15af27afc",
+    "test/manual/layers/test_sm70_dense_gemv.py": "2ecc721998d3a4635d642b1a2827c66364004d5ae612a0e7bc6daae607313b14",
+    "test/manual/layers/test_sm70_hc_mix.py": "27e9144fb87f7030c02b4ac53a336956621637ce6c206ba60e23d37f602aae4b",
+    "test/manual/layers/test_sm70_ple_gate.py": "c0e5b7e7fa08092d758fcbdae23497c3956a71d1a97c86798543381818a0405f",
+    "test/manual/layers/test_sm70_qsa_combine.py": "08f3815fdae41a74037242815d6631b8169bbd87de995e30845873ff3f5a6ef0",
+    "test/manual/layers/test_sm70_qwen_fusions.py": "af30b6dc85009c738fc62b91c9fab3ee4ba3386381bb758a6ce7aa4d86504563",
+    "test/registered/unit/layers/attention/test_qwen_sparse_sm70_routing.py": "2cfbfef45c0312756259d64fc3c16139a339c7715905fa510e983f72f396db08",
+    "test/registered/unit/layers/moe/test_sm70_nvfp4_moe_decode.py": "bdb8b2d31b3ffab3353a852c4057dd23f8531c7e81052ed03f7afd2793bea65c"
+  },
+  "marlin_binary_sha256": "1bc45f4d83a120f98bf2bb36099ab8832286af774fc366c52f82e7bc5fd6d0f4",
+  "model_snapshot": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "prior_report": "../qwen38_nvfp4_v100_20260907/README.md",
+  "raw_artifacts": "/tmp/qwen38_70_20260907",
+  "benchmark_source_sha256": {
+    "benchmark/qwen38_nvfp4_v100_70tps_20260907/bench_sustained.py": "505c79f5335e0b87542265c7e41a32b883f59898e76eaacd982a916f0c005e27",
+    "benchmark/qwen38_nvfp4_v100_20260907/bench_serving.py": "ac0d3c016ddc996267a224bd16971d6304aefcebdd6fa1b2143b24202cdf34c3"
+  },
+  "profile_note": "gpu_snapshot is the initial idle snapshot. Observed SM clocks under load reached 1530 MHz, memory 877 MHz, without changing clocks or power settings."
+}

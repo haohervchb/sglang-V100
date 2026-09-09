@@ -2263,6 +2263,11 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             # backend, so use it as the default.
             moe_runner_backend = MoeRunnerBackend.FLASHINFER_TRTLLM
 
+        # Both the specialized decode kernel and its Marlin fallback allocate
+        # a separate output. Shared experts may safely read the same input on
+        # another stream; the Triton fallback can still overwrite its input.
+        self.preserves_input = self.is_sm70 and self.use_sm70_marlin
+
         if moe_runner_backend.is_flashinfer_cutedsl():
             import sglang.srt.layers.moe.moe_runner.flashinfer_cutedsl  # noqa: F401 – triggers @register_fused_func
 

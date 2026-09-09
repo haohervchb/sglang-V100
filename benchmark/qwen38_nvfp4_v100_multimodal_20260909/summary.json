@@ -1,0 +1,369 @@
+{
+  "baseline_failures": [
+    "ocr"
+  ],
+  "all_ground_truth_checks_passed": false,
+  "comparisons": {
+    "main_target": [
+      {
+        "case": "image_color",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_swap_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_repeat_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_followup",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "ocr",
+        "ground_truth_passed": false,
+        "baseline_ground_truth_passed": false,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "chart",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "multiple_images",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_streaming",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_chunked_prefill",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_order",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_reversed_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "text_after_multimodal",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      }
+    ],
+    "host_mtp": [
+      {
+        "case": "image_color",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_swap_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_repeat_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_followup",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "ocr",
+        "ground_truth_passed": false,
+        "baseline_ground_truth_passed": false,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "chart",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "multiple_images",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_streaming",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_chunked_prefill",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_order",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_reversed_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "text_after_multimodal",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      }
+    ],
+    "docker_mm_target": [
+      {
+        "case": "image_color",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_swap_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_repeat_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_followup",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "ocr",
+        "ground_truth_passed": false,
+        "baseline_ground_truth_passed": false,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "chart",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "multiple_images",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_streaming",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_chunked_prefill",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_order",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_reversed_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "text_after_multimodal",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      }
+    ],
+    "docker_mm_mtp": [
+      {
+        "case": "image_color",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_swap_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_repeat_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_followup",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "ocr",
+        "ground_truth_passed": false,
+        "baseline_ground_truth_passed": false,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "chart",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "multiple_images",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_streaming",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "image_chunked_prefill",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_order",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "video_reversed_without_flush",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      },
+      {
+        "case": "text_after_multimodal",
+        "ground_truth_passed": true,
+        "baseline_ground_truth_passed": true,
+        "text_matches_baseline": true,
+        "no_regression": true
+      }
+    ]
+  },
+  "regression_gate_passed": true,
+  "text_throughput_recheck": [
+    {
+      "input_len": 1000,
+      "previous_host_decode_tok_s": 116.80851479612993,
+      "docker_decode_tok_s": 116.62080137037347,
+      "change_percent": -0.1607018341805655,
+      "no_regression_over_five_percent": true
+    },
+    {
+      "input_len": 25000,
+      "previous_host_decode_tok_s": 117.85893426067821,
+      "docker_decode_tok_s": 119.74002098679694,
+      "change_percent": 1.596049326186999,
+      "no_regression_over_five_percent": true
+    }
+  ]
+}

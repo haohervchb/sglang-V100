@@ -1,0 +1,334 @@
+{
+  "results": [
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 32,
+      "warps": 1,
+      "us": 13.062791071066025,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 4,
+      "warps": 1,
+      "us": 6.483999863266945,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 8,
+      "warps": 1,
+      "us": 5.845632852866636,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 16,
+      "warps": 1,
+      "us": 8.08633549901463,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 32,
+      "warps": 2,
+      "us": 8.866324318050312,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 16,
+      "warps": 2,
+      "us": 6.884109281483026,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 8,
+      "warps": 2,
+      "us": 6.420067916506271,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 32,
+      "warps": 4,
+      "us": 6.808913198206712,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": false,
+      "bv": 16,
+      "warps": 4,
+      "us": 6.591780360514957,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 32,
+      "warps": 1,
+      "us": 14.950263611327475,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 4,
+      "warps": 1,
+      "us": 5.440874201032208,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 8,
+      "warps": 1,
+      "us": 5.411781878633932,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 16,
+      "warps": 1,
+      "us": 7.089621890081118,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 32,
+      "warps": 2,
+      "us": 7.776740507346567,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 16,
+      "warps": 2,
+      "us": 6.601458840479506,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 8,
+      "warps": 2,
+      "us": 5.843687805894245,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 32,
+      "warps": 4,
+      "us": 5.9215112269019174,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 2,
+      "register_round": true,
+      "bv": 16,
+      "warps": 4,
+      "us": 6.0016002167354925,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 32,
+      "warps": 1,
+      "us": 20.290702184041344,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 4,
+      "warps": 1,
+      "us": 8.39303265447202,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 8,
+      "warps": 1,
+      "us": 7.608305535665372,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 16,
+      "warps": 1,
+      "us": 11.501592081515868,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 32,
+      "warps": 2,
+      "us": 13.172985481606954,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 16,
+      "warps": 2,
+      "us": 9.626917057098684,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 8,
+      "warps": 2,
+      "us": 8.610203709987282,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 32,
+      "warps": 4,
+      "us": 9.503346803236981,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": false,
+      "bv": 16,
+      "warps": 4,
+      "us": 9.116345775616281,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 32,
+      "warps": 1,
+      "us": 22.936030639999217,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 4,
+      "warps": 1,
+      "us": 7.5470541875918835,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 8,
+      "warps": 1,
+      "us": 7.749632296354874,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 16,
+      "warps": 1,
+      "us": 10.982999950647354,
+      "output_max_error": 0.0,
+      "state_max_error": 0.0
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 32,
+      "warps": 2,
+      "us": 12.247323330212017,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 16,
+      "warps": 2,
+      "us": 9.892449738056563,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 8,
+      "warps": 2,
+      "us": 8.705163466465937,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 32,
+      "warps": 4,
+      "us": 9.021616355167682,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    },
+    {
+      "tokens": 4,
+      "register_round": true,
+      "bv": 16,
+      "warps": 4,
+      "us": 9.136277281434534,
+      "output_max_error": 5.960464477539063e-08,
+      "state_max_error": 3.0517578125e-05
+    }
+  ],
+  "selected": {
+    "bv": 8,
+    "warps": 1,
+    "register_round": false
+  },
+  "decision": "Use smaller value tile; keep existing state store/reload, as register conversion adds complexity without a consistent gain at four tokens."
+}

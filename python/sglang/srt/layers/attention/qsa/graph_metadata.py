@@ -132,28 +132,29 @@ def _qsa_graph_row_metadata_kernel(
     seq_len = tl.load(row_seq_lens_ptr + row).to(tl.int32)
     req = tl.load(row_req_pool_ptr + row).to(tl.int64)
     token_row = req * req_to_token_row_stride
-    current = tl.maximum(seq_len - 1, 0)
-    last_loc = tl.load(req_to_token_ptr + token_row + current).to(tl.int32)
+    if tl.program_id(1) == 0:
+        current = tl.maximum(seq_len - 1, 0)
+        last_loc = tl.load(req_to_token_ptr + token_row + current).to(tl.int32)
 
-    compressed = seq_len // RATIO
-    tl.store(compressed_lens_ptr + row, compressed)
+        compressed = seq_len // RATIO
+        tl.store(compressed_lens_ptr + row, compressed)
 
-    # DSV4-style compressed addressing: the page-aligned full-KV allocator
-    # keeps every compression group contiguous inside one page, so the
-    # group's compressed slot is any of its raw slots floor-divided by the
-    # ratio. Non-boundary rows keep the inert reserved slot 0 (full slot 0
-    # is the pools' padding slot).
-    boundary = (seq_len > 0) & (seq_len % RATIO == 0)
-    write_loc = tl.where(boundary, last_loc // RATIO, 0)
-    tl.store(write_locs_ptr + row, write_loc)
+        # DSV4-style compressed addressing: the page-aligned full-KV allocator
+        # keeps every compression group contiguous inside one page, so the
+        # group's compressed slot is any of its raw slots floor-divided by the
+        # ratio. Non-boundary rows keep the inert reserved slot 0 (full slot 0
+        # is the pools' padding slot).
+        boundary = (seq_len > 0) & (seq_len % RATIO == 0)
+        write_loc = tl.where(boundary, last_loc // RATIO, 0)
+        tl.store(write_locs_ptr + row, write_loc)
 
-    tl.store(logical_positions_ptr + row, current)
-    tl.store(state_slots_ptr + row, req * RATIO + (current % RATIO).to(tl.int64))
-    ring_base = row.to(tl.int64) * RATIO
-    for k in tl.static_range(RATIO):
-        member = tl.maximum(current - (RATIO - 1 - k), 0)
-        slot = req * RATIO + (member % RATIO).to(tl.int64)
-        tl.store(ring_locs_ptr + ring_base + k, slot.to(tl.int32))
+        tl.store(logical_positions_ptr + row, current)
+        tl.store(state_slots_ptr + row, req * RATIO + (current % RATIO).to(tl.int64))
+        ring_base = row.to(tl.int64) * RATIO
+        for k in tl.static_range(RATIO):
+            member = tl.maximum(current - (RATIO - 1 - k), 0)
+            slot = req * RATIO + (member % RATIO).to(tl.int64)
+            tl.store(ring_locs_ptr + ring_base + k, slot.to(tl.int32))
 
     # Page-table entries are the request's FULL-KV page ids, read from the
     # page-aligned req_to_token row; the scoring kernels turn them into
@@ -161,7 +162,9 @@ def _qsa_graph_row_metadata_kernel(
     table_row = page_table_ptr + row.to(tl.int64) * max_pages
     offs = tl.arange(0, PAGE_BLOCK)
     row_width_pages = req_to_token_row_stride // FULL_PAGE
-    for p0 in range(0, max_pages, PAGE_BLOCK):
+    for p0 in range(
+        tl.program_id(1) * PAGE_BLOCK, max_pages, tl.num_programs(1) * PAGE_BLOCK
+    ):
         idx = p0 + offs
         valid = idx < tl.minimum(max_pages, row_width_pages)
         loc = tl.load(
@@ -222,7 +225,16 @@ def launch_graph_metadata(
         MODE=mode,
         num_warps=1,
     )
-    _qsa_graph_row_metadata_kernel[(num_rows,)](
+    # A single Volta warp otherwise walks the entire context-capacity page
+    # table serially, even for batch-one decode. Spread its independent tiles
+    # across SMs; only tile zero writes the per-row scalar/ring metadata.
+    page_tiles = (
+        triton.cdiv(max_pages, 128)
+        if num_rows <= 4
+        and torch.cuda.get_device_capability(req_to_token.device) == (7, 0)
+        else 1
+    )
+    _qsa_graph_row_metadata_kernel[(num_rows, page_tiles)](
         row_seq_lens,
         row_req_pool,
         indexer.graph_compressed_lengths,

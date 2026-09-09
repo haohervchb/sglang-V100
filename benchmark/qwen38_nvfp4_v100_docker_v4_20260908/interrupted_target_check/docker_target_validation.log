@@ -1,0 +1,15 @@
+started docker_target {'command': ['docker', 'run', '-d', '--name', 'qwen38-v4-docker_target', '--gpus', 'all', '--network', 'host', '--ipc', 'host', '--ulimit', 'memlock=-1', '--ulimit', 'stack=67108864', '-v', '/home/rah/.cache/huggingface:/root/.cache/huggingface:ro', '-v', 'sglang-v100-jit-v4:/root/sglang-v100-jit', '-e', 'HF_HUB_OFFLINE=1', '-e', 'PORT=8082', '-e', 'CUDA_VISIBLE_DEVICES=0,1,2,3', '-e', 'TVM_FFI_CACHE_DIR=/root/sglang-v100-jit/tvm-ffi', '-e', 'TORCH_EXTENSIONS_DIR=/root/sglang-v100-jit/torch_extensions', '-e', 'SGLANG_V100_NVFP4_MOE_BUILD_DIR=/root/sglang-v100-jit/nvfp4_moe', '-e', 'SGLANG_V100_DECODE_CUDA_BUILD_DIR=/root/sglang-v100-jit/longctx_decode', 'sglang-v100:v100-qwen38-flash-next-v4', 'bash', '/opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100.sh', 'RadixArk/Qwen3.8-Flash-Next-NVFP4'], 'container_id': '175ac92189adbac446c167a42bb796517a982f9864317939aa0ac3dc6252b540', 'image': 'sglang-v100:v100-qwen38-flash-next-v4', 'image_id': 'sha256:aeccb5c5e485f80f41d9952c97c44ecc2edd2bf752f61ced1d198d58e205d830', 'runtime': 'docker', 'mode': 'target', 'source_revision': '3b9bf5b0b043c8978b5a40cf3ffb113dc4724c2c'}
+ready docker_target
+response docker_target_before Explain why the sky appears blue in three sentences. identical IDs True
+qwen38-v4-docker_target
+Traceback (most recent call last):
+  File "/home/rah/sglang-V100/benchmark/qwen38_nvfp4_v100_docker_v4_20260908/validate.py", line 248, in <module>
+    main()
+  File "/home/rah/sglang-V100/benchmark/qwen38_nvfp4_v100_docker_v4_20260908/validate.py", line 196, in main
+    before = response_checks(root, args.tag + "_before", args.mode)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rah/sglang-V100/benchmark/qwen38_nvfp4_v100_docker_v4_20260908/validate.py", line 29, in response_checks
+    requests.post(URL + "/flush_cache", timeout=60).raise_for_status()
+  File "/home/rah/miniconda3/envs/sglang-v100/lib/python3.12/site-packages/requests/models.py", line 1167, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://127.0.0.1:8082/flush_cache

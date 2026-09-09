@@ -28,9 +28,15 @@ first kernel replaces cuBLAS's split-K down GEMV and fuses SiLU; the second
 computes the up projection by hidden coordinate and fuses sigmoid-mul-mean.
 This avoids both split-K reduction and pointwise launches without global
 barriers or atomics.
+The exact FP16 shape uses native CUDA with vector loads and four parallel
+branch reductions per warp. Two/four-row verification reuses each weight
+load across the rows. SGLANG_SM70_HC_NATIVE=0 selects the previous paths;
+SGLANG_SM70_MTP_HC=0 disables only the batched native path.
 """
 
 from __future__ import annotations
+
+import os
 
 import torch
 import triton
@@ -65,6 +71,19 @@ def _sm70_hc_down_gemv_kernel(
 def sm70_hc_down_gemv_silu(
     x: torch.Tensor, w_down: torch.Tensor, hc_count: int
 ) -> torch.Tensor:
+    if (
+        hc_count == 4
+        and x.ndim == 2
+        and x.shape[0] in (1, 2, 4)
+        and x.shape[1] == 10240
+        and w_down.shape == (320, 10240)
+        and x.data_ptr() % 16 == 0
+        and w_down.data_ptr() % 16 == 0
+        and os.environ.get("SGLANG_SM70_HC_NATIVE", "1") == "1"
+    ):
+        from sglang.jit_kernel.sm70_hc_mix import hc_down
+
+        return hc_down(x, w_down)
     out = torch.empty((x.shape[0], w_down.shape[0]), dtype=x.dtype, device=x.device)
     _sm70_hc_down_gemv_kernel[(w_down.shape[0],)](
         x,
@@ -87,7 +106,21 @@ def sm70_hc_down_gemv_silu_supported(
         and x.dtype == torch.float16
         and w_down.dtype == torch.float16
         and w_up.dtype == torch.float16
-        and x.shape == (1, 10240)
+        and w_down.device == x.device
+        and w_up.device == x.device
+        and x.ndim == 2
+        and x.shape[1] == 10240
+        and (
+            x.shape[0] == 1
+            or (
+                x.shape[0] in (2, 4)
+                and os.environ.get("SGLANG_SM70_HC_NATIVE", "1") == "1"
+                and os.environ.get("SGLANG_SM70_MTP_HC", "1") == "1"
+                and x.data_ptr() % 16 == 0
+                and w_down.data_ptr() % 16 == 0
+                and w_up.data_ptr() % 16 == 0
+            )
+        )
         and w_down.shape == (320, 10240)
         and w_up.shape == (10240, 320)
         and x.is_contiguous()
@@ -132,6 +165,21 @@ def sm70_hc_up_gemv_reduce(
     hc_count: int,
     hidden_size: int,
 ) -> torch.Tensor:
+    if (
+        hc_count == 4
+        and hidden_size == 2560
+        and x.ndim == 2
+        and x.shape[0] in (1, 2, 4)
+        and x.shape[1] == 10240
+        and activated_down.shape == (x.shape[0], 320)
+        and w_up.shape == (10240, 320)
+        and os.environ.get("SGLANG_SM70_HC_NATIVE", "1") == "1"
+        and activated_down.data_ptr() % 16 == 0
+        and w_up.data_ptr() % 16 == 0
+    ):
+        from sglang.jit_kernel.sm70_hc_mix import hc_up
+
+        return hc_up(activated_down, x, w_up)
     out = torch.empty((1, hidden_size), dtype=x.dtype, device=x.device)
     _sm70_hc_up_gemv_reduce_kernel[(hidden_size,)](
         activated_down,

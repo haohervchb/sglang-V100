@@ -1,0 +1,30 @@
+started host_target {'command': ['bash', 'scripts/serve_qwen38_flash_next_nvfp4_v100.sh', 'RadixArk/Qwen3.8-Flash-Next-NVFP4'], 'pid': 224577, 'env': {'PYTHONPATH': '/home/rah/sglang-V100/python', 'HF_HUB_OFFLINE': '1', 'PORT': '8082', 'CUDA_VISIBLE_DEVICES': '0,1,2,3', 'CUDA_HOME': '/usr/local/cuda-12.8', 'CXX': '/usr/bin/g++-12', 'TORCH_CUDA_ARCH_LIST': '7.0', 'MAX_JOBS': '2', 'SGLANG_SM70_DENSE_GEMV': '1', 'SGLANG_SM70_QWEN_FUSIONS': '1'}, 'runtime': 'host', 'mode': 'target', 'source_revision': '3b9bf5b0b043c8978b5a40cf3ffb113dc4724c2c'}
+ready host_target
+response host_target_before Explain why the sky appears blue in three sentences. identical IDs True
+response host_target_before Write a Python function that returns the first n Fibonacci numbers. identical IDs True
+response host_target_before Calculate 37 multiplied by 19 and show the steps. identical IDs True
+response host_target_before What is the difference between a stack and a queue? Give one use for each. identical IDs True
+benchmark host_target_random
+[transformers] You are using a model of type `qwen4_exp` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+#Input tokens: 1000
+#Output tokens: 256
+host_target_random 1000 256 20260830 prefill 1705.6 decode 74.803 slowest 74.803 spec {}
+#Input tokens: 1000
+#Output tokens: 2048
+host_target_random 1000 2048 20260830 prefill 2775.31 decode 74.297 slowest 73.952 spec {}
+#Input tokens: 1000
+#Output tokens: 2048
+host_target_random 1000 2048 20260831 prefill 2792.88 decode 74.272 slowest 73.899 spec {}
+#Input tokens: 25000
+#Output tokens: 256
+host_target_random 25000 256 20260830 prefill 4809.32 decode 73.565 slowest 73.565 spec {}
+#Input tokens: 25000
+#Output tokens: 2048
+host_target_random 25000 2048 20260830 prefill 4896.59 decode 73.562 slowest 73.537 spec {}
+#Input tokens: 25000
+#Output tokens: 2048
+host_target_random 25000 2048 20260831 prefill 4881.29 decode 73.548 slowest 73.528 spec {}
+response host_target_after Explain why the sky appears blue in three sentences. identical IDs True
+response host_target_after Write a Python function that returns the first n Fibonacci numbers. identical IDs True
+response host_target_after Calculate 37 multiplied by 19 and show the steps. identical IDs True
+response host_target_after What is the difference between a stack and a queue? Give one use for each. identical IDs True

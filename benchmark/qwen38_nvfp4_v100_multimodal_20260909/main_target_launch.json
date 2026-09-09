@@ -1,0 +1,24 @@
+{
+  "command": [
+    "bash",
+    "/tmp/qwen38_multimodal_20260909/baseline_main/scripts/serve_qwen38_flash_next_nvfp4_v100.sh",
+    "RadixArk/Qwen3.8-Flash-Next-NVFP4"
+  ],
+  "pid": 244347,
+  "env": {
+    "PYTHONPATH": "/tmp/qwen38_multimodal_20260909/baseline_main/python",
+    "HF_HUB_OFFLINE": "1",
+    "PORT": "8082",
+    "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+    "CUDA_HOME": "/usr/local/cuda-12.8",
+    "CXX": "/usr/bin/g++-12",
+    "TORCH_CUDA_ARCH_LIST": "7.0",
+    "MAX_JOBS": "2",
+    "SGLANG_SM70_DENSE_GEMV": "0",
+    "SGLANG_SM70_QWEN_FUSIONS": "0",
+    "LD_LIBRARY_PATH": "/tmp/qwen38_multimodal_20260909/host_ffmpeg/usr/lib/x86_64-linux-gnu:/tmp/qwen38_multimodal_20260909/host_ffmpeg/usr/lib/x86_64-linux-gnu/blas:/tmp/qwen38_multimodal_20260909/host_ffmpeg/usr/lib/x86_64-linux-gnu/lapack:"
+  },
+  "runtime": "host",
+  "mode": "target",
+  "source_revision": "72ef2f5f367a6c15eb21cf1b708ad3557b805305"
+}

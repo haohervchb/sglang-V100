@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 import triton
 import triton.language as tl
+import triton.language.extra.cuda.libdevice as libdevice
 
 _QWEN4_NGRAM_SIZE = 3
 _QWEN4_HEADS_PER_NGRAM = 8
@@ -146,15 +147,27 @@ def _qwen4_gate_value_kernel(
     hidden = tl.arange(0, BLOCK_SIZE)
     mask = (token < num_tokens) & (hidden < HIDDEN_SIZE)
 
-    # `gate` is already the BF16 output of the existing multiply, reduction, and
-    # division kernels.  Reproduce every remaining eager BF16 rounding boundary
+    # `gate` is already the output of the existing multiply, reduction, and
+    # division kernels. Reproduce the remaining eager dtype rounding boundaries
     # while broadcasting the scalar over its 2,560-element value group.
     gate = tl.load(gate_ptr + token_group).to(tl.float32)
     magnitude = tl.maximum(tl.abs(gate), 1.0e-6)
-    root = _round_bf16_to_fp32(tl.sqrt(magnitude))
     sign = tl.where(gate > 0.0, 1.0, tl.where(gate < 0.0, -1.0, 0.0))
-    transformed = _round_bf16_to_fp32(root * sign)
-    activated = _round_bf16_to_fp32(tl.sigmoid(transformed))
+    if gate_ptr.dtype.element_ty == tl.float16:
+        magnitude = magnitude.to(tl.float16).to(tl.float32)
+        root = tl.sqrt(magnitude).to(tl.float16).to(tl.float32)
+        transformed = (root * sign).to(tl.float16).to(tl.float32)
+        # Approximate reciprocal/exp can cross an FP16 midpoint for small
+        # gates. Match the eager sigmoid's FP32 arithmetic before rounding.
+        activated = (
+            tl.div_rn(1.0, 1.0 + libdevice.exp(-transformed))
+            .to(tl.float16)
+            .to(tl.float32)
+        )
+    else:
+        root = _round_bf16_to_fp32(tl.sqrt(magnitude))
+        transformed = _round_bf16_to_fp32(root * sign)
+        activated = _round_bf16_to_fp32(tl.sigmoid(transformed))
 
     value = tl.load(value_ptr + token * HIDDEN_SIZE + hidden, mask=mask, other=0.0).to(
         tl.float32
@@ -164,11 +177,20 @@ def _qwen4_gate_value_kernel(
 
 
 def can_fuse_qwen4_gate_value(gate: torch.Tensor, value: torch.Tensor) -> bool:
-    """Return whether inputs match Qwen4's fixed BF16 gate/value contract."""
+    """Return whether inputs match the BF16 or enabled SM70 FP16 contract."""
+
+    from sglang.jit_kernel.sm70_qwen_fusions import enabled
 
     return (
         gate.is_cuda
-        and gate.dtype == torch.bfloat16
+        and (
+            gate.dtype == torch.bfloat16
+            or (
+                gate.dtype == torch.float16
+                and enabled()
+                and torch.cuda.get_device_capability(gate.device) == (7, 0)
+            )
+        )
         and gate.dim() == 3
         and gate.shape[1:] == (_QWEN4_HC_COUNT, 1)
         and gate.is_contiguous()

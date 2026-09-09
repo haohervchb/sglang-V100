@@ -1,0 +1,8 @@
+ffmpeg	7:6.1.1-3ubuntu5
+libavcodec60:amd64	7:6.1.1-3ubuntu5
+libavdevice60:amd64	7:6.1.1-3ubuntu5
+libavfilter9:amd64	7:6.1.1-3ubuntu5
+libavformat60:amd64	7:6.1.1-3ubuntu5
+libavutil58:amd64	7:6.1.1-3ubuntu5
+libswresample4:amd64	7:6.1.1-3ubuntu5
+libswscale7:amd64	7:6.1.1-3ubuntu5
