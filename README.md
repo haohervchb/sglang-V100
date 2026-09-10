@@ -102,12 +102,9 @@ DOCKER_BUILDKIT=1 docker build --network=host \
   -t sglang-v100:latest .
 ```
 
-Create the shared model and JIT caches used by the Docker examples:
-
-```bash
-mkdir -p "$HOME/.cache/huggingface"
-docker volume create sglang-v100-jit
-```
+For a first run without a repository checkout, use the
+[Qwen3.8 Flash Next Docker command](#serve-qwen38-flash-next-nvfp4-from-docker)
+below. Docker creates named cache volumes automatically.
 
 ## Latest model serving guides
 
@@ -148,16 +145,28 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 PYTHONPATH="$PWD/python" PORT=30000 \
 
 #### Serve Qwen3.8 Flash Next NVFP4 from Docker
 
-Pull the pinned v4 image from the Docker section above. With the RadixArk
-checkpoint already in the shared Hugging Face cache, start MTP:
+On a Linux host with four V100 32 GB GPUs, a CUDA 12.8-compatible NVIDIA
+driver, and
+[Docker configured with the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuring-docker),
+run the following commands. No repository checkout or predownloaded checkpoint is
+needed: Docker pulls the runtime image, and the server downloads missing model
+files into the writable Hugging Face cache. The image does not include weights.
+The launcher under `/opt/sglang/scripts/` is included in the image. Docker
+creates the named JIT volume automatically, and the runtime creates its cache
+subdirectories and compiles kernels using tools included in the image. Both
+caches can start empty; no host script, Conda environment or CUDA compiler is
+needed.
 
 ```bash
+mkdir -p "$HOME/.cache/huggingface"
+docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4
+
 docker run -d --name qwen38-flash-next-mtp-v4 \
   --gpus all --network host --ipc host \
   --ulimit memlock=-1 --ulimit stack=67108864 \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface:ro" \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
   -v sglang-v100-jit-v4:/root/sglang-v100-jit \
-  -e HF_HUB_OFFLINE=1 -e PORT=8082 \
+  -e PORT=8082 \
   -e TVM_FFI_CACHE_DIR=/root/sglang-v100-jit/tvm-ffi \
   -e TORCH_EXTENSIONS_DIR=/root/sglang-v100-jit/torch_extensions \
   -e SGLANG_V100_NVFP4_MOE_BUILD_DIR=/root/sglang-v100-jit/nvfp4_moe \
@@ -172,9 +181,26 @@ docker run -d --name qwen38-flash-next-mtp-v4 \
   --speculative-num-draft-tokens 4
 ```
 
+The container runs in the background; receiving its ID does not mean the API
+is ready. Watch the startup logs, then check readiness:
+
+```bash
+docker logs -f qwen38-flash-next-mtp-v4
+# Ctrl-C stops following logs; the container keeps running.
+curl --fail http://127.0.0.1:8082/health
+```
+
+First startup needs internet access and disk space for approximately 126 GiB
+of model weights, in addition to the Docker image and compilation caches.
+Later starts reuse the model and JIT caches. Use `-e HF_HUB_OFFLINE=1` only
+when all required model files are already cached; it is not needed for caching.
+The [empty-cache validation](benchmark/qwen38_docker_clean_start_20260910/README.md)
+passed on a 256 GiB RAM host; first readiness took 52 minutes including downloads
+and compilation.
+
 For target-only mode, choose another container name and omit the five
 speculative arguments. The API is at `http://127.0.0.1:8082/v1`; the host
-commands use port 30000. First use compiles kernels into the Docker JIT cache.
+commands use port 30000.
 The v4 image includes FFmpeg for video decoding.
 
 See [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md),

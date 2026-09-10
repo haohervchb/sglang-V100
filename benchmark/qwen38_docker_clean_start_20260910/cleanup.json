@@ -1,0 +1,12 @@
+{
+  "finished_at": "2026-09-10T13:17:07.413370+00:00",
+  "removed_container": "qwen38-flash-next-clean-start-20260910",
+  "removed_volumes": [
+    "sglang-v100-hf-clean-start-20260910",
+    "sglang-v100-jit-clean-start-20260910"
+  ],
+  "original_service": "qwen38-flash-next-mtp-v4",
+  "original_health_http_status": 200,
+  "disk_free_bytes_before": 173571031040,
+  "disk_free_bytes_after": 308929769472
+}

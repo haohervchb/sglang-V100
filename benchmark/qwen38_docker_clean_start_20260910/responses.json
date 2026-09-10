@@ -1,0 +1,62 @@
+[
+  {
+    "id": "0d92c1cc00244a9f9d20b484b4b39229",
+    "object": "chat.completion",
+    "created": 1789045673,
+    "model": "qwen",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "391",
+          "reasoning_content": null,
+          "tool_calls": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "matched_stop": 248046
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 28,
+      "total_tokens": 32,
+      "completion_tokens": 4,
+      "prompt_tokens_details": null,
+      "reasoning_tokens": 0
+    },
+    "metadata": {
+      "weight_version": "default"
+    }
+  },
+  {
+    "id": "506dc967a8bd4300813cf71ed96c1996",
+    "object": "chat.completion",
+    "created": 1789045673,
+    "model": "qwen",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Paris",
+          "reasoning_content": null,
+          "tool_calls": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "matched_stop": 248046
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 25,
+      "total_tokens": 27,
+      "completion_tokens": 2,
+      "prompt_tokens_details": null,
+      "reasoning_tokens": 0
+    },
+    "metadata": {
+      "weight_version": "default"
+    }
+  }
+]

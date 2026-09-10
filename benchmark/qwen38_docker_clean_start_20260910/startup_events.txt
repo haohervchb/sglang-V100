@@ -1,0 +1,12 @@
+[2026-09-10 12:51:21 TP0] Found local HF snapshot for RadixArk/Qwen3.8-Flash-Next-NVFP4 at /root/.cache/huggingface/hub/models--RadixArk--Qwen3.8-Flash-Next-NVFP4/snapshots/7b719225242aacd3dbd3f9407468c2ee9a9d2594; skipping download.
+[2026-09-10 12:57:48 TP0] Load weight end. elapsed=2455.47 s, type=Qwen4ExpForConditionalGeneration, quant=modelopt_fp4, quant_algo=NVFP4, avail mem=8.84 GB, mem usage=21.90 GB.
+[2026-09-10 13:02:03 TP0] SM70 (V100): CUDA long-context decode partial loaded.
+[2026-09-10 13:02:13 TP0] Capture cuda graph begin. This can take up to several minutes. avail mem=7.41 GB
+[2026-09-10 13:04:56 TP0] Capture cuda graph end. Time elapsed: 163.68 s. mem usage=0.09 GB. avail mem=7.32 GB.
+[2026-09-10 13:06:01 TP0] Load weight end. elapsed=55.46 s, type=Qwen4ExpForCausalLMMTP, quant=modelopt_fp4, quant_algo=NVFP4, avail mem=5.53 GB, mem usage=1.80 GB.
+[2026-09-10 13:06:56] INFO:     Application startup complete.
+[2026-09-10 13:07:28] INFO:     127.0.0.1:55478 - "POST /generate HTTP/1.1" 200 OK
+[2026-09-10 13:07:51] INFO:     127.0.0.1:55488 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+[2026-09-10 13:07:52] INFO:     127.0.0.1:59792 - "GET /health HTTP/1.1" 200 OK
+[2026-09-10 13:07:53] INFO:     127.0.0.1:59808 - "POST /v1/chat/completions HTTP/1.1" 200 OK
+[2026-09-10 13:07:53] INFO:     127.0.0.1:59820 - "POST /v1/chat/completions HTTP/1.1" 200 OK
