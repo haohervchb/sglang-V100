@@ -24,12 +24,15 @@ establish a minimum RAM requirement for smaller hosts.
 - Preflight confirmed online Hugging Face access, no supplied token, the packaged
   launcher, and the image's `python`, `nvcc`, `g++-12`, and `ninja` executables.
 
-The launch used the [main README command](../../README.md#serve-qwen38-flash-next-nvfp4-from-docker)
-with the same image, script, TP4, E5M2 KV, MTP-3/4, and JIT environment settings.
+The launch used the script-based README command current at test time, with
+TP4, E5M2 KV, MTP-3/4, and the documented JIT environment settings.
 Only the test container/volume names, port 8083, and an isolated named model
 volume in place of the host cache bind mount differed. The exact argument list
 and empty-cache assertions are retained in [validation.json](validation.json).
 The container had no source or script bind mounts.
+The [current README command](../../README.md#serve-qwen38-flash-next-nvfp4-from-docker)
+expands the script's environment and server arguments directly, explicitly sets
+`--enable-multimodal`, and uses foreground `--rm` container lifecycle settings.
 
 ## Results
 

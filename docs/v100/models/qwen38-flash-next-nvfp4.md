@@ -138,27 +138,57 @@ Start MTP with the same single-request configuration as the host benchmark.
 The server downloads missing RadixArk model files into the writable cache;
 the image contains the runtime, not the model weights. No repository checkout
 is required when using the published image.
-The `/opt/sglang/scripts/` launcher and CUDA build tools are inside that image.
-Docker creates the named JIT volume, and the runtime creates the cache
-subdirectories on first use. No host copy of the script or compiled kernels
-is needed; both caches may be empty.
+The full command starts SGLang directly and explicitly enables image/video
+support with `--enable-multimodal`. CUDA build tools are inside the image.
+Docker creates the named JIT volume, and the runtime creates its cache
+subdirectories on first use. Both caches may be empty.
 
 ```bash
 mkdir -p "$HOME/.cache/huggingface"
 
-docker run -d --name qwen38-flash-next-mtp-v4 \
+docker run --rm -it --name qwen38-flash-next-mtp-v4 \
   --gpus all --network host --ipc host \
   --ulimit memlock=-1 --ulimit stack=67108864 \
   -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
   -v sglang-v100-jit-v4:/root/sglang-v100-jit \
-  -e PORT=8082 \
+  -e FLASHINFER_DISABLE_VERSION_CHECK=1 \
+  -e NCCL_P2P_LEVEL=NVL \
+  -e SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+  -e SGLANG_MAMBA_CONV_DTYPE=float16 \
+  -e SGLANG_MAMBA_SSM_DTYPE=float16 \
+  -e SGLANG_SM70_FORCE_FP16=1 \
+  -e SGLANG_SM70_DENSE_GEMV=1 \
+  -e SGLANG_SM70_QWEN_FUSIONS=1 \
+  -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
+  -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
   -e TVM_FFI_CACHE_DIR=/root/sglang-v100-jit/tvm-ffi \
   -e TORCH_EXTENSIONS_DIR=/root/sglang-v100-jit/torch_extensions \
   -e SGLANG_V100_NVFP4_MOE_BUILD_DIR=/root/sglang-v100-jit/nvfp4_moe \
   -e SGLANG_V100_DECODE_CUDA_BUILD_DIR=/root/sglang-v100-jit/longctx_decode \
   geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4 \
-  bash /opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
-  RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  python -m sglang.launch_server \
+  --trust-remote-code \
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --enable-multimodal \
+  --served-model-name qwen \
+  --dtype float16 \
+  --quantization modelopt_fp4 \
+  --reasoning-parser auto \
+  --tool-call-parser auto \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
+  --kv-cache-dtype fp8_e5m2 \
+  --tensor-parallel-size 4 \
+  --host 127.0.0.1 \
+  --port 8082 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --cuda-graph-bs 1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --mamba-full-memory-ratio 0.2 \
   --speculative-algorithm EAGLE \
   --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --speculative-num-steps 3 \
@@ -166,15 +196,19 @@ docker run -d --name qwen38-flash-next-mtp-v4 \
   --speculative-num-draft-tokens 4
 ```
 
-Watch first-start initialization with
-`docker logs -f qwen38-flash-next-mtp-v4`; logs can stay quiet while the large
-weight files download. Once ready,
-`curl --fail http://127.0.0.1:8082/health` succeeds. First startup needs internet
+The server runs in the foreground and prints startup logs; logs can stay quiet
+while the large weight files download. From another terminal,
+`curl --fail http://127.0.0.1:8082/health` succeeds once ready. First startup needs internet
 access and space for approximately 126 GiB of weights plus image/JIT storage;
 subsequent starts reuse the cache. Add `-e HF_HUB_OFFLINE=1` only for a fully
 populated cache. The benchmark used that optional offline setting and a
 read-only cache mount after downloading the checkpoint; those settings are
 unsuitable for a first run.
+
+Press Ctrl-C in the serving terminal when finished, or run
+`docker stop --time 60 qwen38-flash-next-mtp-v4` from another terminal.
+`--rm` removes the stopped container while preserving the host model cache and
+named JIT volume.
 
 The published v4 image passed a
 [full empty-cache startup check](../../../benchmark/qwen38_docker_clean_start_20260910/README.md)

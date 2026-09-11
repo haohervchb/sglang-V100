@@ -151,29 +151,59 @@ driver, and
 run the following commands. No repository checkout or predownloaded checkpoint is
 needed: Docker pulls the runtime image, and the server downloads missing model
 files into the writable Hugging Face cache. The image does not include weights.
-The launcher under `/opt/sglang/scripts/` is included in the image. Docker
-creates the named JIT volume automatically, and the runtime creates its cache
-subdirectories and compiles kernels using tools included in the image. Both
-caches can start empty; no host script, Conda environment or CUDA compiler is
-needed.
+The full command below starts SGLang directly with image/video support explicitly
+enabled by `--enable-multimodal`. Docker creates the named JIT volume, and the
+runtime creates its cache subdirectories and compiles kernels with the image's
+build tools. Both caches can start empty; no host script, Conda environment or
+CUDA compiler is needed.
 
 ```bash
 mkdir -p "$HOME/.cache/huggingface"
 docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4
 
-docker run -d --name qwen38-flash-next-mtp-v4 \
+docker run --rm -it --name qwen38-flash-next-mtp-v4 \
   --gpus all --network host --ipc host \
   --ulimit memlock=-1 --ulimit stack=67108864 \
   -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
   -v sglang-v100-jit-v4:/root/sglang-v100-jit \
-  -e PORT=8082 \
+  -e FLASHINFER_DISABLE_VERSION_CHECK=1 \
+  -e NCCL_P2P_LEVEL=NVL \
+  -e SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
+  -e SGLANG_MAMBA_CONV_DTYPE=float16 \
+  -e SGLANG_MAMBA_SSM_DTYPE=float16 \
+  -e SGLANG_SM70_FORCE_FP16=1 \
+  -e SGLANG_SM70_DENSE_GEMV=1 \
+  -e SGLANG_SM70_QWEN_FUSIONS=1 \
+  -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
+  -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
   -e TVM_FFI_CACHE_DIR=/root/sglang-v100-jit/tvm-ffi \
   -e TORCH_EXTENSIONS_DIR=/root/sglang-v100-jit/torch_extensions \
   -e SGLANG_V100_NVFP4_MOE_BUILD_DIR=/root/sglang-v100-jit/nvfp4_moe \
   -e SGLANG_V100_DECODE_CUDA_BUILD_DIR=/root/sglang-v100-jit/longctx_decode \
   geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4 \
-  bash /opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
-  RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  python -m sglang.launch_server \
+  --trust-remote-code \
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --enable-multimodal \
+  --served-model-name qwen \
+  --dtype float16 \
+  --quantization modelopt_fp4 \
+  --reasoning-parser auto \
+  --tool-call-parser auto \
+  --attention-backend tilelang_fa_v100 \
+  --linear-attn-prefill-backend tilelang \
+  --linear-attn-decode-backend triton \
+  --kv-cache-dtype fp8_e5m2 \
+  --tensor-parallel-size 4 \
+  --host 127.0.0.1 \
+  --port 8082 \
+  --mem-fraction-static 0.80 \
+  --context-length 262144 \
+  --max-running-requests 1 \
+  --chunked-prefill-size 8192 \
+  --cuda-graph-bs 1 \
+  --mamba-scheduler-strategy extra_buffer \
+  --mamba-full-memory-ratio 0.2 \
   --speculative-algorithm EAGLE \
   --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
   --speculative-num-steps 3 \
@@ -181,14 +211,17 @@ docker run -d --name qwen38-flash-next-mtp-v4 \
   --speculative-num-draft-tokens 4
 ```
 
-The container runs in the background; receiving its ID does not mean the API
-is ready. Watch the startup logs, then check readiness:
+The server runs in the foreground and prints startup logs in this terminal.
+Logs can stay quiet while weights download. In another terminal, check readiness:
 
 ```bash
-docker logs -f qwen38-flash-next-mtp-v4
-# Ctrl-C stops following logs; the container keeps running.
 curl --fail http://127.0.0.1:8082/health
 ```
+
+Press Ctrl-C in the serving terminal when finished, or run
+`docker stop --time 60 qwen38-flash-next-mtp-v4` from another terminal.
+`--rm` deletes the container when it stops. Downloaded weights remain in the
+host cache, and compiled kernels remain in the named JIT volume.
 
 First startup needs internet access and disk space for approximately 126 GiB
 of model weights, in addition to the Docker image and compilation caches.
@@ -206,8 +239,7 @@ The v4 image includes FFmpeg for video decoding.
 See [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md),
 [image/video validation](benchmark/qwen38_nvfp4_v100_multimodal_20260909/README.md),
 and the [full model guide](docs/v100/models/qwen38-flash-next-nvfp4.md) for
-explicit flags, overlay builds, older deployment configurations and performance
-history.
+overlay builds, older deployment configurations and performance history.
 
 ### Qwen3.8-27B
 
