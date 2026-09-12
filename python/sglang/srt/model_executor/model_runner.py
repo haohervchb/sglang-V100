@@ -2407,7 +2407,17 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 # TileLang's paged-prefill cache key contains the request batch
                 # size.  Warm both the overwhelmingly common first-chat batch
                 # of one and the existing two-request shape before readiness.
-                max_warmup_bs = self.server_args.max_running_requests
+                #
+                # Warm up to the RESOLVED pool capacity (self.max_running_requests),
+                # not the raw user request (server_args.max_running_requests). For
+                # hybrid mamba/linear-attention models the mamba state-cache budget
+                # can resolve the capacity below the user request (e.g.
+                # --max-running-requests 2 resolves to 1 when the pool fits only
+                # one request), and warming a batch size the pool cannot hold
+                # crashes at startup. init_memory_pool() runs before
+                # kernel_warmup(), so self.max_running_requests already holds the
+                # resolved value.
+                max_warmup_bs = self.max_running_requests
                 warmup_batch_sizes = (
                     bs
                     for bs in (1, 2)
