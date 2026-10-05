@@ -537,6 +537,10 @@ class Envs:
     # Set to 0: force disable (use default Aiter AR even with --enable-deterministic-inference)
     SGLANG_USE_1STAGE_ALLREDUCE = EnvBool(False)
     SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2 = EnvBool(True)
+    # Allow the custom all-reduce on >2 GPUs without NVLink (PCIe P2P). Only the
+    # one-shot push kernel is used, for messages up to the byte cap below.
+    SGLANG_CUSTOM_AR_ALLOW_PCIE = EnvBool(False)
+    SGLANG_CUSTOM_AR_PCIE_MAX_BYTES = EnvInt(128 * 1024)
     SGLANG_FLASHINFER_PREFILL_SPLIT_TILE_SIZE = EnvInt(4096)
     SGLANG_FLASHINFER_DECODE_SPLIT_TILE_SIZE = EnvInt(2048)
     SGLANG_TRITON_PREFILL_TRUNCATION_ALIGN_SIZE = EnvInt(4096)

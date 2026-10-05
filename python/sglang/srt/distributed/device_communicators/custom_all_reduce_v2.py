@@ -14,6 +14,7 @@ from sglang.srt.distributed.device_communicators.custom_all_reduce_utils import 
     can_use_custom_all_reduce_with_nvlink,
     is_weak_contiguous,
 )
+from sglang.srt.environ import envs
 from sglang.srt.utils import is_sm100_supported, log_info_on_rank0
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,18 @@ class CustomAllReduceV2:
         self.max_pull_size = max_pull_size
         self.max_push_size = max_push_size
         self.max_size = max(max_pull_size, max_push_size)
+        # Without NVLink (SGLANG_CUSTOM_AR_ALLOW_PCIE=1) only the one-shot push
+        # kernel is used: the pull kernels spin forever on PCIe P2P, and push
+        # only beats NCCL for small messages (4x V100 SXM2 on one PLX switch:
+        # 3.9 vs 19.7 us at 4 KB, 45 vs 51 us at 128 KB, 120 vs 84 us at
+        # 384 KB inside a CUDA graph). Larger inputs fall back to NCCL.
+        self.pcie_only = envs.SGLANG_CUSTOM_AR_ALLOW_PCIE.get()
+        if self.pcie_only:
+            max_push_size = min(
+                max_push_size, envs.SGLANG_CUSTOM_AR_PCIE_MAX_BYTES.get()
+            )
+            self.max_push_size = max_push_size
+            self.max_size = max_push_size
         self.override_shot(None)  # set default config based on world size
         self.override_algo: Optional[AllReduceAlgo] = None
         self.obj = get_custom_all_reduce_cls()(
@@ -143,6 +156,8 @@ class CustomAllReduceV2:
         if self.override_algo is not None:
             return self.override_algo
         input_bytes = input.numel() * input.element_size()
+        if self.pcie_only:
+            return AllReduceAlgo.ONE_SHOT_PUSH
 
         # Keep the documented legacy custom-AR override effective when the
         # default CUDA communicator is the JIT v2 implementation. Previously
