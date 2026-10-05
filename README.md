@@ -118,6 +118,10 @@ The packaged launcher uses TP4, FP16 activations, E5M2 KV, 262,144-token
 context, 8,192-token prefill chunks and one running request. It selects the
 measured V100 optimizations and detects the checkpoint's tool format.
 
+For a community-tested 8× V100 deployment using two independent TP4 replicas,
+long-context OpenCode, multimodal input, and reboot recovery, see the
+[2×TP4 OpenCode and multimodal field report](benchmark/qwen38_nvfp4_v100_opencode_field_report_20260927/README.md).
+
 Target-only on the host:
 
 ```bash
