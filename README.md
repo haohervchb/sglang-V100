@@ -4,9 +4,18 @@ SGLang serving commands and measured performance for SM70 V100 GPUs.
 
 [Performance](#current-v100-performance) · [Install](#install-on-the-host) ·
 [Docker](#docker) · [Latest models](#latest-model-serving-guides) ·
-[Older models](#older-model-serving-guides) · [Attribution](#references-and-attribution)
+[Community reports](#community-field-reports) · [Older models](#older-model-serving-guides) ·
+[Attribution](#references-and-attribution)
 
 **Docker image:** [geesegeesegeese/sglang-v100](https://hub.docker.com/r/geesegeesegeese/sglang-v100/tags)
+
+## Community field reports
+
+Real-world deployments contributed by V100 users:
+
+- **8× V100 32 GB, 2×TP4 Qwen3.8 Flash Next:** long-context OpenCode,
+  multimodal validation, dual-replica smoke testing, and reboot recovery —
+  [read the full field report](benchmark/qwen38_nvfp4_v100_opencode_field_report_20260927/README.md).
 
 ## Current V100 performance
 
