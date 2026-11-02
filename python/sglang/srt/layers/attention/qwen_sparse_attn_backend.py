@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Tuple
 import msgspec
 import torch
 import torch.nn.functional as F
+
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
 from sglang.srt.layers.attention.qsa.config import (
     QSA_VARIANT_COMPRESSED,
@@ -133,9 +134,7 @@ def _resolve_flash_attn_varlen_func():
     except ImportError:
         pass
     try:
-        from flash_attn.cute.interface import (
-            flash_attn_varlen_func as cute_varlen_func,
-        )
+        from flash_attn.cute.interface import flash_attn_varlen_func as cute_varlen_func
 
         def flash_attn_varlen_func(*args, **kwargs):
             output = cute_varlen_func(*args, **kwargs)
@@ -2122,6 +2121,7 @@ class QwenSparseMultiStepDraftBackend:
         self.model_runner = model_runner
         self.topk = topk
         self.speculative_num_steps = speculative_num_steps
+        self._draft_graph_metadata_args = {}
         self.attn_backends = [
             QwenSparseAttnBackend(model_runner)
             for _ in range(speculative_num_steps - 1)
@@ -2210,11 +2210,13 @@ class QwenSparseMultiStepDraftBackend:
             )
 
     def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+        self._draft_graph_metadata_args = {}
         for backend in self.attn_backends:
             backend.init_cuda_graph_state(max_bs, max_num_tokens)
 
     def init_forward_metadata_out_graph(self, forward_batch, in_capture: bool = False):
         if in_capture:
+            self._draft_graph_metadata_args = {}
             for step, backend in enumerate(self.attn_backends):
                 # Every capture row is synthetic.  Keep its sequence length
                 # below the first compression boundary so graph warmup cannot
@@ -2237,6 +2239,10 @@ class QwenSparseMultiStepDraftBackend:
 
         num_padding = getattr(forward_batch, "num_padding", None)
         num_padding = num_padding if num_padding is not None else 0
+        if os.environ.get(
+            "SGLANG_SM70_QSA_FUSED_GRAPH_METADATA", "0"
+        ) == "1" and self._try_fused_draft_graph_metadata(forward_batch, num_padding):
+            return
         for step, backend in enumerate(self.attn_backends):
             step_batch = self._make_step_forward_batch(
                 forward_batch, step, num_padding=num_padding
@@ -2251,6 +2257,54 @@ class QwenSparseMultiStepDraftBackend:
                 num_padding=num_padding,
             )
 
+    def _try_fused_draft_graph_metadata(self, forward_batch, num_padding):
+        if not forward_batch.seq_lens.is_cuda or not self.attn_backends:
+            return False
+        from sglang.srt.layers.attention.qsa.graph_metadata_fused import (
+            launch_draft_graph_metadata,
+            prepare_draft_graph_metadata,
+        )
+
+        bs = forward_batch.batch_size
+        cached = self._draft_graph_metadata_args.get(bs)
+        if cached is None:
+            metadata = tuple(
+                backend._cuda_graph_metadata.get((ForwardMode.DECODE, bs))
+                for backend in self.attn_backends
+            )
+            first = self.attn_backends[0]
+            if not all(m is not None for m in metadata):
+                return False
+            if not all(
+                backend.req_to_token is first.req_to_token
+                and backend._can_replay_with_gpu_kernels(m, forward_batch.seq_lens)
+                and m.indexer_metadata.token_to_kv_pool
+                is metadata[0].indexer_metadata.token_to_kv_pool
+                and m.sequence_lengths.numel() == bs
+                and m.indexer_metadata.graph_compressed_page_table.shape
+                == metadata[0].indexer_metadata.graph_compressed_page_table.shape
+                for backend, m in zip(self.attn_backends, metadata)
+            ):
+                return False
+            args = prepare_draft_graph_metadata(
+                metadata,
+                first.req_to_token,
+                metadata[0].indexer_metadata.token_to_kv_pool,
+            )
+            cached = (metadata, args)
+            self._draft_graph_metadata_args[bs] = cached
+        metadata, args = cached
+        launch_draft_graph_metadata(
+            args,
+            forward_batch.seq_lens,
+            forward_batch.req_pool_indices,
+            bs,
+            num_padding,
+        )
+        for backend, m in zip(self.attn_backends, metadata):
+            backend.forward_metadata = m
+        return True
+
     def init_forward_metadata_capture_cuda_graph(self, forward_batch) -> None:
         """Compatibility hook used by ``EagleDraftCudaGraphRunner``.
 
@@ -2261,9 +2315,7 @@ class QwenSparseMultiStepDraftBackend:
 
         self.init_forward_metadata_out_graph(forward_batch, in_capture=True)
 
-    def init_forward_metadata_replay_cuda_graph(
-        self, forward_batch, bs: int
-    ) -> None:
+    def init_forward_metadata_replay_cuda_graph(self, forward_batch, bs: int) -> None:
         """Refresh per-step QSA graph metadata before replay."""
 
         if forward_batch.batch_size != bs:

@@ -24,6 +24,8 @@ buffers.
 
 from __future__ import annotations
 
+import os
+
 import torch
 import triton
 import triton.language as tl
@@ -200,6 +202,25 @@ def launch_graph_metadata(
     Used both for the eager capture-warmup launch and for recording the
     kernels into the main CUDA graph (``init_forward_metadata_in_graph``).
     """
+
+    if os.environ.get("SGLANG_SM70_QSA_FUSED_GRAPH_METADATA", "0") == "1":
+        from sglang.srt.layers.attention.qsa.graph_metadata_fused import (
+            launch_graph_metadata as launch_fused,
+        )
+
+        return launch_fused(
+            mode=mode,
+            bs=bs,
+            num_rows=num_rows,
+            seq_lens=seq_lens,
+            req_pool_indices=req_pool_indices,
+            extend_lens=extend_lens,
+            extend_len=extend_len,
+            num_padding=num_padding,
+            metadata=metadata,
+            req_to_token=req_to_token,
+            pool=pool,
+        )
 
     indexer = metadata.indexer_metadata
     max_pages = indexer.graph_compressed_page_table.shape[1]
