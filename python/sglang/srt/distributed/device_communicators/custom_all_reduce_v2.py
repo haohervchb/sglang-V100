@@ -14,6 +14,7 @@ from sglang.srt.distributed.device_communicators.custom_all_reduce_utils import 
     can_use_custom_all_reduce_with_nvlink,
     is_weak_contiguous,
 )
+from sglang.srt.environ import envs
 from sglang.srt.utils import is_sm100_supported, log_info_on_rank0
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,10 @@ class CustomAllReduceV2:
     ) -> None:
         _maybe_init_config()
         self.disabled = True
-        if not can_use_custom_all_reduce_v2(group=group, device=device):
+        full_nvlink = _custom_all_reduce_v2_nvlink(group=group, device=device)
+        if full_nvlink is None or (
+            not full_nvlink and not envs.SGLANG_CUSTOM_AR_ALLOW_PCIE.get()
+        ):
             return
 
         self.group = group
@@ -55,6 +59,21 @@ class CustomAllReduceV2:
         self.max_pull_size = max_pull_size
         self.max_push_size = max_push_size
         self.max_size = max(max_pull_size, max_push_size)
+        # Without NVLink (SGLANG_CUSTOM_AR_ALLOW_PCIE=1) only the one-shot push
+        # kernel is used: the pull kernels spin forever on PCIe P2P, and push
+        # only beats NCCL for small messages (4x V100 SXM2 on one PLX switch:
+        # 3.9 vs 19.7 us at 4 KB, 45 vs 51 us at 128 KB, 120 vs 84 us at
+        # 384 KB inside a CUDA graph). Larger inputs fall back to NCCL.
+        self.pcie_only = not full_nvlink
+        if self.pcie_only:
+            byte_cap = envs.SGLANG_CUSTOM_AR_PCIE_MAX_BYTES.get()
+            if byte_cap <= 0 or byte_cap % 16:
+                raise ValueError(
+                    "SGLANG_CUSTOM_AR_PCIE_MAX_BYTES must be a positive multiple of 16"
+                )
+            max_push_size = min(max_push_size, byte_cap)
+            self.max_push_size = max_push_size
+            self.max_size = max_push_size
         self.override_shot(None)  # set default config based on world size
         self.override_algo: Optional[AllReduceAlgo] = None
         self.obj = get_custom_all_reduce_cls()(
@@ -140,6 +159,11 @@ class CustomAllReduceV2:
         return torch.from_dlpack(self.obj.all_reduce(input, algo))
 
     def _determine_algo(self, input: torch.Tensor) -> AllReduceAlgo:
+        # An explicit override must never select a pull kernel on PCIe.
+        if self.pcie_only:
+            if input.numel() * input.element_size() > self.max_size:
+                raise ValueError("PCIe custom all-reduce input exceeds the push buffer")
+            return AllReduceAlgo.ONE_SHOT_PUSH
         if self.override_algo is not None:
             return self.override_algo
         input_bytes = input.numel() * input.element_size()
@@ -221,15 +245,24 @@ def can_use_custom_all_reduce_v2(
     group: ProcessGroup,
     device: torch.device,
 ) -> bool:
+    full_nvlink = _custom_all_reduce_v2_nvlink(group=group, device=device)
+    return full_nvlink is not None and (
+        full_nvlink or envs.SGLANG_CUSTOM_AR_ALLOW_PCIE.get()
+    )
+
+
+def _custom_all_reduce_v2_nvlink(
+    group: ProcessGroup, device: torch.device
+) -> Optional[bool]:
     # call _maybe_init_config() to ensure THRESHOLD_2_SHOT_MAP is initialized, since can_use_custom_all_reduce_v2 can be called before CustomAllReduceV2 is initialized
     _maybe_init_config()
-    full_nvlink = can_use_custom_all_reduce_with_nvlink(
+    return can_use_custom_all_reduce_with_nvlink(
         group=group,
         device=device,
         supported_world_size=list(THRESHOLD_2_SHOT_MAP.keys()),
         cls_name="CustomAllReduceV2",
+        allow_pcie=envs.SGLANG_CUSTOM_AR_ALLOW_PCIE.get(),
     )
-    return full_nvlink is True
 
 
 THRESHOLD_2_SHOT_MAP: Dict[int, ModeConfig] = {}

@@ -406,7 +406,9 @@ def can_p2p(rank: int, world_size: int) -> bool:
             continue
         if SGLANG_SKIP_P2P_CHECK:
             logger.info("Skipping P2P check and trusting the driver's P2P report.")
-            return torch.cuda.can_device_access_peer(rank, i)
+            if not torch.cuda.can_device_access_peer(rank, i):
+                return False
+            continue
         if not gpu_p2p_access_check(rank, i):
             return False
     return True
@@ -417,6 +419,8 @@ def can_use_custom_all_reduce_with_nvlink(
     device: torch.device,
     supported_world_size: List[int],
     cls_name: str,
+    *,
+    allow_pcie: bool = False,
 ) -> Optional[bool]:  # None if fail; otherwise return whether NVLink is available
     assert (
         dist.get_backend(group) != dist.Backend.NCCL
@@ -463,12 +467,21 @@ def can_use_custom_all_reduce_with_nvlink(
     # where custom allreduce is not supported
     # this checks hardware and driver support for NVLink
     if world_size > 2 and not full_nvlink:
-        logger.warning(
-            f"{cls_name} is disabled because it's not supported on"
-            " more than two PCIe-only GPUs. To silence this warning, "
-            "specify disable_custom_all_reduce=True explicitly."
-        )
-        return
+        # Only callers with a push-only PCIe implementation may opt in.
+        # Preserve the actual topology for the caller and the legacy backend.
+        if allow_pcie:
+            logger.info(
+                f"{cls_name}: no NVLink between the {world_size} GPUs, "
+                "SGLANG_CUSTOM_AR_ALLOW_PCIE=1 enables the custom all-reduce "
+                "over PCIe P2P."
+            )
+        else:
+            logger.warning(
+                f"{cls_name} is disabled because it's not supported on"
+                " more than two PCIe-only GPUs. To silence this warning, "
+                "specify disable_custom_all_reduce=True explicitly."
+            )
+            return
 
     # test P2P capability, this checks software/cudaruntime support
     # this is expensive to compute at the first time
