@@ -7,7 +7,7 @@ import triton
 pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
 
 
-@pytest.mark.parametrize("rows", [1, 4])
+@pytest.mark.parametrize("rows", [1, 4, 6, 8])
 @pytest.mark.parametrize("pages", [129, 8192])
 def test_page_tiles_and_graph_replay(rows, pages):
     from sglang.srt.layers.attention.qsa.graph_metadata import (
@@ -15,13 +15,15 @@ def test_page_tiles_and_graph_replay(rows, pages):
     )
 
     torch.manual_seed(19)
-    ratio, full_page = 4, 32
-    page_ids = torch.randint(1, 10000, (6, pages), device="cuda")
+    ratio, full_page, ring = 4, 32, 16
+    page_ids = torch.randint(1, 10000, (10, pages), device="cuda")
     pool = (
         page_ids[:, :, None] * full_page
         + torch.arange(full_page, device="cuda")[None, None, :]
     ).flatten(1)
-    seq = torch.tensor([1, 4, 251, 2500][:rows], dtype=torch.int32, device="cuda")
+    seq = torch.tensor(
+        [1, 4, 251, 2500, 41, 62, 87, 90][:rows], dtype=torch.int32, device="cuda"
+    )
     req = torch.arange(1, rows + 1, dtype=torch.int32, device="cuda")
 
     def buffers():
@@ -45,6 +47,7 @@ def test_page_tiles_and_graph_replay(rows, pages):
             pool.stride(0),
             pages,
             RATIO=ratio,
+            RING=ring,
             FULL_PAGE=full_page,
             PAGE_BLOCK=128,
             num_warps=1,
@@ -67,12 +70,12 @@ def test_page_tiles_and_graph_replay(rows, pages):
             torch.where(seq % ratio == 0, last // ratio, 0),
             page_ids[req.long()],
             current,
-            req.long() * ratio + current % ratio,
-            req[:, None] * ratio
+            req.long() * ring + current % ring,
+            req[:, None] * ring
             + (
                 current[:, None] - torch.arange(ratio - 1, -1, -1, device="cuda")
             ).clamp_min(0)
-            % ratio,
+            % ring,
         ]
         for actual, old, reference in zip(tiled, serial, expected):
             torch.testing.assert_close(actual, old, rtol=0, atol=0)
