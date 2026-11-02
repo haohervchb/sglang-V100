@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 import torch
-
 from sglang.srt.layers.moe.moe_runner.base import (
     MoeQuantInfo,
     MoeRunnerConfig,
@@ -102,7 +102,9 @@ def fused_experts_none_to_marlin(
     use_sm70_nvfp4_decode = (
         hidden_states.dtype == torch.float16
         and hidden_states.ndim == 2
-        and 1 <= hidden_states.shape[0] <= 4
+        and 1
+        <= hidden_states.shape[0]
+        <= (8 if os.environ.get("SGLANG_SM70_MTP_WIDE_MOE", "0") == "1" else 4)
         and hidden_states.shape[1] == 2560
         and tuple(topk_output.topk_ids.shape) == (hidden_states.shape[0], 10)
         and tuple(quant_info.w13_qweight.shape) == (512, 160, 640)

@@ -454,8 +454,8 @@ void decode(torch::Tensor input, torch::Tensor w13, torch::Tensor w2,
             torch::Tensor down_partials, torch::Tensor output) {
   TORCH_CHECK(input.is_cuda() && input.scalar_type() == at::kHalf &&
                   input.dim() == 2 && input.size(0) >= 1 &&
-                  input.size(0) <= 4 && input.size(1) == kHidden,
-              "input must be CUDA FP16 [M, 2560], 1 <= M <= 4");
+                  input.size(0) <= 8 && input.size(1) == kHidden,
+              "input must be CUDA FP16 [M, 2560], 1 <= M <= 8");
   const int batch_size = static_cast<int>(input.size(0));
   const int num_routes = batch_size * kTopK;
   TORCH_CHECK(w13.is_cuda() && w13.scalar_type() == at::kInt,

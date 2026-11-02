@@ -31,7 +31,8 @@ def test_sm70_topk10_softmax_matches_torch(batch_size):
     torch.testing.assert_close(weights, reference_weights, rtol=2e-6, atol=3e-8)
 
 
-def test_sm70_nvfp4_moe_four_rows_match_individual_rows():
+@pytest.mark.parametrize("rows", [4, 6, 8])
+def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
 
     torch.manual_seed(11)
@@ -51,10 +52,10 @@ def test_sm70_nvfp4_moe_four_rows_match_individual_rows():
     )
     w13_global = torch.full((10,), 100.0, dtype=torch.float32, device="cuda")
     w2_global = torch.full((10,), 100.0, dtype=torch.float32, device="cuda")
-    hidden_states = torch.randn((4, 2560), dtype=torch.float16, device="cuda")
+    hidden_states = torch.randn((rows, 2560), dtype=torch.float16, device="cuda")
     original_input = hidden_states.clone()
-    ids = torch.arange(10, dtype=torch.int32, device="cuda").repeat(4, 1)
-    weights = torch.softmax(torch.randn((4, 10), device="cuda"), dim=-1)
+    ids = torch.arange(10, dtype=torch.int32, device="cuda").repeat(rows, 1)
+    weights = torch.softmax(torch.randn((rows, 10), device="cuda"), dim=-1)
 
     batched = sm70_nvfp4_moe_decode(
         hidden_states,
@@ -80,7 +81,7 @@ def test_sm70_nvfp4_moe_four_rows_match_individual_rows():
                 ids[row],
                 weights[row],
             )
-            for row in range(4)
+            for row in range(rows)
         ]
     )
 

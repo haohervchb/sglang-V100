@@ -74,7 +74,11 @@ def sm70_nvfp4_moe_decode(
     topk_ids: torch.Tensor,
     topk_weights: torch.Tensor,
 ) -> torch.Tensor:
-    """Run the exact TP4 M<=4/H=2560/I=160/top-k=10 decode shape."""
+    """Run the exact TP4 M<=8/H=2560/I=160/top-k=10 decode shape.
+
+    Serving dispatch remains limited to four rows unless the wider-MTP
+    experiment is explicitly enabled.
+    """
     ext = _load_sm70_nvfp4_moe_decode_ops()
     if ext is None:
         raise RuntimeError("SM70 NVFP4 MoE decode extension is unavailable")
