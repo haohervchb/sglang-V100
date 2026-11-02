@@ -86,6 +86,8 @@ same model revision, launch configuration and output length for every variant.
 For diagnostic runs, prepend `benchmark/qwen38_spec/probe` to `PYTHONPATH` and
 set `SGLANG_SPEC_PROBE_DIR` to an absolute output directory. The probe wraps the
 worker only in that process; it does not install a production runtime hook.
+It attaches after the worker's normal import, so it does not import Torch or
+freeze backend choices before server setup.
 It records rank-zero CUDA events for draft, verify, target forward, recurrent
 state commit, draft extend and the complete round, plus CPU submission time.
 Events are queried in later rounds without a profiling synchronization per round.
@@ -119,8 +121,12 @@ each recorded device, between first and last GPU activity. It excludes CPU API
 durations and handles overlapping streams. Kernel-name categories separate
 QSA metadata, QSA compute, GDN, MoE, all-reduce and copies; the largest kernel
 names are retained for auditing. A trace including prefill describes that whole
-profile window, not just decode. CUDA event round times alone cannot establish
-GPU idle time.
+profile window. If phase annotations and CUDA correlations are present, a
+separate `decode_window` follows the GPU operations submitted during those
+phases through their async completion. It excludes prefill and later requests,
+while counting all GPU activity inside that window. CUDA event round times
+alone cannot establish GPU idle time. All profiler results remain diagnostic
+because tracing itself changes launch costs.
 Phase summaries are also grouped by request ID so separate workloads and
 lookup modes are not averaged together.
 

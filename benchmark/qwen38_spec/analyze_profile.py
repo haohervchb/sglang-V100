@@ -70,7 +70,7 @@ def analyze_trace(trace):
             idle_ms=(span - busy) / 1000,
             idle_fraction=(span - busy) / span if span else 0,
         )
-    return dict(
+    summary = dict(
         devices=result,
         kernel_sum_ms={k: v / 1000 for k, v in sums.items()},
         kernel_counts=dict(counts),
@@ -81,6 +81,49 @@ def analyze_trace(trace):
         ),
         note="Kernel sums can overlap; idle is the union over all recorded device streams, within first-to-last GPU activity. Categories use kernel names, not layer attribution.",
     )
+    phases = [
+        e
+        for e in trace["traceEvents"]
+        if e.get("ph") == "X" and e.get("name", "").startswith("spec_cycle/")
+    ]
+    if phases:
+        start = min(e["ts"] for e in phases)
+        stop = max(e["ts"] + e["dur"] for e in phases)
+        correlations = {
+            e["args"]["correlation"]
+            for e in trace["traceEvents"]
+            if e.get("cat") in ("cuda_runtime", "cuda_driver")
+            and start <= e.get("ts", -1) <= stop
+            and "correlation" in e.get("args", {})
+        }
+        gpu = [
+            e
+            for e in trace["traceEvents"]
+            if e.get("ph") == "X"
+            and e.get("cat") in ("kernel", "gpu_memcpy", "gpu_memset")
+        ]
+        matched = [
+            e for e in gpu if e.get("args", {}).get("correlation") in correlations
+        ]
+        if matched:
+            start = min(e["ts"] for e in matched)
+            stop = max(e["ts"] + e["dur"] for e in matched)
+            clipped = [
+                dict(
+                    e,
+                    ts=max(start, e["ts"]),
+                    dur=min(stop, e["ts"] + e["dur"]) - max(start, e["ts"]),
+                )
+                for e in gpu
+                if e["ts"] < stop and e["ts"] + e["dur"] > start
+            ]
+            summary["decode_window"] = analyze_trace(dict(traceEvents=clipped))
+            summary["decode_window"]["scope"] = (
+                "First-to-last GPU operation correlated with CUDA calls submitted "
+                "between the first and last spec_cycle phase annotations; all GPU "
+                "activity inside that window contributes to busy time. Diagnostic only."
+            )
+    return summary
 
 
 def main():
