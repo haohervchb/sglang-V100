@@ -81,7 +81,16 @@ def make_corpus(args):
         f.write("\n")
 
 
-def measure(url, case, output_tokens, temperature=0, sampling_seed=42, lookup=None):
+def measure(
+    url,
+    case,
+    output_tokens,
+    temperature=0,
+    sampling_seed=42,
+    lookup=None,
+    *,
+    ignore_eos=True,
+):
     response = requests.post(url + "/flush_cache", params={"timeout": 30}, timeout=120)
     response.raise_for_status()
     # Some scheduler endpoints return HTTP 200 even when they refuse a flush.
@@ -106,7 +115,7 @@ def measure(url, case, output_tokens, temperature=0, sampling_seed=42, lookup=No
                 temperature=temperature,
                 sampling_seed=sampling_seed,
                 max_new_tokens=output_tokens,
-                ignore_eos=True,
+                ignore_eos=ignore_eos,
                 custom_params={"prompt_lookup": lookup} if lookup is not None else None,
             ),
         ),
@@ -133,14 +142,14 @@ def measure(url, case, output_tokens, temperature=0, sampling_seed=42, lookup=No
                         verify_ct=meta.get("spec_verify_ct", 0),
                     )
                 )
-    if final is None or len(events) < 2:
+    if final is None or not events or (ignore_eos and len(events) < 2):
         raise RuntimeError(
             "Incomplete stream or too few token events for decode timing"
         )
     meta = final["meta_info"]
-    if meta["completion_tokens"] != output_tokens or meta["prompt_tokens"] != len(
-        case["input_ids"]
-    ):
+    if (ignore_eos and meta["completion_tokens"] != output_tokens) or meta[
+        "prompt_tokens"
+    ] != len(case["input_ids"]):
         raise RuntimeError(f"Unexpected token counts: {meta}")
     if meta.get("cached_tokens", 0) or meta.get("retraction_count", 0):
         raise RuntimeError(f"Cache hit or retraction invalidates this sample: {meta}")
@@ -155,12 +164,16 @@ def measure(url, case, output_tokens, temperature=0, sampling_seed=42, lookup=No
         input_sha256=case["input_sha256"],
         input_tokens=len(case["input_ids"]),
         output_tokens=output_tokens,
+        actual_output_tokens=meta["completion_tokens"],
+        ignore_eos=ignore_eos,
         temperature=temperature,
         sampling_seed=sampling_seed,
         ttft_s=first["seconds"],
         end_to_end_s=last["seconds"],
-        end_to_end_tok_s=output_tokens / last["seconds"],
-        decode_tok_s=(last["tokens"] - first["tokens"]) / elapsed,
+        end_to_end_tok_s=meta["completion_tokens"] / last["seconds"],
+        decode_tok_s=(last["tokens"] - first["tokens"]) / elapsed
+        if elapsed > 0
+        else None,
         observed_cycle_ms=1000 * elapsed / rounds if rounds else None,
         # Includes the bonus token; use the server's histogram as well since
         # the final round may be truncated at max_new_tokens.
@@ -195,7 +208,13 @@ def run(args):
                     variants.reverse()
                 for lookup in variants:
                     row = measure(
-                        args.url, case, n, args.temperature, args.seed, lookup
+                        args.url,
+                        case,
+                        n,
+                        args.temperature,
+                        args.seed,
+                        lookup,
+                        ignore_eos=not args.natural_eos,
                     )
                     row.update(
                         label=args.label,
@@ -276,6 +295,11 @@ def sweep(args):
                 if time.monotonic() > deadline:
                     raise TimeoutError(f"Server not ready; see {prefix}.log")
                 time.sleep(1)
+            for marker in variant.get("required_log_markers", []):
+                if marker not in Path(str(prefix) + ".log").read_text():
+                    raise RuntimeError(
+                        f"Required server backend marker missing: {marker}"
+                    )
             args.label, args.output = label, str(prefix) + ".jsonl"
             run(args)
         finally:
@@ -322,6 +346,11 @@ def main():
         p.add_argument("--temperature", type=float, default=0)
         p.add_argument("--seed", type=int, default=42)
         p.add_argument("--diagnostic", action="store_true")
+        p.add_argument(
+            "--natural-eos",
+            action="store_true",
+            help="Allow normal completion; output-tokens becomes a limit",
+        )
         p.add_argument(
             "--lookup-ab",
             action="store_true",

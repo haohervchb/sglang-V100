@@ -28,6 +28,25 @@ tokens per cycle use verification-counter differences over that same interval;
 they are client observations, not isolated kernel timings. Acceptance length
 includes the bonus token. Server configuration is saved next to each JSONL file.
 
+## Small SPEED-Bench screen
+
+Generate a pinned 20-case first-turn subset covering coding, reasoning,
+writing, retrieval and multilingual prompts:
+
+```bash
+python benchmark/qwen38_spec/speed_corpus.py \
+  --output /tmp/speed-corpus.json --manifest /tmp/speed-manifest.json
+python benchmark/qwen38_spec/bench.py run \
+  --corpus /tmp/speed-corpus.json --label mtp-speed \
+  --output /tmp/mtp-speed.jsonl --natural-eos --repeats 2 --warmups 0
+```
+
+This is a screening subset, not a full SPEED-Bench score or agent-session
+replay. `--natural-eos` permits normal completion and records actual output
+length; a response delivered in a single burst has no decode-rate estimate.
+The manifest records dataset revision, question IDs, input hashes and lengths.
+Keep the downloaded dataset and generated prompt corpus local.
+
 ## Experimental switches
 
 Both switches default to **off**:
@@ -80,6 +99,14 @@ never shell-evaluated strings. The harness refuses to start over a listening
 server and only terminates process groups it launched. Use no simulated
 acceptance (`SGLANG_SIMULATE_ACC_LEN=-1`), no competing GPU workload, and the
 same model revision, launch configuration and output length for every variant.
+
+An isolated worktree does not contain ignored compiled extensions. Set
+`SGLANG_SM70_TURBOMIND_OPS_PATH` to the same built library in every variant,
+and verify the Marlin libraries too. A variant can require boot-log markers
+before measuring, for example
+`"required_log_markers": ["SM70 FP16 MoE: using TurboMind batched GEMM"]`.
+Missing markers abort the sweep instead of benchmarking a silent fallback.
+Pin both `--revision` and `--speculative-draft-model-revision`.
 
 ## Separate profiling
 
