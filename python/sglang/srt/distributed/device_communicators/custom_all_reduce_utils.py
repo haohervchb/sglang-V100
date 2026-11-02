@@ -406,7 +406,9 @@ def can_p2p(rank: int, world_size: int) -> bool:
             continue
         if SGLANG_SKIP_P2P_CHECK:
             logger.info("Skipping P2P check and trusting the driver's P2P report.")
-            return torch.cuda.can_device_access_peer(rank, i)
+            if not torch.cuda.can_device_access_peer(rank, i):
+                return False
+            continue
         if not gpu_p2p_access_check(rank, i):
             return False
     return True

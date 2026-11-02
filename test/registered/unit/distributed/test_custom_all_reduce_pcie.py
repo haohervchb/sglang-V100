@@ -13,6 +13,14 @@ from sglang.test.ci.ci_register import register_cpu_ci
 register_cpu_ci(est_time=5, suite="stage-a-test-cpu")
 
 
+def test_driver_p2p_check_covers_every_peer(monkeypatch):
+    monkeypatch.setenv("SGLANG_SKIP_P2P_CHECK", "1")
+    check = Mock(side_effect=[True, True, False])
+    monkeypatch.setattr(torch.cuda, "can_device_access_peer", check)
+    assert not utils.can_p2p(0, 4)
+    assert [call.args for call in check.call_args_list] == [(0, 1), (0, 2), (0, 3)]
+
+
 @pytest.mark.parametrize("nvlink", [True, False])
 @pytest.mark.parametrize("opt_in", [True, False])
 @pytest.mark.parametrize("legacy", [True, False])
