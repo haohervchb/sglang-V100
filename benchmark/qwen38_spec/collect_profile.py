@@ -17,6 +17,11 @@ def main():
     p.add_argument("--label", required=True)
     p.add_argument("--output-tokens", type=int, default=128)
     p.add_argument("--lookup", choices=["on", "off"], default="off")
+    p.add_argument(
+        "--cpu-only",
+        action="store_true",
+        help="Keep CUDA-event phase timings but omit intrusive GPU kernel tracing",
+    )
     args = p.parse_args()
     case = next(
         c for c in json.loads(args.corpus.read_text())["cases"] if c["id"] == args.case
@@ -27,11 +32,12 @@ def main():
         raise FileExistsError(output)
     # Warm outside the profile. The recorded request is cold-cache again.
     measure(args.url, case, min(64, args.output_tokens), lookup=args.lookup == "on")
+    activities = ["CPU"] if args.cpu_only else ["CPU", "GPU"]
     response = requests.post(
         args.url + "/start_profile",
         json=dict(
             output_dir=str(args.output_dir.resolve()),
-            activities=["CPU", "GPU"],
+            activities=activities,
             with_stack=False,
             record_shapes=False,
             profile_prefix=args.label,
@@ -41,7 +47,7 @@ def main():
     response.raise_for_status()
     try:
         row = measure(args.url, case, args.output_tokens, lookup=args.lookup == "on")
-        row.update(diagnostic=True, label=args.label)
+        row.update(diagnostic=True, label=args.label, profiler_activities=activities)
         output.write_text(json.dumps(row, indent=2) + "\n")
     finally:
         response = requests.post(args.url + "/stop_profile", timeout=300)

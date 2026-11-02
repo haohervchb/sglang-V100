@@ -98,14 +98,16 @@ With `SGLANG_SPEC_PROBE_ON_PROFILE=1`, event timing is active only while the
 server's PyTorch profiler is active. Otherwise every eligible round is timed.
 Use `/start_profile` and `/stop_profile` to obtain a Chrome trace, with
 `activities=["CPU", "GPU"]`, `with_stack=false` and `record_shapes=false`.
+Use `collect_profile.py --cpu-only` for CUDA-event phase timing without GPU
+kernel tracing; this reduces profiler overhead but remains diagnostic.
 Issue one more short request after stopping to drain completed event records.
 Mark profiled client runs with `--diagnostic`; do not mix their throughput into
 the unprofiled A/B result.
 
-`profile.py` performs the warmup, profile start/stop and final drain request:
+`collect_profile.py` performs the warmup, profile start/stop and final drain request:
 
 ```bash
-python benchmark/qwen38_spec/profile.py --corpus /tmp/qwen-corpus.json \
+python benchmark/qwen38_spec/collect_profile.py --corpus /tmp/qwen-corpus.json \
   --case code_edit_8192 --lookup on --label code-lookup \
   --output-dir /tmp/probe
 ```

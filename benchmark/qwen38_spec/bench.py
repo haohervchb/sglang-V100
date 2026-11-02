@@ -280,9 +280,21 @@ def sweep(args):
             run(args)
         finally:
             if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
+                # Let overlap scheduling retire the final request before
+                # tearing down ranks that share custom all-reduce buffers.
                 try:
-                    process.wait(timeout=30)
+                    requests.post(
+                        args.url + "/flush_cache", params={"timeout": 30}, timeout=35
+                    ).raise_for_status()
+                except requests.RequestException:
+                    pass
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            if process.poll() is None:
+                try:
+                    process.wait(timeout=60)
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait(timeout=30)
