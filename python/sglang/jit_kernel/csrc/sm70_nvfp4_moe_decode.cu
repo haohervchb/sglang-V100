@@ -528,9 +528,9 @@ void decode(torch::Tensor input, torch::Tensor w13, torch::Tensor w2,
 void topk10_softmax(torch::Tensor logits, torch::Tensor topk_weights,
                     torch::Tensor topk_ids) {
   TORCH_CHECK(logits.is_cuda() && logits.is_contiguous() && logits.dim() == 2 &&
-                  logits.size(0) >= 1 && logits.size(0) <= 4 &&
+                  logits.size(0) >= 1 && logits.size(0) <= 8 &&
                   logits.size(1) == kExperts,
-              "logits must be contiguous CUDA [M, 512], 1 <= M <= 4");
+              "logits must be contiguous CUDA [M, 512], 1 <= M <= 8");
   const int batch_size = static_cast<int>(logits.size(0));
   TORCH_CHECK(logits.scalar_type() == at::kHalf ||
                   logits.scalar_type() == at::kFloat,

@@ -113,7 +113,7 @@ def sm70_nvfp4_moe_decode(
 
 
 def sm70_topk10_softmax(logits: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    """Select and renormalize ten of 512 logits for up to four rows."""
+    """Select and renormalize ten of 512 logits for up to eight rows."""
     ext = _load_sm70_nvfp4_moe_decode_ops()
     if ext is None:
         raise RuntimeError("SM70 NVFP4 decode extension is unavailable")

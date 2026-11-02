@@ -7,14 +7,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("batch_size", [1, 2, 4])
+@pytest.mark.parametrize("batch_size", [1, 2, 4, 6, 8])
 def test_sm70_topk10_softmax_matches_torch(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
     torch.manual_seed(100 + batch_size)
-    logits = torch.randn(
-        batch_size, 512, dtype=torch.float16, device="cuda"
-    )
+    logits = torch.randn(batch_size, 512, dtype=torch.float16, device="cuda")
     weights, ids = sm70_topk10_softmax(logits)
 
     probabilities = torch.softmax(logits.float(), dim=-1)
@@ -38,18 +36,10 @@ def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
     torch.manual_seed(11)
     # Ten experts are sufficient for this route-layout test. The serving path
     # supplies all 512; keeping the fixture small avoids a >300 MB allocation.
-    w13 = torch.empty(
-        (10, 160, 640), dtype=torch.int32, device="cuda"
-    ).random_()
-    w2 = torch.empty(
-        (10, 10, 5120), dtype=torch.int32, device="cuda"
-    ).random_()
-    w13_scales = torch.full(
-        (10, 160, 320), 0x70, dtype=torch.uint8, device="cuda"
-    )
-    w2_scales = torch.full(
-        (10, 10, 2560), 0x70, dtype=torch.uint8, device="cuda"
-    )
+    w13 = torch.empty((10, 160, 640), dtype=torch.int32, device="cuda").random_()
+    w2 = torch.empty((10, 10, 5120), dtype=torch.int32, device="cuda").random_()
+    w13_scales = torch.full((10, 160, 320), 0x70, dtype=torch.uint8, device="cuda")
+    w2_scales = torch.full((10, 10, 2560), 0x70, dtype=torch.uint8, device="cuda")
     w13_global = torch.full((10,), 100.0, dtype=torch.float32, device="cuda")
     w2_global = torch.full((10,), 100.0, dtype=torch.float32, device="cuda")
     hidden_states = torch.randn((rows, 2560), dtype=torch.float16, device="cuda")
@@ -93,10 +83,11 @@ def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
-def test_sm70_topk10_softmax_ties_and_signed_zero(dtype):
+@pytest.mark.parametrize("rows", [4, 6, 8])
+def test_sm70_topk10_softmax_ties_and_signed_zero(dtype, rows):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
-    logits = torch.zeros((4, 512), device="cuda", dtype=dtype)
+    logits = torch.zeros((rows, 512), device="cuda", dtype=dtype)
     logits[1, ::2] = -0.0
     logits[2].fill_(-5)
     logits[2, [19, 31, 57]] = 4
