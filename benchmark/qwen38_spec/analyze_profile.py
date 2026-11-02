@@ -133,8 +133,10 @@ def main():
     args = parser.parse_args()
     result = {}
     for path in args.inputs:
-        if path.suffix == ".jsonl":
-            rows = [json.loads(line) for line in path.read_text().splitlines()]
+        if path.name.endswith((".jsonl", ".jsonl.gz")):
+            opener = gzip.open if path.suffix == ".gz" else open
+            with opener(path, "rt") as f:
+                rows = [json.loads(line) for line in f if line.strip()]
             requests = defaultdict(list)
             for row in rows:
                 requests[",".join(row["request_ids"])].append(row)

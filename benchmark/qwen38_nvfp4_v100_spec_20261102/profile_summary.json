@@ -1,5 +1,5 @@
 {
-  "profiles/cycles_tp0_80205.jsonl": {
+  "profiles/cycles_tp0_80205.jsonl.gz": {
     "diagnostic": true,
     "rounds": 147,
     "median_ms": {
