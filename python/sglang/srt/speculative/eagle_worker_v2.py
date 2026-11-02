@@ -413,7 +413,27 @@ class EagleDraftWorker(BaseDraftWorker):
 
         with canary_outside_ctx:
             # Run draft
-            if can_cuda_graph:
+            lookup_tokens = (
+                self.prompt_lookup.draft(batch, draft_input.bonus_tokens)
+                if getattr(self, "prompt_lookup", None) is not None
+                else None
+            )
+            if lookup_tokens is not None:
+                # Top-k one is a linear chain; retain the usual tree builder
+                # and all target verification/state-commit paths below.
+                parent_list = torch.arange(
+                    -1,
+                    self.speculative_num_steps - 1,
+                    device=self.device,
+                    dtype=torch.int64,
+                ).view(1, -1)
+                top_scores_index = torch.arange(
+                    self.speculative_num_steps,
+                    device=self.device,
+                    dtype=torch.int64,
+                ).view(1, -1)
+                draft_tokens = lookup_tokens
+            elif can_cuda_graph:
                 parent_list, top_scores_index, draft_tokens = (
                     self.cuda_graph_runner.replay(forward_batch)
                 )
@@ -632,6 +652,8 @@ class EagleDraftWorker(BaseDraftWorker):
             target_hidden_states: Hidden states from the target model forward
             next_token_ids: Next token ids generated from the target forward.
         """
+        if getattr(self, "prompt_lookup", None) is not None:
+            self.prompt_lookup.reset()
         # Construct input_ids
         if not batch.forward_mode.is_idle():
             # Chunked-prefill-aware tail tokens (see PR #26329).
@@ -844,6 +866,25 @@ class EAGLEWorkerV2(BaseSpecWorker):
             nccl_port,
             target_worker,
         )
+
+        if os.environ.get("SGLANG_SM70_PROMPT_LOOKUP", "0") == "1":
+            from sglang.srt.speculative.prompt_lookup import GreedyPromptLookup
+
+            if not (
+                self.device == "cuda"
+                and torch.cuda.get_device_capability() == (7, 0)
+                and self._draft_worker.draft_runner.model_config.hf_config.architectures
+                == ["Qwen4ExpForCausalLMMTP"]
+                and self.topk == 1
+                and self.speculative_num_steps == 3
+                and self.speculative_num_draft_tokens == 4
+                and server_args.max_running_requests == 1
+                and not server_args.speculative_adaptive
+            ):
+                raise ValueError(
+                    "SM70 prompt lookup requires Qwen MTP-3/4, top-k one, max-running-requests=1 and no adaptive speculation"
+                )
+            self._draft_worker.prompt_lookup = GreedyPromptLookup(3, self.device)
 
         # Adaptive speculative
         self.adaptive_controller: Optional[AdaptiveController] = None
@@ -1233,6 +1274,10 @@ class EAGLEWorkerV2(BaseSpecWorker):
 
         if not batch.forward_mode.is_idle():
             accept_tokens = predict[accept_index]
+            if getattr(self.draft_worker, "prompt_lookup", None) is not None:
+                self.draft_worker.prompt_lookup.observe(
+                    batch, accept_tokens, accept_lens
+                )
             bonus_tokens = torch.empty_like(accept_lens, dtype=torch.int32)
             fill_bonus_tokens[(bs,)](
                 accept_tokens,
