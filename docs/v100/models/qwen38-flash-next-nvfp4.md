@@ -337,6 +337,27 @@ KV cache. With the `extra_buffer` scheduler, each live request consumes five
 Mamba slots, so four requests require `--max-mamba-cache-size 20`. CUDA graphs
 are captured only for the supported live batch sizes 1, 2, and 4.
 
+## Hosts without NVLink (PCIe P2P)
+
+On four V100 SXM2 32 GB behind one PCIe switch (P2P works, no NVLink), replace
+`NCCL_P2P_LEVEL=NVL` with `NCCL_P2P_LEVEL=PXB`, otherwise NCCL goes through
+host memory. SGLang disables its custom all-reduce on more than two PCIe-only
+GPUs and uses NCCL, which costs about 20 us per decode all-reduce. Setting
+`SGLANG_CUSTOM_AR_ALLOW_PCIE=1` opts back in: only the one-shot push kernel is
+used (the pull kernels spin forever over PCIe P2P) and only for messages up to
+`SGLANG_CUSTOM_AR_PCIE_MAX_BYTES` (default 128 KiB, the crossover with NCCL);
+larger all-reduces still use NCCL. Measured with the same Docker v4 command
+(MTP-3/4, client-side, 4x V100 SXM2 on one PLX switch):
+
+| Configuration | 1K decode | 6K decode | 25K decode | 4 requests, 1K in / 512 out |
+| --- | ---: | ---: | ---: | ---: |
+| NCCL over PCIe P2P | 92-97 tok/s | 98 tok/s | 94 tok/s | 145 tok/s |
+| `SGLANG_CUSTOM_AR_ALLOW_PCIE=1` | 106 tok/s | 119 tok/s | 109 tok/s | 161 tok/s |
+
+Eight concurrent requests are unchanged (234 vs 236 tok/s): their all-reduces
+exceed the byte cap. The push kernel output is bit-identical to NCCL on integer
+inputs from 4 KB to 512 KB, eager and inside CUDA graphs.
+
 ## Performance history
 
 The [September 7–8 host source optimization](../../../benchmark/qwen38_nvfp4_v100_70tps_20260907/README.md)
