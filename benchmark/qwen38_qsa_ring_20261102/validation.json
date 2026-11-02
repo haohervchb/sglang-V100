@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/sgl-project/sglang/pull/46125",
+  "upstream_commit": "85cb8d0af76f3f9d65294b540da6aa0b654e517d",
+  "dtype": "float16",
+  "device": "V100 SM70",
+  "core_gpu_tests": 45,
+  "cpu_tests": 5,
+  "cpu_subtests": 1443,
+  "wide_chain_tests": 14,
+  "full_model": "pending corrected run",
+  "capture_geometry_cpu_tests": 5
+}
