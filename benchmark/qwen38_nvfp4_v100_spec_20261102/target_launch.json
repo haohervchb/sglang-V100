@@ -1,0 +1,25 @@
+{
+  "pid": 83686,
+  "command": [
+    "bash",
+    "scripts/serve_qwen38_flash_next_nvfp4_v100.sh",
+    "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+    "--enable-multimodal",
+    "--random-seed",
+    "373131647"
+  ],
+  "env": {
+    "PATH": "/home/rah/miniconda3/envs/sglang-v100/bin:/usr/local/cuda-12.8/bin:/home/rah/.codex/packages/app-server-daemon/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/home/rah/.local/bin:/home/rah/.codex/tmp/arg0-linux/codex-arg0dP7tA8:/home/rah/.codex/packages/app-server-daemon/releases/0.166.0-x86_64-unknown-linux-musl/codex-path:/home/rah/.codex/tmp/arg0-linux/codex-arg0ZDwEIC:/home/rah/.codex/packages/standalone/releases/0.163.0-x86_64-unknown-linux-musl/codex-path:/home/rah/.local/bin:/home/rah/.cargo/bin:/home/rah/.local/bin:/home/rah/.npm-global/bin:/home/rah/.opencode/bin:/usr/local/cuda-12.8/bin:/home/rah/miniconda3/bin:/home/rah/miniconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "PYTHONPATH": "/home/rah/sglang-V100/python",
+    "CUDA_HOME": "/usr/local/cuda-12.8",
+    "CXX": "/usr/bin/g++-12",
+    "TORCH_CUDA_ARCH_LIST": "7.0",
+    "MAX_JOBS": "2",
+    "PORT": "8082",
+    "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+    "HF_HUB_OFFLINE": "1",
+    "SGLANG_SM70_QSA_FUSED_GRAPH_METADATA": "0",
+    "SGLANG_SM70_PROMPT_LOOKUP": "0"
+  },
+  "revision": "336f70aa38bf2b665c1bb2de1721971d03316f5a"
+}

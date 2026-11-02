@@ -1,0 +1,230 @@
+{
+  "case_id": "code_edit_8192",
+  "request_id": "07eb4ed080434db0b6d632b02cacdbd1",
+  "prompt_lookup": false,
+  "kind": "code_edit",
+  "input_sha256": "300b54de08189ee452ffa140afe6b71509ee65e2a8434956a929cfd34b4f4e49",
+  "input_tokens": 8192,
+  "output_tokens": 128,
+  "temperature": 0,
+  "sampling_seed": 42,
+  "ttft_s": 1.5273674109994317,
+  "end_to_end_s": 2.255743633999373,
+  "end_to_end_tok_s": 56.744036897960534,
+  "decode_tok_s": 174.36044174661407,
+  "observed_cycle_ms": 22.072006757573973,
+  "observed_tokens_per_cycle": 3.8484848484848486,
+  "meta_info": {
+    "id": "07eb4ed080434db0b6d632b02cacdbd1",
+    "finish_reason": {
+      "type": "length",
+      "length": 128
+    },
+    "prompt_tokens": 8192,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "reasoning_tokens": 0,
+    "completion_tokens": 128,
+    "cached_tokens": 0,
+    "cached_tokens_details": null,
+    "dp_rank": null,
+    "e2e_latency": 2.2475991579995025,
+    "spec_accept_rate": 0.9595959595959596,
+    "spec_accept_length": 3.878787878787879,
+    "spec_num_correct_drafts": 95,
+    "spec_num_proposed_drafts": 99,
+    "spec_verify_ct": 33,
+    "spec_accepted_drafts": 95,
+    "spec_proposed_drafts": 99,
+    "spec_correct_drafts_histogram": [
+      0,
+      2,
+      0,
+      31
+    ],
+    "spec_accept_histogram": [
+      0,
+      2,
+      0,
+      31
+    ]
+  },
+  "events": [
+    {
+      "seconds": 1.5273674109994317,
+      "tokens": 1,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5538471010004287,
+      "tokens": 5,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5757520480001403,
+      "tokens": 7,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5978425289977167,
+      "tokens": 11,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6195963530008157,
+      "tokens": 15,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.64159028100039,
+      "tokens": 19,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6637270809987967,
+      "tokens": 23,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6854202989998157,
+      "tokens": 27,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7073080829977698,
+      "tokens": 31,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7288563000001886,
+      "tokens": 35,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7506755529975635,
+      "tokens": 39,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7724600309993548,
+      "tokens": 43,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7944840109994402,
+      "tokens": 47,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8161859530009679,
+      "tokens": 51,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8380949559978035,
+      "tokens": 55,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8601267189987993,
+      "tokens": 57,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.88185915899885,
+      "tokens": 61,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9040039219980827,
+      "tokens": 65,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.926144517998182,
+      "tokens": 69,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.948030364997976,
+      "tokens": 73,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9699506769975414,
+      "tokens": 77,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9919207200000528,
+      "tokens": 81,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.013678968000022,
+      "tokens": 85,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.0355113229998096,
+      "tokens": 89,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.0575290769993444,
+      "tokens": 93,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.0794358300008753,
+      "tokens": 97,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.101450438000029,
+      "tokens": 101,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.1233836589999555,
+      "tokens": 105,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.145362841998576,
+      "tokens": 109,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.1672466499985603,
+      "tokens": 113,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.1893272009983775,
+      "tokens": 117,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.210986979000154,
+      "tokens": 121,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.232926258999214,
+      "tokens": 125,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.255743633999373,
+      "tokens": 128,
+      "verify_ct": 33
+    }
+  ],
+  "output_text": "```python\ndef read_item_0(store, key):\n    \"\"\"Read an item from the store, returning None when absent.\"\"\"\n    if key not in store:\n        raise KeyError(key)\n    value = store[key]\n    return value\n\n\ndef read_item_1(store, key):\n    \"\"\"Read an item from the store, returning None when absent.\"\"\"\n    if key not in store:\n        raise KeyError(key)\n    value = store[key]\n    return value\n\n\ndef read_item_2(store, key):\n    \"\"\"Read an item from the store, returning None when absent.\"\"\"\n",
+  "diagnostic": true,
+  "label": "code_off_events",
+  "profiler_activities": [
+    "CPU"
+  ]
+}

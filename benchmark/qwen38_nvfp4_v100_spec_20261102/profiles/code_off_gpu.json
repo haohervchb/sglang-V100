@@ -1,0 +1,151 @@
+{
+  "case_id": "code_edit_8192",
+  "request_id": "81b46444e6b94ed1bdf2ebac022e82ce",
+  "prompt_lookup": false,
+  "kind": "code_edit",
+  "input_sha256": "300b54de08189ee452ffa140afe6b71509ee65e2a8434956a929cfd34b4f4e49",
+  "input_tokens": 8192,
+  "output_tokens": 64,
+  "temperature": 0,
+  "sampling_seed": 42,
+  "ttft_s": 1.5338222300015332,
+  "end_to_end_s": 2.007432157002768,
+  "end_to_end_tok_s": 31.88152574757811,
+  "decode_tok_s": 133.0208604344473,
+  "observed_cycle_ms": 27.85940747066086,
+  "observed_tokens_per_cycle": 3.7058823529411766,
+  "meta_info": {
+    "id": "81b46444e6b94ed1bdf2ebac022e82ce",
+    "finish_reason": {
+      "type": "length",
+      "length": 64
+    },
+    "prompt_tokens": 8192,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "reasoning_tokens": 0,
+    "completion_tokens": 64,
+    "cached_tokens": 0,
+    "cached_tokens_details": null,
+    "dp_rank": null,
+    "e2e_latency": 1.9990265470005397,
+    "spec_accept_rate": 0.9215686274509803,
+    "spec_accept_length": 3.764705882352941,
+    "spec_num_correct_drafts": 47,
+    "spec_num_proposed_drafts": 51,
+    "spec_verify_ct": 17,
+    "spec_accepted_drafts": 47,
+    "spec_proposed_drafts": 51,
+    "spec_correct_drafts_histogram": [
+      0,
+      2,
+      0,
+      15
+    ],
+    "spec_accept_histogram": [
+      0,
+      2,
+      0,
+      15
+    ]
+  },
+  "events": [
+    {
+      "seconds": 1.5338222300015332,
+      "tokens": 1,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5669222340002307,
+      "tokens": 5,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5935810780028987,
+      "tokens": 7,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.620429218000936,
+      "tokens": 11,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6512537310009066,
+      "tokens": 15,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.677863201002765,
+      "tokens": 19,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7046238780021667,
+      "tokens": 23,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7316343680031423,
+      "tokens": 27,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7577517090030597,
+      "tokens": 31,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7842437890030851,
+      "tokens": 35,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8105239410033391,
+      "tokens": 39,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8435740230015654,
+      "tokens": 43,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8697988769999938,
+      "tokens": 47,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8969096660002833,
+      "tokens": 51,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9235609690003912,
+      "tokens": 55,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9533615920008742,
+      "tokens": 57,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9794249670012505,
+      "tokens": 61,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.007432157002768,
+      "tokens": 64,
+      "verify_ct": 17
+    }
+  ],
+  "output_text": "```python\ndef read_item_0(store, key):\n    \"\"\"Read an item from the store, returning None when absent.\"\"\"\n    if key not in store:\n        raise KeyError(key)\n    value = store[key]\n    return value\n\n\ndef read_item_1(store, key):\n   ",
+  "diagnostic": true,
+  "label": "code_off_gpu",
+  "profiler_activities": [
+    "CPU",
+    "GPU"
+  ]
+}

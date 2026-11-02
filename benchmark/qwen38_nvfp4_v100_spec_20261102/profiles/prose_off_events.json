@@ -1,0 +1,355 @@
+{
+  "case_id": "prose_8192",
+  "request_id": "2f2ae43819d64881a8082d81ccd1efdc",
+  "prompt_lookup": false,
+  "kind": "prose",
+  "input_sha256": "9c21b6c3a2a2dd50300fb0898f8800f5e30f8e2a3b1aa05bc537d183dda3e2d0",
+  "input_tokens": 8192,
+  "output_tokens": 128,
+  "temperature": 0,
+  "sampling_seed": 42,
+  "ttft_s": 1.519111288998829,
+  "end_to_end_s": 2.788809493998997,
+  "end_to_end_tok_s": 45.897720972132504,
+  "decode_tok_s": 100.02376903414084,
+  "observed_cycle_ms": 21.89134836207186,
+  "observed_tokens_per_cycle": 2.189655172413793,
+  "meta_info": {
+    "id": "2f2ae43819d64881a8082d81ccd1efdc",
+    "finish_reason": {
+      "type": "length",
+      "length": 128
+    },
+    "prompt_tokens": 8192,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "reasoning_tokens": 0,
+    "completion_tokens": 128,
+    "cached_tokens": 0,
+    "cached_tokens_details": null,
+    "dp_rank": null,
+    "e2e_latency": 2.7807793200008746,
+    "spec_accept_rate": 0.40229885057471265,
+    "spec_accept_length": 2.206896551724138,
+    "spec_num_correct_drafts": 70,
+    "spec_num_proposed_drafts": 174,
+    "spec_verify_ct": 58,
+    "spec_accepted_drafts": 70,
+    "spec_proposed_drafts": 174,
+    "spec_correct_drafts_histogram": [
+      22,
+      14,
+      10,
+      12
+    ],
+    "spec_accept_histogram": [
+      22,
+      14,
+      10,
+      12
+    ]
+  },
+  "events": [
+    {
+      "seconds": 1.519111288998829,
+      "tokens": 1,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5459578179979871,
+      "tokens": 2,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5675842839991674,
+      "tokens": 3,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.5892774979984097,
+      "tokens": 5,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6110039630002575,
+      "tokens": 9,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6328906909984653,
+      "tokens": 13,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.654670616000658,
+      "tokens": 15,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.676563941000495,
+      "tokens": 18,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.6980937129992526,
+      "tokens": 21,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7199056669996935,
+      "tokens": 22,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.741791854998155,
+      "tokens": 24,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.76336359799825,
+      "tokens": 28,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.7860220440015837,
+      "tokens": 32,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.80758775600043,
+      "tokens": 34,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8294374370016158,
+      "tokens": 35,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.8513061349985946,
+      "tokens": 36,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.873264736001147,
+      "tokens": 38,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.894975840998086,
+      "tokens": 40,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9165912530006608,
+      "tokens": 42,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9382909550004115,
+      "tokens": 45,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9602839190010855,
+      "tokens": 46,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 1.9821858830000565,
+      "tokens": 47,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.003891891999956,
+      "tokens": 51,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.025689705998957,
+      "tokens": 52,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.047515308000584,
+      "tokens": 55,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.069360762998258,
+      "tokens": 56,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.091285907001293,
+      "tokens": 59,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.1130875060007384,
+      "tokens": 60,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.134737596999912,
+      "tokens": 61,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.1565994519987726,
+      "tokens": 65,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.178340823000326,
+      "tokens": 66,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.2000824749993626,
+      "tokens": 70,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.2217867899998964,
+      "tokens": 71,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.2434906480011705,
+      "tokens": 75,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.2650380400009453,
+      "tokens": 77,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.286858047998976,
+      "tokens": 80,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.308630133000406,
+      "tokens": 81,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.3304406210008892,
+      "tokens": 82,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.3524563659993873,
+      "tokens": 86,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.374023041000328,
+      "tokens": 87,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.395831719000853,
+      "tokens": 91,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.417554620998999,
+      "tokens": 93,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.4390796160005266,
+      "tokens": 94,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.460881517999951,
+      "tokens": 95,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.482677675998275,
+      "tokens": 96,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.5041959910013247,
+      "tokens": 97,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.525947982998332,
+      "tokens": 99,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.5480222039986984,
+      "tokens": 101,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.5698665589989105,
+      "tokens": 102,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.5917162299992924,
+      "tokens": 104,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.6135606179996103,
+      "tokens": 107,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.6354691659980745,
+      "tokens": 108,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.657384277001256,
+      "tokens": 112,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.679097334999824,
+      "tokens": 114,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.700847837000765,
+      "tokens": 117,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.722700630998588,
+      "tokens": 120,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.744478803000675,
+      "tokens": 124,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.7663356109987944,
+      "tokens": 126,
+      "verify_ct": 0
+    },
+    {
+      "seconds": 2.788809493998997,
+      "tokens": 128,
+      "verify_ct": 58
+    }
+  ],
+  "output_text": "# The Anatomy of Latency: A Practical Guide to Investigating Slow Web Services\n\nIn the modern digital landscape, performance is not merely a feature; it is a fundamental requirement for user retention, search engine ranking, and operational cost efficiency. When a web service begins to exhibit latency, the instinctive reaction is often to throw hardware at the problem\u2014adding more CPU cores, increasing RAM, or scaling out instances. However, this \"brute force\" approach is frequently inefficient and masks the underlying architectural or code-level inefficiencies. True performance engineering requires a systematic, scientific approach to investigation.\n\nThis guide provides a detailed, practical framework for",
+  "diagnostic": true,
+  "label": "prose_off_events",
+  "profiler_activities": [
+    "CPU"
+  ]
+}
