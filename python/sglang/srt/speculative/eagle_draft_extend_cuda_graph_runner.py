@@ -354,6 +354,12 @@ class EAGLEDraftExtendCudaGraphRunner:
             hidden_states=hidden_states,
             num_correct_drafts=num_correct_drafts,
             num_accept_tokens=num_accept_tokens,
+            # Publish the captured geometry for attention backends which
+            # validate retained speculative state before recording the graph.
+            num_tokens_per_req=self.num_tokens_per_bs,
+            num_tokens_for_logprob_per_req=(
+                self.num_tokens_per_bs if self.forward_mode.is_draft_extend_v2() else 1
+            ),
         )
 
         # Forward batch
