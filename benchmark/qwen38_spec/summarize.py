@@ -25,7 +25,8 @@ def summarize(rows):
         observations=len(rows),
         output_hashes=len(
             {
-                hashlib.sha256(row.get("output_text", "").encode()).hexdigest()
+                row.get("output_sha256")
+                or hashlib.sha256(row.get("output_text", "").encode()).hexdigest()
                 for row in rows
             }
         ),
