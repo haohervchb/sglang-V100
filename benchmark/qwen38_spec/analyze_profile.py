@@ -92,16 +92,26 @@ def main():
     for path in args.inputs:
         if path.suffix == ".jsonl":
             rows = [json.loads(line) for line in path.read_text().splitlines()]
-            values = defaultdict(list)
+            requests = defaultdict(list)
             for row in rows:
-                values["cycle_gpu_ms"].append(row["cycle_gpu_ms"])
-                values["cpu_submit_ms"].append(row["cpu_submit_ms"])
-                for name, value in row["phases_ms"].items():
-                    values[name].append(value)
+                requests[",".join(row["request_ids"])].append(row)
+
+            def summarize(group):
+                values = defaultdict(list)
+                for row in group:
+                    values["cycle_gpu_ms"].append(row["cycle_gpu_ms"])
+                    values["cpu_submit_ms"].append(row["cpu_submit_ms"])
+                    for name, value in row["phases_ms"].items():
+                        values[name].append(value)
+                return dict(
+                    rounds=len(group),
+                    median_ms={k: statistics.median(v) for k, v in values.items()},
+                )
+
             result[str(path)] = dict(
-                rounds=len(rows),
                 diagnostic=True,
-                median_ms={k: statistics.median(v) for k, v in values.items()},
+                **summarize(rows),
+                by_request={rid: summarize(group) for rid, group in requests.items()},
             )
         else:
             opener = gzip.open if path.suffix == ".gz" else open
