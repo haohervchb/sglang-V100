@@ -1,5 +1,12 @@
 # Qwen3.8 Flash Next NVFP4: PR integration and speculation experiments
 
+**Later correctness update:** the measurements below predate the QSA pending-ring
+fix adapted from [upstream #46125](https://github.com/sgl-project/sglang/pull/46125).
+The current branch preserves retained prefix keys during speculative verification
+and draft extension. These historical timings remain evidence of the original
+experiment, not the performance reference for the corrected implementation.
+Both experimental switches remain off by default.
+
 This round integrates the two V100 contributions through merged
 [PR #4](https://github.com/haohervchb/sglang-V100/pull/4) and adds opt-in QSA graph
 metadata and greedy prompt-lookup/MTP experiments. Both speculative experiments
