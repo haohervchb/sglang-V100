@@ -417,6 +417,8 @@ def can_use_custom_all_reduce_with_nvlink(
     device: torch.device,
     supported_world_size: List[int],
     cls_name: str,
+    *,
+    allow_pcie: bool = False,
 ) -> Optional[bool]:  # None if fail; otherwise return whether NVLink is available
     assert (
         dist.get_backend(group) != dist.Backend.NCCL
@@ -463,19 +465,14 @@ def can_use_custom_all_reduce_with_nvlink(
     # where custom allreduce is not supported
     # this checks hardware and driver support for NVLink
     if world_size > 2 and not full_nvlink:
-        # The PCIe-only rejection is a performance heuristic, not a hardware
-        # limit: with working P2P (checked below) the one-shot push kernel is
-        # correct over PCIe and beats NCCL for the small decode all-reduces.
-        # SGLANG_CUSTOM_AR_ALLOW_PCIE=1 opts in; CustomAllReduceV2 then caps
-        # the message size and only uses the push kernel (see
-        # custom_all_reduce_v2.py).
-        if sglang_envs.SGLANG_CUSTOM_AR_ALLOW_PCIE.get():
+        # Only callers with a push-only PCIe implementation may opt in.
+        # Preserve the actual topology for the caller and the legacy backend.
+        if allow_pcie:
             logger.info(
                 f"{cls_name}: no NVLink between the {world_size} GPUs, "
                 "SGLANG_CUSTOM_AR_ALLOW_PCIE=1 enables the custom all-reduce "
                 "over PCIe P2P."
             )
-            full_nvlink = True
         else:
             logger.warning(
                 f"{cls_name} is disabled because it's not supported on"

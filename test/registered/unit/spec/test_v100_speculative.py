@@ -690,6 +690,7 @@ def test_dflash_v2_reports_target_and_draft_attention_capabilities():
 def test_v100_one_stage_override_reaches_default_custom_allreduce_v2(monkeypatch):
     communicator = CustomAllReduceV2.__new__(CustomAllReduceV2)
     communicator.disabled = True
+    communicator.pcie_only = False
     communicator.override_algo = None
     # CUDA TP4 defaults: small buffers use push, medium buffers use pull.
     communicator.config = ModeConfig(
@@ -710,6 +711,7 @@ def test_v100_one_stage_override_reaches_default_custom_allreduce_v2(monkeypatch
 def test_custom_allreduce_v2_rejects_invalid_algorithm_override(monkeypatch):
     communicator = CustomAllReduceV2.__new__(CustomAllReduceV2)
     communicator.disabled = True
+    communicator.pcie_only = False
     communicator.override_algo = None
     communicator.config = ModeConfig(1024, 1024)
     monkeypatch.setenv("SGLANG_CUSTOM_ALLREDUCE_ALGO", "one-ish")
