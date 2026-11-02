@@ -311,20 +311,25 @@ class QwenSparseAttnBackend(AttentionBackend):
         return forward_mode.is_target_verify() or forward_mode.is_draft_extend_v2()
 
     def _require_chain_speculation(self, forward_mode, spec_info) -> None:
-        if forward_mode is None or not forward_mode.is_target_verify():
+        if forward_mode is None:
             return
-        if int(getattr(spec_info, "topk", 1) or 1) != 1:
+        if forward_mode.is_target_verify():
+            if int(getattr(spec_info, "topk", 1) or 1) != 1:
+                raise NotImplementedError(
+                    "Qwen QSA target verification supports only speculative_eagle_topk=1"
+                )
+            rows = int(getattr(spec_info, "draft_token_num", 0) or 0)
+        elif forward_mode.is_draft_extend_v2():
+            rows = int(getattr(spec_info, "num_tokens_per_req", 0) or 0)
+        else:
+            return
+        ring_size = self.token_to_kv_pool.qsa_ring_size
+        required = self.compress_ratio + rows - 1
+        if rows <= 0 or required > ring_size:
             raise NotImplementedError(
-                "Qwen QSA target verification supports only speculative_eagle_topk=1"
-            )
-        draft_tokens = int(getattr(spec_info, "draft_token_num", 0) or 0)
-        if draft_tokens > self.compress_ratio:
-            # The pending-group ring keys state by position % ratio; a verify
-            # window wider than the ratio would collide within one forward.
-            raise NotImplementedError(
-                "Qwen QSA requires speculative_num_draft_tokens <= the QSA "
-                f"compress ratio ({self.compress_ratio}): the pending "
-                f"index-key ring holds one group; got {draft_tokens}"
+                f"Qwen QSA {forward_mode.name} of {rows} rows per request needs "
+                f"a pending index-key ring of at least {required} slots, but "
+                f"it has {ring_size}; unresolved or oversized geometry is unsafe"
             )
 
     @staticmethod
@@ -802,6 +807,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                     sequence_lengths=sequence_lengths,
                     logical_positions=ring_logical_positions,
                     compress_ratio=self.compress_ratio,
+                    ring_size=self.token_to_kv_pool.qsa_ring_size,
                     is_extend=group_member_rows is not None,
                 )
                 if write_locs.numel():
@@ -820,6 +826,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                             group_end_positions=group_positions.long(),
                             sequence_ids=group_sequence_ids.long(),
                             compress_ratio=self.compress_ratio,
+                            ring_size=self.token_to_kv_pool.qsa_ring_size,
                         )
         indexer_metadata = QSAIndexerMetadata(
             sequence_lengths=sequence_lengths,
@@ -1021,7 +1028,6 @@ class QwenSparseAttnBackend(AttentionBackend):
         spec_info,
     ) -> None:
         self._require_compressed_cuda_graph_support()
-        self._require_chain_speculation(forward_mode, spec_info)
         if self.token_to_kv_pool is None:
             self.token_to_kv_pool = getattr(self.runner, "token_to_kv_pool", None)
         if self.req_to_token is None:
@@ -1030,6 +1036,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             self.req_to_token_pool = req_pool
         if self._graph_seq_lens is None or self.token_to_kv_pool is None:
             raise RuntimeError("QSA CUDA graph state is not initialized")
+        self._require_chain_speculation(forward_mode, spec_info)
         pool = self.token_to_kv_pool
         speculative_paged = self._is_speculative_paged_mode(forward_mode)
         metadata_rows = num_tokens if speculative_paged else bs
@@ -1290,6 +1297,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 sequence_lengths=metadata.sequence_lengths,
                 logical_positions=current_positions,
                 compress_ratio=ratio,
+                ring_size=self.token_to_kv_pool.qsa_ring_size,
                 is_extend=False,
             )
         )
@@ -1299,6 +1307,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 group_end_positions=current_positions,
                 sequence_ids=metadata.token_to_batch_idx.long(),
                 compress_ratio=ratio,
+                ring_size=self.token_to_kv_pool.qsa_ring_size,
             ).to(torch.int32)
         )
 

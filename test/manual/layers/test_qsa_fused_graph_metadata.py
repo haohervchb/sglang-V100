@@ -43,7 +43,9 @@ def test_fused_matches_legacy_with_live_graph_inputs(monkeypatch, mode, bs, pad,
     rows = bs if mode == 0 else bs * 4
     pages = 16384
     pool = SimpleNamespace(
-        qsa_compress_ratio=ratio, qsa_compressed_page_size=16 // ratio
+        qsa_compress_ratio=ratio,
+        qsa_ring_size=ratio * 2,
+        qsa_compressed_page_size=16 // ratio,
     )
     table = torch.arange(5 * 262144, dtype=torch.int32, device="cuda").reshape(5, -1)
     seq = torch.tensor([8, 15, 16, 262136][:bs], dtype=torch.int32, device="cuda")
@@ -87,7 +89,9 @@ def test_fused_matches_legacy_with_live_graph_inputs(monkeypatch, mode, bs, pad,
 def test_grouped_draft_steps(monkeypatch, bs, pad):
     monkeypatch.delenv("SGLANG_SM70_QSA_FUSED_GRAPH_METADATA", raising=False)
     ratio, pages = 4, 16384
-    pool = SimpleNamespace(qsa_compress_ratio=ratio, qsa_compressed_page_size=4)
+    pool = SimpleNamespace(
+        qsa_compress_ratio=ratio, qsa_ring_size=ratio * 2, qsa_compressed_page_size=4
+    )
     table = torch.arange(5 * 262144, dtype=torch.int32, device="cuda").reshape(5, -1)
     seq = torch.tensor([7, 15, 70000, 262136][:bs], dtype=torch.int32, device="cuda")
     req = torch.arange(1, bs + 1, device="cuda")
