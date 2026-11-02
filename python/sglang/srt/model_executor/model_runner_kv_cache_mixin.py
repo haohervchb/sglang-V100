@@ -733,7 +733,7 @@ class ModelRunnerKVCacheMixin:
                         qsa_token_topk=qsa_profile.budget,
                         index_state_dtype=self.dtype,
                         qsa_max_rows_per_request=(
-                            self.server_args.max_speculative_num_draft_tokens() or 1
+                            self.server_args.max_speculative_num_draft_tokens or 1
                         ),
                         num_request_slots=self.req_to_token_pool.req_to_token.shape[
                             0
