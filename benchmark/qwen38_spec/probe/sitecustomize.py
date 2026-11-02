@@ -6,7 +6,9 @@ runs must be labelled diagnostic; they are not throughput release evidence.
 
 import os
 
-if os.environ.get("SGLANG_SPEC_PROBE_DIR"):
+
+def install_probe(eagle):
+    global active, pending, recorded, destination, limit
     import atexit
     import functools
     import json
@@ -17,7 +19,9 @@ if os.environ.get("SGLANG_SPEC_PROBE_DIR"):
     import torch
 
     from sglang.srt.managers.tp_worker import TpModelWorker
-    from sglang.srt.speculative.eagle_worker_v2 import EagleDraftWorker, EAGLEWorkerV2
+
+    EagleDraftWorker = eagle.EagleDraftWorker
+    EAGLEWorkerV2 = eagle.EAGLEWorkerV2
 
     active = None
     pending = deque()
@@ -116,3 +120,34 @@ if os.environ.get("SGLANG_SPEC_PROBE_DIR"):
             recorded += 1
 
     EAGLEWorkerV2.forward_batch_generation = measured_round
+
+
+if os.environ.get("SGLANG_SPEC_PROBE_DIR"):
+    # Wait for the worker's normal import. Importing Torch/SGLang here eagerly
+    # can freeze environment-dependent backend choices before server setup.
+    import importlib.abc
+    import importlib.machinery
+    import sys
+
+    class ProbeLoader(importlib.abc.Loader):
+        def __init__(self, original):
+            self.original = original
+
+        def create_module(self, spec):
+            return self.original.create_module(spec)
+
+        def exec_module(self, module):
+            self.original.exec_module(module)
+            install_probe(module)
+
+    class ProbeFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname != "sglang.srt.speculative.eagle_worker_v2":
+                return None
+            spec = importlib.machinery.PathFinder.find_spec(fullname, path, target)
+            if spec is not None and spec.loader is not None:
+                spec.loader = ProbeLoader(spec.loader)
+                sys.meta_path.remove(self)
+            return spec
+
+    sys.meta_path.insert(0, ProbeFinder())
