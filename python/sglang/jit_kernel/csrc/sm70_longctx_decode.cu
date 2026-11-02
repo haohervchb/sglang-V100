@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+// FP16 QSA cache loading adapted from dg1kjd/sglang-sxm2, commit
+// 73abfe1dd7e7aae7a62b222a201e48f532fb298e (sm70_longctx_decode.cu).
 // Long-context grouped decode for Volta (SM70), D256 G6 (H6/Hkv1), E5M2 KV.
 //
 // Read-once split-KV design: grid = (kv_heads, splits, batch). Each CTA owns
@@ -63,6 +65,58 @@ __device__ __forceinline__ void e5m2_to_fp16_16(const uint4 raw, half* dst) {
   }
   *reinterpret_cast<uint4*>(dst) = *reinterpret_cast<const uint4*>(out);
   *reinterpret_cast<uint4*>(dst + 8) = *reinterpret_cast<const uint4*>(out + 4);
+}
+
+// Load one K/V token tile into shared memory. The cache element type selects
+// the read path: the E5M2 byte cache is read as one 16-byte vector per thread
+// and dequantized to FP16; an FP16 cache is read as two 16-byte vectors per
+// thread and copied directly. Both write 16 FP16 values per thread to the same
+// smem row layout, so the QK/softmax/PV math that reads ks/vs is dtype-agnostic.
+template <typename KV>
+__device__ __forceinline__ void load_kv_tile(const KV* __restrict__ k_cache,
+                                             const KV* __restrict__ v_cache,
+                                             const int* __restrict__ slots,
+                                             const int tile_tokens, const int tid,
+                                             __half* __restrict__ ks,
+                                             __half* __restrict__ vs) {
+  constexpr int kLoadIters = (kBlockN * (kDim / 16) + kThreads - 1) / kThreads;
+#pragma unroll
+  for (int it = 0; it < kLoadIters; ++it) {
+    const int vector = tid + it * kThreads;
+    const int off = vector << 4;       // 16 elements per thread
+    const int tok_local = off >> 8;    // 256 elements per token row
+    const int d_off = off & 255;       // dim offset, 16-aligned
+    const int dst = tok_local * kKVStride + d_off;
+    const int slot = slots[tok_local];
+    uint4* dk = reinterpret_cast<uint4*>(ks + dst);
+    uint4* dv = reinterpret_cast<uint4*>(vs + dst);
+    if (tok_local < tile_tokens && slot >= 0) {
+      const int64_t base = (int64_t)slot * kDim + d_off;
+      if constexpr (sizeof(KV) == 1) {
+        // E5M2 byte cache: base is in bytes, one 16-byte vector per thread.
+        e5m2_to_fp16_16(*reinterpret_cast<const uint4*>(k_cache + base),
+                        ks + dst);
+        e5m2_to_fp16_16(*reinterpret_cast<const uint4*>(v_cache + base),
+                        vs + dst);
+      } else {
+        // FP16 cache: base is in halves, two 16-byte vectors per thread.
+        const uint4* sk = reinterpret_cast<const uint4*>(k_cache + base);
+        const uint4* sv = reinterpret_cast<const uint4*>(v_cache + base);
+        dk[0] = sk[0];
+        dk[1] = sk[1];
+        dv[0] = sv[0];
+        dv[1] = sv[1];
+      }
+    } else {
+      // Out-of-range token or invalid slot: zero the 16 FP16 smem slots,
+      // matching the E5M2 path's zero dequant.
+      const uint4 zero = make_uint4(0, 0, 0, 0);
+      dk[0] = zero;
+      dk[1] = zero;
+      dv[0] = zero;
+      dv[1] = zero;
+    }
+  }
 }
 
 __global__ void __launch_bounds__(kThreads, 1)
@@ -292,10 +346,11 @@ decode_partial_kernel(const __half* __restrict__ q,
 // fallback, this resolves the selected logical positions while loading the
 // cache and keeps K/V shared by all six query heads.  No FP16 compact-KV
 // scratch is written or read.
+template <typename KV>
 __global__ void __launch_bounds__(kThreads, 1)
 qsa_decode_partial_kernel(
-    const __half* __restrict__ q, const uint8_t* __restrict__ k_cache,
-    const uint8_t* __restrict__ v_cache,
+    const __half* __restrict__ q, const KV* __restrict__ k_cache,
+    const KV* __restrict__ v_cache,
     const int* __restrict__ req_to_token,
     const int* __restrict__ req_indices, const int* __restrict__ indices,
     const int* __restrict__ seq_lens, const int req_stride, const int topk,
@@ -352,7 +407,6 @@ qsa_decode_partial_kernel(
   __syncthreads();
 
   const int num_tiles = (split_end - split_begin + kBlockN - 1) / kBlockN;
-  constexpr int kLoadIters = (kBlockN * (kDim / 16) + kThreads - 1) / kThreads;
   for (int tile = 0; tile < num_tiles; ++tile) {
     const int tile_begin = split_begin + tile * kBlockN;
     const int tile_tokens = min(kBlockN, split_end - tile_begin);
@@ -369,24 +423,7 @@ qsa_decode_partial_kernel(
     }
     __syncthreads();
 
-#pragma unroll
-    for (int it = 0; it < kLoadIters; ++it) {
-      const int vector = tid + it * kThreads;
-      const int byte_off = vector << 4;
-      const int tok_local = byte_off >> 8;
-      const int d_off = byte_off & 255;
-      const int slot = slots[tok_local];
-      uint4 raw_k = make_uint4(0, 0, 0, 0);
-      uint4 raw_v = make_uint4(0, 0, 0, 0);
-      if (tok_local < tile_tokens && slot >= 0) {
-        const int64_t base = (int64_t)slot * kDim + d_off;
-        raw_k = *reinterpret_cast<const uint4*>(k_cache + base);
-        raw_v = *reinterpret_cast<const uint4*>(v_cache + base);
-      }
-      const int dst = tok_local * kKVStride + d_off;
-      e5m2_to_fp16_16(raw_k, ks + dst);
-      e5m2_to_fp16_16(raw_v, vs + dst);
-    }
+    load_kv_tile<KV>(k_cache, v_cache, slots, tile_tokens, tid, ks, vs);
     __syncthreads();
 
     if (is_compute_warp) {
@@ -572,10 +609,11 @@ qsa_indexer_decode_kernel(
 // logical QSA indices are resolved through req_to_token in the load phase;
 // this avoids materializing and converting the entire accumulated context on
 // every 8K serving chunk.
+template <typename KV>
 __global__ void __launch_bounds__(kThreads, 1)
 qsa_prefill_kernel(const __half* __restrict__ q,
-                   const uint8_t* __restrict__ k_cache,
-                   const uint8_t* __restrict__ v_cache,
+                   const KV* __restrict__ k_cache,
+                   const KV* __restrict__ v_cache,
                    const int* __restrict__ req_to_token,
                    const int* __restrict__ req_indices,
                    const int* __restrict__ indices,
@@ -625,7 +663,6 @@ qsa_prefill_kernel(const __half* __restrict__ q,
   __syncthreads();
 
   const int num_tiles = (row_topk + kBlockN - 1) / kBlockN;
-  constexpr int kLoadIters = (kBlockN * (kDim / 16) + kThreads - 1) / kThreads;
   for (int tile = 0; tile < num_tiles; ++tile) {
     const int tile_begin = tile * kBlockN;
     const int tile_tokens = min(kBlockN, row_topk - tile_begin);
@@ -642,24 +679,7 @@ qsa_prefill_kernel(const __half* __restrict__ q,
     }
     __syncthreads();
 
-#pragma unroll
-    for (int it = 0; it < kLoadIters; ++it) {
-      const int vector = tid + it * kThreads;
-      const int byte_off = vector << 4;
-      const int tok_local = byte_off >> 8;
-      const int d_off = byte_off & 255;
-      const int slot = slots[tok_local];
-      uint4 raw_k = make_uint4(0, 0, 0, 0);
-      uint4 raw_v = make_uint4(0, 0, 0, 0);
-      if (tok_local < tile_tokens && slot >= 0) {
-        const int64_t base = (int64_t)slot * kDim + d_off;
-        raw_k = *reinterpret_cast<const uint4*>(k_cache + base);
-        raw_v = *reinterpret_cast<const uint4*>(v_cache + base);
-      }
-      const int dst = tok_local * kKVStride + d_off;
-      e5m2_to_fp16_16(raw_k, ks + dst);
-      e5m2_to_fp16_16(raw_v, vs + dst);
-    }
+    load_kv_tile<KV>(k_cache, v_cache, slots, tile_tokens, tid, ks, vs);
     __syncthreads();
 
     if (is_compute_warp) {
@@ -809,11 +829,13 @@ void sm70_qsa_decode(torch::Tensor q, torch::Tensor k_cache,
   TORCH_CHECK(q.scalar_type() == torch::kHalf && q.dim() == 3 &&
                   q.size(1) == kGroup && q.size(2) == kDim,
               "sm70_qsa_decode expects FP16 Q [batch,6,256]");
-  TORCH_CHECK(k_cache.scalar_type() == torch::kUInt8 &&
-                  v_cache.scalar_type() == torch::kUInt8 &&
+  const bool is_e5m2 = k_cache.scalar_type() == torch::kUInt8;
+  const bool is_fp16 = k_cache.scalar_type() == torch::kHalf;
+  TORCH_CHECK((is_e5m2 || is_fp16) &&
+                  v_cache.scalar_type() == k_cache.scalar_type() &&
                   k_cache.dim() == 3 && k_cache.size(1) == 1 &&
                   k_cache.size(2) == kDim && v_cache.sizes() == k_cache.sizes(),
-              "sm70_qsa_decode expects E5M2 byte KV [pool,1,256]");
+              "sm70_qsa_decode expects E5M2 byte or FP16 KV [pool,1,256]");
   TORCH_CHECK(indices.scalar_type() == torch::kInt && indices.dim() == 2 &&
                   indices.size(0) == q.size(0),
               "sm70_qsa_decode expects int32 indices [batch,topk]");
@@ -839,15 +861,28 @@ void sm70_qsa_decode(torch::Tensor q, torch::Tensor k_cache,
               "sm70_qsa_decode partial LSE has the wrong shape");
   auto stream = at::cuda::getCurrentCUDAStream();
   const dim3 grid(1, (unsigned int)max_splits, (unsigned int)q.size(0));
-  qsa_decode_partial_kernel<<<grid, kThreads, 0, stream>>>(
-      reinterpret_cast<const __half*>(q.data_ptr()),
-      k_cache.data_ptr<uint8_t>(), v_cache.data_ptr<uint8_t>(),
-      req_to_token.data_ptr<int>(), req_indices.data_ptr<int>(),
-      indices.data_ptr<int>(), seq_lens.data_ptr<int>(),
-      (int)req_to_token.size(1), (int)indices.size(1), (int)max_splits,
-      (int)min_tokens_per_split, (float)softmax_scale,
-      reinterpret_cast<__half*>(partial_o.data_ptr()),
-      partial_lse.data_ptr<float>());
+  if (is_e5m2) {
+    qsa_decode_partial_kernel<uint8_t><<<grid, kThreads, 0, stream>>>(
+        reinterpret_cast<const __half*>(q.data_ptr()),
+        k_cache.data_ptr<uint8_t>(), v_cache.data_ptr<uint8_t>(),
+        req_to_token.data_ptr<int>(), req_indices.data_ptr<int>(),
+        indices.data_ptr<int>(), seq_lens.data_ptr<int>(),
+        (int)req_to_token.size(1), (int)indices.size(1), (int)max_splits,
+        (int)min_tokens_per_split, (float)softmax_scale,
+        reinterpret_cast<__half*>(partial_o.data_ptr()),
+        partial_lse.data_ptr<float>());
+  } else {
+    qsa_decode_partial_kernel<__half><<<grid, kThreads, 0, stream>>>(
+        reinterpret_cast<const __half*>(q.data_ptr()),
+        reinterpret_cast<const __half*>(k_cache.data_ptr()),
+        reinterpret_cast<const __half*>(v_cache.data_ptr()),
+        req_to_token.data_ptr<int>(), req_indices.data_ptr<int>(),
+        indices.data_ptr<int>(), seq_lens.data_ptr<int>(),
+        (int)req_to_token.size(1), (int)indices.size(1), (int)max_splits,
+        (int)min_tokens_per_split, (float)softmax_scale,
+        reinterpret_cast<__half*>(partial_o.data_ptr()),
+        partial_lse.data_ptr<float>());
+  }
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
 
@@ -900,11 +935,12 @@ void sm70_qsa_prefill(torch::Tensor q, torch::Tensor k_cache,
   TORCH_CHECK(q.scalar_type() == torch::kHalf && q.dim() == 3 &&
                   q.size(1) == kGroup && q.size(2) == kDim,
               "sm70_qsa_prefill expects FP16 Q [tokens,6,256]");
-  TORCH_CHECK(k_cache.scalar_type() == torch::kUInt8 &&
-                  v_cache.scalar_type() == torch::kUInt8 &&
+  const bool is_e5m2 = k_cache.scalar_type() == torch::kUInt8;
+  TORCH_CHECK((is_e5m2 || k_cache.scalar_type() == torch::kHalf) &&
+                  v_cache.scalar_type() == k_cache.scalar_type() &&
                   k_cache.dim() == 3 && k_cache.size(1) == 1 &&
                   k_cache.size(2) == kDim && v_cache.sizes() == k_cache.sizes(),
-              "sm70_qsa_prefill expects E5M2 byte KV [pool,1,256]");
+              "sm70_qsa_prefill expects E5M2 byte or FP16 KV [pool,1,256]");
   TORCH_CHECK(indices.scalar_type() == torch::kInt && indices.dim() == 2 &&
                   indices.size(0) == q.size(0),
               "sm70_qsa_prefill expects int32 indices [tokens,topk]");
@@ -918,13 +954,24 @@ void sm70_qsa_prefill(torch::Tensor q, torch::Tensor k_cache,
                   output.sizes() == q.sizes(),
               "sm70_qsa_prefill output must match Q");
   auto stream = at::cuda::getCurrentCUDAStream();
-  qsa_prefill_kernel<<<q.size(0), kThreads, 0, stream>>>(
-      reinterpret_cast<const __half*>(q.data_ptr()),
-      k_cache.data_ptr<uint8_t>(), v_cache.data_ptr<uint8_t>(),
-      req_to_token.data_ptr<int>(), req_indices.data_ptr<int>(),
-      indices.data_ptr<int>(), seq_lens.data_ptr<int>(),
-      (int)req_to_token.size(1), (int)indices.size(1),
-      (float)softmax_scale, reinterpret_cast<__half*>(output.data_ptr()));
+  if (is_e5m2) {
+    qsa_prefill_kernel<uint8_t><<<q.size(0), kThreads, 0, stream>>>(
+        reinterpret_cast<const __half*>(q.data_ptr()),
+        k_cache.data_ptr<uint8_t>(), v_cache.data_ptr<uint8_t>(),
+        req_to_token.data_ptr<int>(), req_indices.data_ptr<int>(),
+        indices.data_ptr<int>(), seq_lens.data_ptr<int>(),
+        (int)req_to_token.size(1), (int)indices.size(1),
+        (float)softmax_scale, reinterpret_cast<__half*>(output.data_ptr()));
+  } else {
+    qsa_prefill_kernel<__half><<<q.size(0), kThreads, 0, stream>>>(
+        reinterpret_cast<const __half*>(q.data_ptr()),
+        reinterpret_cast<const __half*>(k_cache.data_ptr()),
+        reinterpret_cast<const __half*>(v_cache.data_ptr()),
+        req_to_token.data_ptr<int>(), req_indices.data_ptr<int>(),
+        indices.data_ptr<int>(), seq_lens.data_ptr<int>(),
+        (int)req_to_token.size(1), (int)indices.size(1),
+        (float)softmax_scale, reinterpret_cast<__half*>(output.data_ptr()));
+  }
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
 

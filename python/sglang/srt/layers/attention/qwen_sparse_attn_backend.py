@@ -1581,8 +1581,9 @@ class QwenSparseAttnBackend(AttentionBackend):
 
             if not self._sm70_sparse_prefill_logged:
                 logger.info(
-                    "SM70 QSA chunk-prefill: reading selected E5M2 K/V "
-                    "directly from the token pool."
+                    "SM70 QSA chunk-prefill: reading selected %s K/V "
+                    "directly from the token pool.",
+                    k_buffer.dtype,
                 )
                 self._sm70_sparse_prefill_logged = True
             output = sm70_cuda_qsa_prefill(
@@ -1688,7 +1689,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             and topk_indices.ndim == 2
             and topk_indices.shape[0] == q.shape[0]
             and topk_indices.shape[1] > 0
-            and k_buffer.dtype == torch.float8_e5m2
+            and k_buffer.dtype in (torch.float8_e5m2, torch.float16)
             and v_buffer.dtype == k_buffer.dtype
             and k_buffer.ndim == 3
             and v_buffer.shape == k_buffer.shape
@@ -1892,8 +1893,9 @@ class QwenSparseAttnBackend(AttentionBackend):
 
             if not self._sm70_sparse_decode_logged:
                 logger.info(
-                    "SM70 QSA decode: resolving selected E5M2 K/V directly "
-                    "inside grouped split-K attention."
+                    "SM70 QSA decode: resolving selected %s K/V directly "
+                    "inside grouped split-K attention.",
+                    k_buffer.dtype,
                 )
                 self._sm70_sparse_decode_logged = True
             output = sm70_cuda_qsa_decode(
@@ -2015,7 +2017,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             and topk_indices.ndim == 2
             and topk_indices.shape[0] == q.shape[0]
             and topk_indices.shape[1] > 0
-            and k_buffer.dtype == torch.float8_e5m2
+            and k_buffer.dtype in (torch.float8_e5m2, torch.float16)
             and v_buffer.dtype == k_buffer.dtype
             and k_buffer.ndim == 3
             and v_buffer.shape == k_buffer.shape
