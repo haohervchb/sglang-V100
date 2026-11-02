@@ -485,7 +485,12 @@ def test_mtp_draft_extend_matches_prefill(graph):
 
 @pytest.mark.parametrize("max_rows,ring", [(1, 4), (4, 8), (8, 16)])
 def test_pool_allocates_the_ring(max_rows, ring):
-    pool = _pool(max_rows=max_rows, num_requests=2, tokens=PAGE)
+    # This checkout exposes the launch maximum as a cached property, unlike
+    # the newer upstream runtime-context accessor. Exercise the actual API.
+    args = ServerArgs(model_path="dummy", speculative_num_draft_tokens=max_rows)
+    pool = _pool(
+        max_rows=args.max_speculative_num_draft_tokens, num_requests=2, tokens=PAGE
+    )
     assert pool.qsa_ring_size == ring
     assert pool.get_qsa_key_state_buffer(LAYER_ID).shape[0] == 3 * ring
     assert pool.qsa_rope_position_buffer.shape[0] == 3 * ring
