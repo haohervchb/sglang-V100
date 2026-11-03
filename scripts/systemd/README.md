@@ -7,6 +7,13 @@ checkout and compiled SM70 libraries must already be installed. The unit uses
 `~/sglang-V100` and the `sglang-v100` Conda environment; adjust those paths for
 a different installation.
 
+The serving profile processes prompts in 2,048-token chunks to leave room for
+temporary PLE activations during long document sessions and queued requests.
+The 8,192-token benchmark profile exhausted GPU memory during sustained use;
+its prefill timing results do not describe this more conservative configuration.
+Chunk size does not reduce the context limit. Documents still need to fit the
+token limit after extraction; PDF file size is not a token-count limit.
+
 ```bash
 mkdir -p ~/.config/systemd/user
 cp scripts/systemd/sglang-qwen38-8082.service ~/.config/systemd/user/

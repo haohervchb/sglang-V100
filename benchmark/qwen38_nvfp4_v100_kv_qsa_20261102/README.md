@@ -200,6 +200,27 @@ broad model accuracy. The general 140 tok/s prose stretch target was not
 established. Full-vocabulary FP16 MTP-3/4 is the balanced recommendation; the
 wider and pruned-vocabulary paths remain optional experiments.
 
+### Serving follow-up: long-document memory pressure
+
+On November 3, the v5 serving profile exhausted GPU memory in PLE's short
+convolution during queued document processing. A 160 MiB allocation failed
+with 110.69 MiB free on GPU 0. The standalone smoke checks above did not cover
+this sustained workload.
+
+The persistent serving launcher now uses 2,048-token prefill chunks and a
+2,048-token prefill batch budget, retaining FP16 KV, native MTP-3/4 and the
+262K context limit. It passed all eight text/full-context checks and 24
+document retrieval requests from four concurrent clients. Minimum sampled
+free memory was 2,200.7 MiB on GPU 0 and at least 2,614.4 MiB on the other GPUs.
+
+The queue run recorded no prefix-cache hits, so it tests repeated prefill
+memory pressure rather than prefix reuse. Other client traffic overlapped the
+run; its timings are not a throughput comparison. The earlier 8,192-token
+prefill performance figures do not describe this serving configuration. See
+[incident and validation record](serving_oom_20261103.json) and the reusable
+[queue check](../qwen38_spec/check_queue.py). PDF extraction and image-page
+memory use are outside this synthetic text test.
+
 ### Reproduction and acknowledgements
 
 The reusable [runner](../qwen38_spec/README.md) accepts the retained

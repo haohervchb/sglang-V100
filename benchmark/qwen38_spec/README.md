@@ -199,3 +199,18 @@ These are smoke tests, not a distributional quality evaluation. Pair them with
 the real chain-verifier rejection tests and the graph metadata equivalence tests.
 Record baseline failures as well as candidate failures; do not silently loosen
 the expected answers to make a gate pass.
+
+For long-document serving, also exercise queued clients and retained caches:
+
+```bash
+python benchmark/qwen38_spec/check_queue.py \
+  --output-dir /persistent/qwen-checks/queue
+```
+
+This sends four clients with six requests each, growing document inputs from
+roughly 19K–95K to 34K–110K tokens. It checks exact archive-key retrieval,
+records prefix-cache hits and request latency, and samples free GPU memory via
+NVML every 100 ms. It does not flush caches between requests. The server may
+still process one request at a time; this tests its queue and repeated prefill
+allocations, not four-way model execution. These synthetic text requests do not
+validate PDF extraction or vision memory use for documents sent as images.

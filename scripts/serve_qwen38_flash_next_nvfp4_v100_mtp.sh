@@ -31,6 +31,8 @@ mkdir -p "$SGLANG_V100_DECODE_CUDA_BUILD_DIR" "$SGLANG_V100_NVFP4_MOE_BUILD_DIR"
 exec bash "$q38_profile_dir/serve_qwen38_flash_next_nvfp4_v100.sh" "$q38_model" \
     --revision "$q38_revision" \
     --mem-fraction-static 0.83 \
+    --chunked-prefill-size 2048 \
+    --max-prefill-tokens 2048 \
     --enable-multimodal \
     --speculative-algorithm EAGLE \
     --speculative-draft-model-path "$q38_model" \
