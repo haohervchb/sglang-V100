@@ -310,6 +310,13 @@ class QSAIndexer(MultiPlatformOp):
                 state_slots[: token_k.shape[0]], rope_positions
             )
 
+        # Extend groups are sourced entirely from this packed chunk. A chunk
+        # shorter than one group only updates the pending tail. Its fixed-size
+        # write plan may contain a dummy slot-zero entry; reading ratio members
+        # from that entry would access beyond a one/two/three-token input.
+        if is_extend and token_k.shape[0] < self.compress_ratio:
+            return
+
         if metadata.is_cuda_graph:
             self._compress_decode_cuda_graph(metadata)
             return

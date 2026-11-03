@@ -341,6 +341,26 @@ def _token_rows(count, seed):
     )
 
 
+@pytest.mark.parametrize("rows", [1, 2, 3])
+@pytest.mark.parametrize("fused", [False, True])
+def test_short_prefill_keeps_pending_keys_without_reading_a_dummy_group(rows, fused):
+    harness = _Harness(max_rows=1, num_requests=1, max_len=64)
+    if not fused:
+        harness.indexer._use_fused_compress = lambda pool: False
+    inputs = _token_rows(rows, seed=123)
+    before = harness.pool.get_qsa_compressed_k_buffer(LAYER_ID).clone()
+    harness.prefill([1], [inputs])
+    torch.cuda.synchronize()
+    assert torch.equal(harness.pool.get_qsa_compressed_k_buffer(LAYER_ID), before)
+    start = harness.pool.qsa_ring_size
+    torch.testing.assert_close(
+        harness.pool.get_qsa_key_state_buffer(LAYER_ID)[start : start + rows, 0],
+        inputs[:, -HEAD_DIM:],
+        rtol=0,
+        atol=0,
+    )
+
+
 def _run_speculative(*, width, prompt_lens, total_len, commits, graph):
     """Prefill each request, then verify ``width``-row windows (decode when 1) until
     every request committed ``total_len`` tokens; ``commits[i]`` yields request i's
