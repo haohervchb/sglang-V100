@@ -21,7 +21,7 @@ export SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=${SGLANG_ENABLE_HEALTH_ENDPOINT_
 # prefill lengths. Set this to 0 to retain sparse QSA semantics everywhere.
 export SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=${SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS:-8192}
 
-exec python -m sglang.launch_server \
+exec "${SGLANG_PYTHON:-python}" -m sglang.launch_server \
   --trust-remote-code \
   --model-path "$q38_model_path" \
   --served-model-name qwen \
