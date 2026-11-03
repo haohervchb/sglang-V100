@@ -1,0 +1,189 @@
+{
+  "profiles/cycles_tp0_80205.jsonl.gz": {
+    "diagnostic": true,
+    "rounds": 147,
+    "median_ms": {
+      "cycle_gpu_ms": 21.739200592041016,
+      "cpu_submit_ms": 6.8560889994842,
+      "draft": 2.6692800521850586,
+      "target": 17.287647247314453,
+      "state_commit": 0.18432000279426575,
+      "verify": 17.611679077148438,
+      "draft_extend": 1.511199951171875
+    },
+    "by_request": {
+      "07eb4ed080434db0b6d632b02cacdbd1": {
+        "rounds": 34,
+        "median_ms": {
+          "cycle_gpu_ms": 21.81048011779785,
+          "cpu_submit_ms": 6.8478845023491886,
+          "draft": 2.6876959800720215,
+          "target": 17.285823822021484,
+          "state_commit": 0.18387199938297272,
+          "verify": 17.613871574401855,
+          "draft_extend": 1.5094239711761475
+        }
+      },
+      "47547e8a36b14e6d9df024209605cdaa": {
+        "rounds": 36,
+        "median_ms": {
+          "cycle_gpu_ms": 21.296640396118164,
+          "cpu_submit_ms": 6.66319999982079,
+          "draft": 0.46800000965595245,
+          "target": 17.51145648956299,
+          "state_commit": 0.18254400044679642,
+          "verify": 19.22742462158203,
+          "draft_extend": 1.5058559775352478
+        }
+      },
+      "2f2ae43819d64881a8082d81ccd1efdc": {
+        "rounds": 59,
+        "median_ms": {
+          "cycle_gpu_ms": 21.72480010986328,
+          "cpu_submit_ms": 6.864031998702558,
+          "draft": 2.6692800521850586,
+          "target": 17.181119918823242,
+          "state_commit": 0.18425600230693817,
+          "verify": 17.507104873657227,
+          "draft_extend": 1.5088319778442383
+        }
+      },
+      "81b46444e6b94ed1bdf2ebac022e82ce": {
+        "rounds": 18,
+        "median_ms": {
+          "cycle_gpu_ms": 26.6461124420166,
+          "cpu_submit_ms": 11.456286998509313,
+          "draft": 3.0924479961395264,
+          "target": 21.676176071166992,
+          "state_commit": 0.18934399634599686,
+          "verify": 21.94905662536621,
+          "draft_extend": 1.5985919833183289
+        }
+      }
+    }
+  },
+  "profiles/code_off_events-1793603126.0537593-TP-0.trace.json.gz": {
+    "devices": {},
+    "kernel_sum_ms": {},
+    "kernel_counts": {},
+    "top_kernels_ms": {},
+    "note": "Kernel sums can overlap; idle is the union over all recorded device streams, within first-to-last GPU activity. Categories use kernel names, not layer attribution."
+  },
+  "profiles/code_off_gpu-1793603145.527533-TP-0.trace.json.gz": {
+    "devices": {
+      "0": {
+        "span_ms": 2034.9170590820313,
+        "busy_ms": 1815.7143286132812,
+        "idle_ms": 219.20273046875,
+        "idle_fraction": 0.10772071986444216
+      }
+    },
+    "kernel_sum_ms": {
+      "other": 1069.8522490000173,
+      "copies": 46.603717000000024,
+      "all_reduce": 82.37509200000014,
+      "gdn": 29.360183999999954,
+      "moe": 637.0712629999889,
+      "qsa_metadata": 0.30463599999999985,
+      "qsa_compute": 14.481068000000008
+    },
+    "kernel_counts": {
+      "other": 33875,
+      "copies": 7586,
+      "all_reduce": 2101,
+      "gdn": 1332,
+      "moe": 4724,
+      "qsa_metadata": 72,
+      "qsa_compute": 1080
+    },
+    "top_kernels_ms": {
+      "void marlin_moe_wna16::sm70_marlin_moe_gemm_kernel<marlin_moe_wna16::Sm70MarlinMoeGemmTraits<marlin_moe_wna16::(anonymous namespace)::Sm70MoeNvfp4GemmSpec, 64, 64, 32, 4, 32, 32, 32, 16, 64>, false>(cutlass::half_t const*, unsigned int const*, marlin_moe_wna16::Sm70MarlinMoeGemmTraits<marlin_moe_wna16::(anonymous namespace)::Sm70MoeNvfp4GemmSpec, 64, 64, 32, 4, 32, 32, 32, 16, 64>::GemmSpec::ScaleElement const*, marlin_moe_wna16::Sm70MarlinMoeGemmTraits<marlin_moe_wna16::(anonymous namespace)::Sm70MoeNvfp4GemmSpec, 64, 64, 32, 4, 32, 32, 32, 16, 64>::GemmSpec::ZeroElement const*, float const*, cutlass::half_t*, int const*, int const*, int const*, float const*, int, int, bool, int, int, int, int, int)": 336.754249,
+      "main_kernel": 202.21209400000012,
+      "void marlin_moe_wna16::sm70_marlin_moe_gemm_kernel<marlin_moe_wna16::Sm70MarlinMoeGemmTraits<marlin_moe_wna16::(anonymous namespace)::Sm70MoeNvfp4GemmSpec, 64, 256, 32, 4, 64, 64, 32, 16, 256>, false>(cutlass::half_t const*, unsigned int const*, marlin_moe_wna16::Sm70MarlinMoeGemmTraits<marlin_moe_wna16::(anonymous namespace)::Sm70MoeNvfp4GemmSpec, 64, 256, 32, 4, 64, 64, 32, 16, 256>::GemmSpec::ScaleElement const*, marlin_moe_wna16::Sm70MarlinMoeGemmTraits<marlin_moe_wna16::(anonymous namespace)::Sm70MoeNvfp4GemmSpec, 64, 256, 32, 4, 64, 64, 32, 16, 256>::GemmSpec::ZeroElement const*, float const*, cutlass::half_t*, int const*, int const*, int const*, float const*, int, int, bool, int, int, int, int, int)": 194.84047400000003,
+      "volta_fp16_s884gemm_fp16_128x128_ldg8_f2f_stages_32x1_tn": 157.532143,
+      "void cutlass::Kernel2<cutlass_70_tensorop_f16_s884gemm_relu_f16_128x128_tn_align8>(cutlass_70_tensorop_f16_s884gemm_relu_f16_128x128_tn_align8::Params)": 106.285718,
+      "volta_fp16_s884gemm_fp16_128x128_ldg8_f2f_tn": 85.68241300000001,
+      "void sglang::hc_combine_kernel<4l, 2560l, false, __half>(sglang::HcCombineParams)": 72.46201499999997,
+      "ncclDevKernel_AllReduce_Sum_f16_RING_LL(ncclDevKernelArgsStorage<4096ul>)": 61.649264999999986,
+      "triton_poi_fused_mean_mul_sigmoid_view_1": 50.199890999999994,
+      "void sglang::grouped_gemma_rmsnorm_kernel<2560l, false, __half>(sglang::GroupedGemmaRMSNormParams)": 48.31831200000001,
+      "void sm70_nvfp4_moe::gate_up_partial_kernel<true>(__half const*, unsigned int const*, unsigned char const*, int const*, int, float*)": 33.26391599999998,
+      "void sglang::sm70_hc_batch::up<4, 128>(__half const*, __half const*, __half const*, __half*)": 30.195055999999997,
+      "_moe_sum_reduce_kernel": 29.326573999999994,
+      "void sglang::sm70_hc_batch::down<4, 256, true>(__half const*, __half const*, __half*, __half const*, float*)": 28.450083999999976,
+      "void sm70_nvfp4_moe::down_partial_kernel<true>(__half const*, unsigned int const*, unsigned char const*, float const*, int const*, float const*, int, float*)": 25.581363999999997,
+      "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})": 23.455595000000013,
+      "void sglang::sm70_qwen_gdn::kernel<4, 64, 32, 8>(__half const*, __half const*, __half const*, __half*, __half*, __half*, __half*)": 20.26826700000002,
+      "void dot_kernel<float, 128, 0, cublasDotParams<cublasGemvTensorStridedBatched<__half const>, cublasGemvTensorStridedBatched<float> > >(cublasDotParams<cublasGemvTensorStridedBatched<__half const>, cublasGemvTensorStridedBatched<float> >)": 19.322999999999983,
+      "void sglang::sm70_small_gemm::kernel<4, 256, 32, 8>(__half const*, __half const*, __half*, int, int)": 19.05426200000004,
+      "void sglang::sm70_small_gemm::kernel<4, 128, 32, 8>(__half const*, __half const*, __half*, int, int)": 17.320646000000004
+    },
+    "note": "Kernel sums can overlap; idle is the union over all recorded device streams, within first-to-last GPU activity. Categories use kernel names, not layer attribution.",
+    "decode_window": {
+      "devices": {
+        "0": {
+          "span_ms": 489.39568603515625,
+          "busy_ms": 366.70665283203124,
+          "idle_ms": 122.689033203125,
+          "idle_fraction": 0.2506949625917044
+        }
+      },
+      "kernel_sum_ms": {
+        "other": 274.0232143554687,
+        "copies": 24.567166015625,
+        "qsa_metadata": 0.30463671875,
+        "all_reduce": 20.67539892578125,
+        "qsa_compute": 14.4810693359375,
+        "moe": 72.5552177734375,
+        "gdn": 24.3699541015625
+      },
+      "kernel_counts": {
+        "other": 31406,
+        "copies": 6780,
+        "qsa_metadata": 72,
+        "all_reduce": 1998,
+        "qsa_compute": 1080,
+        "moe": 4482,
+        "gdn": 1296
+      },
+      "top_kernels_ms": {
+        "void sm70_nvfp4_moe::gate_up_partial_kernel<true>(__half const*, unsigned int const*, unsigned char const*, int const*, int, float*)": 33.26392529296875,
+        "void sglang::sm70_hc_batch::up<4, 128>(__half const*, __half const*, __half const*, __half*)": 30.1950517578125,
+        "void sglang::sm70_hc_batch::down<4, 256, true>(__half const*, __half const*, __half*, __half const*, float*)": 28.45007470703125,
+        "void sm70_nvfp4_moe::down_partial_kernel<true>(__half const*, unsigned int const*, unsigned char const*, float const*, int const*, float const*, int, float*)": 25.58136083984375,
+        "void sglang::sm70_qwen_gdn::kernel<4, 64, 32, 8>(__half const*, __half const*, __half const*, __half*, __half*, __half*, __half*)": 20.2682587890625,
+        "void dot_kernel<float, 128, 0, cublasDotParams<cublasGemvTensorStridedBatched<__half const>, cublasGemvTensorStridedBatched<float> > >(cublasDotParams<cublasGemvTensorStridedBatched<__half const>, cublasGemvTensorStridedBatched<float> >)": 19.32300146484375,
+        "void sglang::sm70_small_gemm::kernel<4, 256, 32, 8>(__half const*, __half const*, __half*, int, int)": 19.054255859375,
+        "void sglang::sm70_small_gemm::kernel<4, 128, 32, 8>(__half const*, __half const*, __half*, int, int)": 17.320642578125,
+        "void (anonymous namespace)::all_reduce_one_shot_push_kernel<__half, 4u, false>((anonymous namespace)::AllReducePushData, device::distributed::PushController)": 16.79862109375,
+        "void sglang::sm70_small_gemm::kernel<4, 128, 16, 8>(__half const*, __half const*, __half*, int, int)": 16.0699384765625,
+        "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::Half, c10::Half, c10::Half, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})": 15.20046533203125,
+        "void sglang::sm70_dense_gemv::gemv_kernel<64, 32, 8, false>(__half const*, __half const*, __half*, int, int, __half const*)": 14.09633056640625,
+        "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#10}::operator()() const::{lambda(c10::Half)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#10}::operator()() const::{lambda(c10::Half)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#10}::operator()() const::{lambda(c10::Half)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#10}::operator()() const::{lambda(c10::Half)#1} const&)::{lambda(int)#1})": 9.52832861328125,
+        "fused_sigmoid_gating_delta_rule_update_kernel": 9.01264404296875,
+        "sm70_longctx::qsa_decode_partial_kernel(__half const*, unsigned char const*, unsigned char const*, int const*, int const*, int const*, int const*, int, int, int, int, float, __half*, float*)": 7.954435546875,
+        "void at::native::vectorized_elementwise_kernel<4, at::native::sigmoid_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#3}::operator()() const::{lambda(c10::Half)#1}, std::array<char*, 2ul> >(int, at::native::sigmoid_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#3}::operator()() const::{lambda(c10::Half)#1}, std::array<char*, 2ul>)": 7.8853603515625,
+        "void sglang::sm70_small_gemm::kernel<4, 64, 32, 8>(__half const*, __half const*, __half*, int, int)": 7.62944921875,
+        "sm70_nvfp4_moe::topk10_radix_half(__half const*, float*, int*)": 6.93476904296875,
+        "void reduce_1Block_kernel<float, 128, 7, cublasGemvTensorStridedBatched<float>, cublasGemvTensorStridedBatched<__half const>, cublasGemvTensorStridedBatched<__half> >(float const*, float, cublasGemvTensorStridedBatched<float>, int, float const*, float, cublasGemvTensorStridedBatched<__half const>, cublasGemvTensorStridedBatched<__half>, cublasPointerMode_t, cublasLtEpilogue_t, cublasGemvTensorStridedBatched<biasType<cublasGemvTensorStridedBatched<__half>::value_type, float>::type const>)": 5.80444970703125,
+        "void sglang::grouped_gemma_rmsnorm_kernel<2560l, false, __half>(sglang::GroupedGemmaRMSNormParams)": 5.76547705078125
+      },
+      "note": "Kernel sums can overlap; idle is the union over all recorded device streams, within first-to-last GPU activity. Categories use kernel names, not layer attribution.",
+      "scope": "First-to-last GPU operation correlated with CUDA calls submitted between the first and last spec_cycle phase annotations; all GPU activity inside that window contributes to busy time. Diagnostic only."
+    }
+  },
+  "profiles/code_on_events-1793603132.306369-TP-0.trace.json.gz": {
+    "devices": {},
+    "kernel_sum_ms": {},
+    "kernel_counts": {},
+    "top_kernels_ms": {},
+    "note": "Kernel sums can overlap; idle is the union over all recorded device streams, within first-to-last GPU activity. Categories use kernel names, not layer attribution."
+  },
+  "profiles/prose_off_events-1793603138.5744803-TP-0.trace.json.gz": {
+    "devices": {},
+    "kernel_sum_ms": {},
+    "kernel_counts": {},
+    "top_kernels_ms": {},
+    "note": "Kernel sums can overlap; idle is the union over all recorded device streams, within first-to-last GPU activity. Categories use kernel names, not layer attribution."
+  }
+}

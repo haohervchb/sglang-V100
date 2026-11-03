@@ -1,0 +1,170 @@
+{
+  "01f34d082c544d8a868db2eccca28489": {
+    "hits": 27,
+    "rounds": 36,
+    "case_id": "code_edit_70000",
+    "repeat": -1,
+    "warmup": true
+  },
+  "c746a80a81484808be7ef507a9794e13": {
+    "hits": 0,
+    "rounds": 63,
+    "case_id": "prose_70000",
+    "repeat": -1,
+    "warmup": true
+  },
+  "bb7623cf033d4dda8ee8005e8d407e9b": {
+    "hits": 27,
+    "rounds": 36,
+    "case_id": "code_edit_25000",
+    "repeat": -1,
+    "warmup": true
+  },
+  "e5f8a86b696b471bbcebe0527b77dd7e": {
+    "hits": 0,
+    "rounds": 60,
+    "case_id": "prose_25000",
+    "repeat": -1,
+    "warmup": true
+  },
+  "1337169a87d149bdafa5d38d6c42a812": {
+    "hits": 27,
+    "rounds": 36,
+    "case_id": "code_edit_8192",
+    "repeat": -1,
+    "warmup": true
+  },
+  "6daba11fcc5d403ca8c1f159d3111025": {
+    "hits": 0,
+    "rounds": 59,
+    "case_id": "prose_8192",
+    "repeat": -1,
+    "warmup": true
+  },
+  "9e2daf7331d94190bda8080c27e7541f": {
+    "hits": 27,
+    "rounds": 36,
+    "case_id": "code_edit_1000",
+    "repeat": -1,
+    "warmup": true
+  },
+  "2bfad589c5834be799ea54ce143f5a35": {
+    "hits": 0,
+    "rounds": 56,
+    "case_id": "prose_1000",
+    "repeat": -1,
+    "warmup": true
+  },
+  "d693e83b885649a697d18684d54d9958": {
+    "hits": 0,
+    "rounds": 220,
+    "case_id": "prose_1000",
+    "repeat": 0,
+    "warmup": false
+  },
+  "10ff7ec57dd240d4a2bba06c5e74267d": {
+    "hits": 111,
+    "rounds": 155,
+    "case_id": "code_edit_1000",
+    "repeat": 0,
+    "warmup": false
+  },
+  "8ea7c4fb82f94a6d9c4785b8c0a1a5a7": {
+    "hits": 0,
+    "rounds": 207,
+    "case_id": "prose_8192",
+    "repeat": 0,
+    "warmup": false
+  },
+  "442121aad6724066ad47776637f92743": {
+    "hits": 111,
+    "rounds": 149,
+    "case_id": "code_edit_8192",
+    "repeat": 0,
+    "warmup": false
+  },
+  "3c90decbc09b4a9d878b928daa0040d7": {
+    "hits": 0,
+    "rounds": 221,
+    "case_id": "prose_25000",
+    "repeat": 0,
+    "warmup": false
+  },
+  "047003592be7447aa91b4827116c0574": {
+    "hits": 111,
+    "rounds": 145,
+    "case_id": "code_edit_25000",
+    "repeat": 0,
+    "warmup": false
+  },
+  "ab284e2cd2d34bd79d3082f0cfc65e65": {
+    "hits": 0,
+    "rounds": 222,
+    "case_id": "prose_70000",
+    "repeat": 0,
+    "warmup": false
+  },
+  "53f42b0683864ceb8820fe26d01479cf": {
+    "hits": 111,
+    "rounds": 152,
+    "case_id": "code_edit_70000",
+    "repeat": 0,
+    "warmup": false
+  },
+  "a3128c0b7cda43738ecc905e17757031": {
+    "hits": 111,
+    "rounds": 154,
+    "case_id": "code_edit_70000",
+    "repeat": 1,
+    "warmup": false
+  },
+  "8d278f6e2a9f4c5cba0dac1874e6d908": {
+    "hits": 0,
+    "rounds": 215,
+    "case_id": "prose_70000",
+    "repeat": 1,
+    "warmup": false
+  },
+  "ef16c07eca654c21bad427b681954887": {
+    "hits": 111,
+    "rounds": 153,
+    "case_id": "code_edit_25000",
+    "repeat": 1,
+    "warmup": false
+  },
+  "d4a6c6f123224ddbaf1c01dc2d289603": {
+    "hits": 0,
+    "rounds": 218,
+    "case_id": "prose_25000",
+    "repeat": 1,
+    "warmup": false
+  },
+  "052f26e4e1d1414f9fa5f87e0c06bf6c": {
+    "hits": 111,
+    "rounds": 152,
+    "case_id": "code_edit_8192",
+    "repeat": 1,
+    "warmup": false
+  },
+  "4475e38fcc8d44a09e176fc87ef3687c": {
+    "hits": 0,
+    "rounds": 208,
+    "case_id": "prose_8192",
+    "repeat": 1,
+    "warmup": false
+  },
+  "12558c10304d4da4a84f4c7c4de318e0": {
+    "hits": 111,
+    "rounds": 155,
+    "case_id": "code_edit_1000",
+    "repeat": 1,
+    "warmup": false
+  },
+  "c76a4cff0fb0481c96d115923b8ee945": {
+    "hits": 0,
+    "rounds": 220,
+    "case_id": "prose_1000",
+    "repeat": 1,
+    "warmup": false
+  }
+}

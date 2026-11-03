@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Tuple
 import msgspec
 import torch
 import torch.nn.functional as F
+
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
 from sglang.srt.layers.attention.qsa.config import (
     QSA_VARIANT_COMPRESSED,
@@ -133,9 +134,7 @@ def _resolve_flash_attn_varlen_func():
     except ImportError:
         pass
     try:
-        from flash_attn.cute.interface import (
-            flash_attn_varlen_func as cute_varlen_func,
-        )
+        from flash_attn.cute.interface import flash_attn_varlen_func as cute_varlen_func
 
         def flash_attn_varlen_func(*args, **kwargs):
             output = cute_varlen_func(*args, **kwargs)
@@ -312,20 +311,25 @@ class QwenSparseAttnBackend(AttentionBackend):
         return forward_mode.is_target_verify() or forward_mode.is_draft_extend_v2()
 
     def _require_chain_speculation(self, forward_mode, spec_info) -> None:
-        if forward_mode is None or not forward_mode.is_target_verify():
+        if forward_mode is None:
             return
-        if int(getattr(spec_info, "topk", 1) or 1) != 1:
+        if forward_mode.is_target_verify():
+            if int(getattr(spec_info, "topk", 1) or 1) != 1:
+                raise NotImplementedError(
+                    "Qwen QSA target verification supports only speculative_eagle_topk=1"
+                )
+            rows = int(getattr(spec_info, "draft_token_num", 0) or 0)
+        elif forward_mode.is_draft_extend_v2():
+            rows = int(getattr(spec_info, "num_tokens_per_req", 0) or 0)
+        else:
+            return
+        ring_size = self.token_to_kv_pool.qsa_ring_size
+        required = self.compress_ratio + rows - 1
+        if rows <= 0 or required > ring_size:
             raise NotImplementedError(
-                "Qwen QSA target verification supports only speculative_eagle_topk=1"
-            )
-        draft_tokens = int(getattr(spec_info, "draft_token_num", 0) or 0)
-        if draft_tokens > self.compress_ratio:
-            # The pending-group ring keys state by position % ratio; a verify
-            # window wider than the ratio would collide within one forward.
-            raise NotImplementedError(
-                "Qwen QSA requires speculative_num_draft_tokens <= the QSA "
-                f"compress ratio ({self.compress_ratio}): the pending "
-                f"index-key ring holds one group; got {draft_tokens}"
+                f"Qwen QSA {forward_mode.name} of {rows} rows per request needs "
+                f"a pending index-key ring of at least {required} slots, but "
+                f"it has {ring_size}; unresolved or oversized geometry is unsafe"
             )
 
     @staticmethod
@@ -803,6 +807,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                     sequence_lengths=sequence_lengths,
                     logical_positions=ring_logical_positions,
                     compress_ratio=self.compress_ratio,
+                    ring_size=self.token_to_kv_pool.qsa_ring_size,
                     is_extend=group_member_rows is not None,
                 )
                 if write_locs.numel():
@@ -821,6 +826,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                             group_end_positions=group_positions.long(),
                             sequence_ids=group_sequence_ids.long(),
                             compress_ratio=self.compress_ratio,
+                            ring_size=self.token_to_kv_pool.qsa_ring_size,
                         )
         indexer_metadata = QSAIndexerMetadata(
             sequence_lengths=sequence_lengths,
@@ -1022,7 +1028,6 @@ class QwenSparseAttnBackend(AttentionBackend):
         spec_info,
     ) -> None:
         self._require_compressed_cuda_graph_support()
-        self._require_chain_speculation(forward_mode, spec_info)
         if self.token_to_kv_pool is None:
             self.token_to_kv_pool = getattr(self.runner, "token_to_kv_pool", None)
         if self.req_to_token is None:
@@ -1031,6 +1036,7 @@ class QwenSparseAttnBackend(AttentionBackend):
             self.req_to_token_pool = req_pool
         if self._graph_seq_lens is None or self.token_to_kv_pool is None:
             raise RuntimeError("QSA CUDA graph state is not initialized")
+        self._require_chain_speculation(forward_mode, spec_info)
         pool = self.token_to_kv_pool
         speculative_paged = self._is_speculative_paged_mode(forward_mode)
         metadata_rows = num_tokens if speculative_paged else bs
@@ -1291,6 +1297,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 sequence_lengths=metadata.sequence_lengths,
                 logical_positions=current_positions,
                 compress_ratio=ratio,
+                ring_size=self.token_to_kv_pool.qsa_ring_size,
                 is_extend=False,
             )
         )
@@ -1300,6 +1307,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 group_end_positions=current_positions,
                 sequence_ids=metadata.token_to_batch_idx.long(),
                 compress_ratio=ratio,
+                ring_size=self.token_to_kv_pool.qsa_ring_size,
             ).to(torch.int32)
         )
 
@@ -2122,6 +2130,7 @@ class QwenSparseMultiStepDraftBackend:
         self.model_runner = model_runner
         self.topk = topk
         self.speculative_num_steps = speculative_num_steps
+        self._draft_graph_metadata_args = {}
         self.attn_backends = [
             QwenSparseAttnBackend(model_runner)
             for _ in range(speculative_num_steps - 1)
@@ -2210,11 +2219,13 @@ class QwenSparseMultiStepDraftBackend:
             )
 
     def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+        self._draft_graph_metadata_args = {}
         for backend in self.attn_backends:
             backend.init_cuda_graph_state(max_bs, max_num_tokens)
 
     def init_forward_metadata_out_graph(self, forward_batch, in_capture: bool = False):
         if in_capture:
+            self._draft_graph_metadata_args = {}
             for step, backend in enumerate(self.attn_backends):
                 # Every capture row is synthetic.  Keep its sequence length
                 # below the first compression boundary so graph warmup cannot
@@ -2237,6 +2248,10 @@ class QwenSparseMultiStepDraftBackend:
 
         num_padding = getattr(forward_batch, "num_padding", None)
         num_padding = num_padding if num_padding is not None else 0
+        if os.environ.get(
+            "SGLANG_SM70_QSA_FUSED_GRAPH_METADATA", "0"
+        ) == "1" and self._try_fused_draft_graph_metadata(forward_batch, num_padding):
+            return
         for step, backend in enumerate(self.attn_backends):
             step_batch = self._make_step_forward_batch(
                 forward_batch, step, num_padding=num_padding
@@ -2251,6 +2266,54 @@ class QwenSparseMultiStepDraftBackend:
                 num_padding=num_padding,
             )
 
+    def _try_fused_draft_graph_metadata(self, forward_batch, num_padding):
+        if not forward_batch.seq_lens.is_cuda or not self.attn_backends:
+            return False
+        from sglang.srt.layers.attention.qsa.graph_metadata_fused import (
+            launch_draft_graph_metadata,
+            prepare_draft_graph_metadata,
+        )
+
+        bs = forward_batch.batch_size
+        cached = self._draft_graph_metadata_args.get(bs)
+        if cached is None:
+            metadata = tuple(
+                backend._cuda_graph_metadata.get((ForwardMode.DECODE, bs))
+                for backend in self.attn_backends
+            )
+            first = self.attn_backends[0]
+            if not all(m is not None for m in metadata):
+                return False
+            if not all(
+                backend.req_to_token is first.req_to_token
+                and backend._can_replay_with_gpu_kernels(m, forward_batch.seq_lens)
+                and m.indexer_metadata.token_to_kv_pool
+                is metadata[0].indexer_metadata.token_to_kv_pool
+                and m.sequence_lengths.numel() == bs
+                and m.indexer_metadata.graph_compressed_page_table.shape
+                == metadata[0].indexer_metadata.graph_compressed_page_table.shape
+                for backend, m in zip(self.attn_backends, metadata)
+            ):
+                return False
+            args = prepare_draft_graph_metadata(
+                metadata,
+                first.req_to_token,
+                metadata[0].indexer_metadata.token_to_kv_pool,
+            )
+            cached = (metadata, args)
+            self._draft_graph_metadata_args[bs] = cached
+        metadata, args = cached
+        launch_draft_graph_metadata(
+            args,
+            forward_batch.seq_lens,
+            forward_batch.req_pool_indices,
+            bs,
+            num_padding,
+        )
+        for backend, m in zip(self.attn_backends, metadata):
+            backend.forward_metadata = m
+        return True
+
     def init_forward_metadata_capture_cuda_graph(self, forward_batch) -> None:
         """Compatibility hook used by ``EagleDraftCudaGraphRunner``.
 
@@ -2261,9 +2324,7 @@ class QwenSparseMultiStepDraftBackend:
 
         self.init_forward_metadata_out_graph(forward_batch, in_capture=True)
 
-    def init_forward_metadata_replay_cuda_graph(
-        self, forward_batch, bs: int
-    ) -> None:
+    def init_forward_metadata_replay_cuda_graph(self, forward_batch, bs: int) -> None:
         """Refresh per-step QSA graph metadata before replay."""
 
         if forward_batch.batch_size != bs:

@@ -9,6 +9,12 @@ Use the [current quick start](../../../README.md#qwen38-flash-next-nvfp4)
 for the validated v4 deployment. The explicit host commands and older v3
 four-request configuration below are retained for reproduction.
 
+The [November 2 speculation investigation](../../../benchmark/qwen38_nvfp4_v100_spec_20261102/README.md)
+adds reproducible comparisons and phase profiles. Its prompt-lookup prototype
+lost throughput on the tested code edits, so both new speculative experiments
+remain disabled by default. The separately validated contributor fixes are in
+[PR #4](https://github.com/haohervchb/sglang-V100/pull/4).
+
 ## Qwen3.8 Flash Next NVFP4 target-only
 
 This is the non-speculative command used for the current V100 result. It uses

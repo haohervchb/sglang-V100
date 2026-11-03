@@ -1,0 +1,24 @@
+{
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "packages": {
+    "torch": "2.9.1",
+    "triton": "3.5.1",
+    "transformers": "5.8.1",
+    "flashinfer-python": "0.6.12",
+    "apache-tvm-ffi": "0.1.9",
+    "tilelang": "0.1.8",
+    "numpy": "2.3.5",
+    "decord": "0.6.0",
+    "torchcodec": "0.9.1"
+  },
+  "model_revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "gpu": "Tesla V100-SXM2-32GB, 32768 MiB, 580.178.04\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04\n",
+  "topology": "\t\u001b[4mGPU0\tGPU1\tGPU2\tGPU3\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tNV2\tNV2\tNV2\t0-55\t0\t\tN/A\nGPU1\tNV2\t X \tNV2\tNV2\t0-55\t0\t\tN/A\nGPU2\tNV2\tNV2\t X \tNV2\t0-55\t0\t\tN/A\nGPU3\tNV2\tNV2\tNV2\t X \t0-55\t0\t\tN/A\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks\n",
+  "memory": [
+    "MemTotal:       131785316 kB",
+    "MemFree:         1335088 kB",
+    "MemAvailable:   51362352 kB"
+  ],
+  "python": "/home/rah/miniconda3/envs/sglang-v100/bin/python",
+  "python_version": "3.12.13 | packaged by Anaconda, Inc. | (main, Jul  9 2026, 14:38:16) [GCC 14.3.0]"
+}

@@ -1,0 +1,20 @@
+{
+  "pid": 66507,
+  "command": [
+    "bash",
+    "scripts/serve_qwen38_flash_next_nvfp4_v100.sh",
+    "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+    "--speculative-algorithm",
+    "EAGLE",
+    "--speculative-draft-model-path",
+    "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+    "--speculative-num-steps",
+    "3",
+    "--speculative-eagle-topk",
+    "1",
+    "--speculative-num-draft-tokens",
+    "4",
+    "--enable-multimodal"
+  ],
+  "revision": "2d06a902aeba2d9cf38d80f1a916107d0520a2f5"
+}
