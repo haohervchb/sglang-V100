@@ -214,3 +214,23 @@ NVML every 100 ms. It does not flush caches between requests. The server may
 still process one request at a time; this tests its queue and repeated prefill
 allocations, not four-way model execution. These synthetic text requests do not
 validate PDF extraction or vision memory use for documents sent as images.
+
+## Prefill and decode core audit
+
+The [November 3 core audit](../qwen38_nvfp4_v100_core_audit_20261103/README.md)
+contains phase timings, semantic kernel attribution, hardware activity,
+calibration, and prioritized experiments for the 2K-chunk serving profile.
+
+`core_audit.py` runs timing, DCGM, CPU-event and GPU-trace passes against a
+dedicated endpoint. It flushes caches. Enable `SGLANG_CORE_AUDIT_DIR` alongside
+the existing `SGLANG_SPEC_PROBE_DIR` / `SGLANG_SPEC_PROBE_ON_PROFILE=1` hooks when
+launching that endpoint; the report retains the exact launch configuration.
+The runner separates SM/occupancy and Tensor counter passes and always resumes
+DCGM after tracing. DCGM pause/resume affects the whole host engine.
+
+`analyze_core_audit.py` joins kernel launches to enclosing model ranges and
+excludes delayed hardware-counter samples near phase transitions.
+`plot_core_audit.py` produces standalone SVG/PNG figures using Matplotlib.
+`hardware_calibration.py` runs with the model stopped and explicitly binds each
+CUDA graph capture stream to its device. Its synthetic projection measurements
+and byte-rate estimates are not end-to-end model throughput claims.

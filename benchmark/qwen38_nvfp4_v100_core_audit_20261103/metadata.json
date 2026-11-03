@@ -1,0 +1,165 @@
+{
+  "runtime_source_commit": "2f5dd9e7dfb4b2088a1628cde11f1215bd731a72",
+  "runtime_profile_tag": "v100-qwen38-flash-next-v5.1",
+  "server_args": {
+    "model_path": "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+    "revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+    "dtype": "float16",
+    "kv_cache_dtype": "auto",
+    "context_length": 262144,
+    "max_req_input_len": 262138,
+    "max_running_requests": 1,
+    "tp_size": 4,
+    "chunked_prefill_size": 2048,
+    "max_prefill_tokens": 2048,
+    "mem_fraction_static": 0.83,
+    "speculative_algorithm": "EAGLE",
+    "speculative_num_steps": 3,
+    "speculative_eagle_topk": 1,
+    "speculative_num_draft_tokens": 4,
+    "speculative_token_map": null,
+    "enable_multimodal": true
+  },
+  "versions": {
+    "python": "3.12.13",
+    "torch": "2.9.1+cu128",
+    "torch_cuda": "12.8",
+    "triton": "3.5.1",
+    "matplotlib": "3.11.2"
+  },
+  "raw_directory": "/home/rah/qwen38-runs/20261103-core-audit",
+  "restored_checks": {
+    "passed": true,
+    "cases": [
+      {
+        "name": "arithmetic",
+        "passed": true
+      },
+      {
+        "name": "geography",
+        "passed": true
+      },
+      {
+        "name": "json_grammar",
+        "passed": true
+      },
+      {
+        "name": "sampled",
+        "passed": true
+      }
+    ],
+    "tool_arguments": true,
+    "tool_result": true
+  },
+  "profiling_limitations": [
+    "Nsight Compute failed with ERR_NVGPUCTRPERM. DCGM counters were available through the existing privileged host engine.",
+    "CPU perf sampling was unavailable at perf_event_paranoid=4. CUDA timelines and instrumented CPU submission timing were available.",
+    "Trace timing is diagnostic. Hardware counters, normal timings and CUPTI traces were collected in separate passes."
+  ],
+  "rejected_artifacts": {
+    "hardware_initial_invalid_device_streams.json": "Initial calibration was invalid on GPUs 1-3 because PyTorch reused its default capture stream from GPU 0. Final hardware.json was recollected with an explicit device capture stream and physical-throughput sanity checks."
+  },
+  "sources": [
+    "https://docs.nvidia.com/datacenter/dcgm/latest/learn/modules/profiling.html",
+    "https://docs.nvidia.com/cuda/volta-tuning-guide/index.html",
+    "https://images.nvidia.com/content/technologies/volta/pdf/volta-v100-datasheet-update-us-1165301-r5.pdf",
+    "https://developer.nvidia.com/nvidia-development-tools-solutions-err_nvgpuctrperm-permission-issue-performance-counters"
+  ],
+  "traces": [
+    {
+      "path": "capture/trace_cpu_prose_70000/trace_cpu_prose_70000-1793699611.3388393-TP-0.trace.json.gz",
+      "bytes": 19717812,
+      "sha256": "ce881ef5d1b053e2ad0246a25bb8bf8f296b070c049f82c92c4b084de354bb4e"
+    },
+    {
+      "path": "capture/trace_cpu_prose_70000/trace_cpu_prose_70000-1793699611.3388393-TP-1.trace.json.gz",
+      "bytes": 19675429,
+      "sha256": "d6ab28b0834b7166986242ccd88e1e1d88e2ea9a225990d4e3bbb594f9f067e5"
+    },
+    {
+      "path": "capture/trace_cpu_prose_70000/trace_cpu_prose_70000-1793699611.3388393-TP-2.trace.json.gz",
+      "bytes": 19683375,
+      "sha256": "defc0a064a13f54971b2e3c32e92659d40bb95bc16c6b39d53a4c4bb7fdcc62d"
+    },
+    {
+      "path": "capture/trace_cpu_prose_70000/trace_cpu_prose_70000-1793699611.3388393-TP-3.trace.json.gz",
+      "bytes": 19660469,
+      "sha256": "f6f37e3b7eaef2e9da853c46484cafc59835b751bf58b1d816a0321200853ef0"
+    },
+    {
+      "path": "capture/trace_cpu_prose_8192/trace_cpu_prose_8192-1793699603.529073-TP-0.trace.json.gz",
+      "bytes": 3060750,
+      "sha256": "55364bce436c874ee9da6e328060d418b95a9000c234f174d4a42f911f951982"
+    },
+    {
+      "path": "capture/trace_cpu_prose_8192/trace_cpu_prose_8192-1793699603.529073-TP-1.trace.json.gz",
+      "bytes": 3001955,
+      "sha256": "0cc789647624a6fb3bcb3e8254c58df702bc1f8d33811551a98efa2a19ed2828"
+    },
+    {
+      "path": "capture/trace_cpu_prose_8192/trace_cpu_prose_8192-1793699603.529073-TP-2.trace.json.gz",
+      "bytes": 3002318,
+      "sha256": "7967f06fcf85fa5d3a681ab022fa99aad316930007ee3d850578a0bda50dfd16"
+    },
+    {
+      "path": "capture/trace_cpu_prose_8192/trace_cpu_prose_8192-1793699603.529073-TP-3.trace.json.gz",
+      "bytes": 3000269,
+      "sha256": "a4125a4ba3ae176522c0b59426b5560954f2acabffeb9e4e11ccd09a80a02fb1"
+    },
+    {
+      "path": "capture/trace_gpu_prose_70000/trace_gpu_prose_70000-1793699673.582076-TP-0.trace.json.gz",
+      "bytes": 35885095,
+      "sha256": "dbfac05a9fe78aad8f87b34c100fae40937dd93abad16b8f3f850dce76dc879c"
+    },
+    {
+      "path": "capture/trace_gpu_prose_70000/trace_gpu_prose_70000-1793699673.582076-TP-1.trace.json.gz",
+      "bytes": 35821864,
+      "sha256": "5352b3206031e7fe44ea7e52ad2f4058e73b42bfd0b653b6d6f0c6ae34b32495"
+    },
+    {
+      "path": "capture/trace_gpu_prose_70000/trace_gpu_prose_70000-1793699673.582076-TP-2.trace.json.gz",
+      "bytes": 35788924,
+      "sha256": "2b723f2d9849dca18933b608124fb7c6ec3894910c16db918904a1283edb499e"
+    },
+    {
+      "path": "capture/trace_gpu_prose_70000/trace_gpu_prose_70000-1793699673.582076-TP-3.trace.json.gz",
+      "bytes": 35776296,
+      "sha256": "63915d6ec58710f9a411b77b715edea4c3360225ad731841df852e167fd3d121"
+    },
+    {
+      "path": "capture/trace_gpu_prose_8192/trace_gpu_prose_8192-1793699656.7946978-TP-0.trace.json.gz",
+      "bytes": 9929738,
+      "sha256": "717b96332199e12a14b0f11714064a1da6daf9378b996762a11404d82a89f4f6"
+    },
+    {
+      "path": "capture/trace_gpu_prose_8192/trace_gpu_prose_8192-1793699656.7946978-TP-1.trace.json.gz",
+      "bytes": 9862914,
+      "sha256": "d93de7edf18a7f0c012050524a07765ab48c4641b888349341b43a9f83bdd6fc"
+    },
+    {
+      "path": "capture/trace_gpu_prose_8192/trace_gpu_prose_8192-1793699656.7946978-TP-2.trace.json.gz",
+      "bytes": 9816679,
+      "sha256": "7eacff43bbb4d7d31d5eb14e87e635f0bb6d9873a1cc5ff60241eddc1cec4828"
+    },
+    {
+      "path": "capture/trace_gpu_prose_8192/trace_gpu_prose_8192-1793699656.7946978-TP-3.trace.json.gz",
+      "bytes": 9869329,
+      "sha256": "4dfed66f712cb59d9b2e6e8846c66eb939d3266639634d1af7169c178778f86e"
+    }
+  ],
+  "counter_phase_guard_seconds": 2.2,
+  "native_libraries": {
+    "_sm70_turbomind_v100.so": "7da2882d3b8b0d43e532c1d721d11179d78c10689ee08aeba018b84e8cee2728",
+    "_sm70_marlin_v100_dense.abi3.so": "082177d263098b1bf9873441bc8d2d6d223d5d4f75f04081c7ffa2937c8eefde",
+    "_sm70_marlin_v100_moe.abi3.so": "1bc45f4d83a120f98bf2bb36099ab8832286af774fc366c52f82e7bc5fd6d0f4"
+  },
+  "audit_source_sha256": {
+    "benchmark/qwen38_spec/bench.py": "9de7398b557892a6e5af64d6c3ecec855ed78075e767568a13f7ab9160c8803d",
+    "benchmark/qwen38_spec/core_audit.py": "fa50dd499ad7905f86e489e300870ff35179b10e4d3a9cca0e55122aa15e010b",
+    "benchmark/qwen38_spec/analyze_core_audit.py": "098c2fb9d0482f5795c4a3cdf84a0c221ee229dc39d7c174f94c88e6fd7568bb",
+    "benchmark/qwen38_spec/hardware_calibration.py": "af845a4199aafb9c8838d215673026fe4218abe42fe61f092d782f62dd69f65b",
+    "benchmark/qwen38_spec/plot_core_audit.py": "3361664b529ca18d45ab5145536e49b1c74feb5753670042300cd4e00b88e22a",
+    "benchmark/qwen38_spec/probe/sitecustomize.py": "cc5610ebce25dfb0763660fa60b3a305e1fa4633ec1ed3f696bdecf035e8a931",
+    "benchmark/qwen38_spec/probe/qwen38_core_probe.py": "769877ff90f53520e345f3478008fbb0951b5511f6cd9f8be971b90be2a01f71"
+  }
+}

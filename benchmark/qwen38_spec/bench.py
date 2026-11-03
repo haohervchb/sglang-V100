@@ -25,7 +25,9 @@ def write_json(path, value):
 def make_corpus(args):
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.tokenizer, revision=getattr(args, "tokenizer_revision", None)
+    )
     source = "\n\n".join(
         f"def read_item_{i}(store, key):\n"
         '    """Read an item from the store, returning None when absent."""\n'
@@ -77,7 +79,14 @@ def make_corpus(args):
                 )
             )
     with Path(args.output).open("x") as f:
-        json.dump(dict(tokenizer=args.tokenizer, cases=rows), f)
+        json.dump(
+            dict(
+                tokenizer=args.tokenizer,
+                tokenizer_revision=getattr(args, "tokenizer_revision", None),
+                cases=rows,
+            ),
+            f,
+        )
         f.write("\n")
 
 
@@ -102,6 +111,7 @@ def measure(
         if body is False or (isinstance(body, dict) and body.get("success") is False):
             raise RuntimeError(f"Cache flush refused: {body}")
     start = time.perf_counter()
+    start_unix_s = time.time()
     events = []
     final = None
     request_id = uuid.uuid4().hex
@@ -158,6 +168,7 @@ def measure(
     rounds = last["verify_ct"] - first["verify_ct"]
     return dict(
         case_id=case["id"],
+        start_unix_s=start_unix_s,
         request_id=request_id,
         prompt_lookup=lookup,
         kind=case["kind"],
@@ -329,6 +340,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     corpus = commands.add_parser("corpus")
     corpus.add_argument("--tokenizer", default="RadixArk/Qwen3.8-Flash-Next-NVFP4")
+    corpus.add_argument("--tokenizer-revision")
     corpus.add_argument(
         "--lengths", nargs="+", type=int, default=[1000, 8192, 25000, 70000]
     )

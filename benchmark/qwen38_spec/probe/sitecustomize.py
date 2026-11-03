@@ -151,3 +151,8 @@ if os.environ.get("SGLANG_SPEC_PROBE_DIR"):
             return spec
 
     sys.meta_path.insert(0, ProbeFinder())
+
+if os.environ.get("SGLANG_CORE_AUDIT_DIR"):
+    from qwen38_core_probe import enable
+
+    enable()
