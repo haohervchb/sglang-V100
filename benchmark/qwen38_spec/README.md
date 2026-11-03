@@ -234,3 +234,16 @@ excludes delayed hardware-counter samples near phase transitions.
 `hardware_calibration.py` runs with the model stopped and explicitly binds each
 CUDA graph capture stream to its device. Its synthetic projection measurements
 and byte-rate estimates are not end-to-end model throughput claims.
+
+## Core optimization follow-up
+
+The [measured optimization round](../qwen38_nvfp4_v100_core_optimization_20261103/README.md)
+uses captured model routing to screen the 2K MoE geometry, tests the shared gate
+for MTP verification, and adapts grouped Page4 QSA prefill. `prefill_ab.py`
+interleaves prefill modes through a test-only control file; the MTP decode graph
+remains fixed per server launch. `check_cached_document.py` checks a real long
+prefix-cache hit against a cold replay. `summarize_core_optimization.py` keeps
+fixed-output end-to-end latency, decode timing, and acceptance separate.
+
+Tensor captures stay local. The compact-state QSA prototype was removed; its
+archived patch is required for the explicit `--compact-experiment` modes.

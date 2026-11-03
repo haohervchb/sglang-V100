@@ -144,8 +144,26 @@ def sm70_cuda_qsa_prefill(
     indices,
     seq_lens,
     softmax_scale,
+    page_size=None,
 ):
     """Run exact-shape QSA chunk-prefill directly from E5M2 or FP16 KV."""
+    if os.environ.get("SGLANG_SM70_QSA_GROUPED_PREFILL", "0") == "1":
+        from ._grouped_qsa import can_use_grouped_qsa, grouped_qsa_prefill
+
+        if can_use_grouped_qsa(q, k_cache, v_cache, indices, page_size):
+            result = grouped_qsa_prefill(
+                q,
+                k_cache,
+                v_cache,
+                req_to_token,
+                req_indices,
+                indices,
+                seq_lens,
+                softmax_scale,
+                page_size,
+            )
+            if result is not None:
+                return result
     ext = _load_sm70_cuda_decode_ops()
     if ext is None:
         raise RuntimeError("SM70 CUDA QSA prefill extension is unavailable.")

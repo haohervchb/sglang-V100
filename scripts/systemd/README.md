@@ -14,6 +14,29 @@ its prefill timing results do not describe this more conservative configuration.
 Chunk size does not reduce the context limit. Documents still need to fit the
 token limit after extraction; PDF file size is not a token-count limit.
 
+The optimized profile enables the shared-expert gate for MTP verification,
+the measured 2K MoE routing/geometry settings, and grouped Page4 QSA prefill.
+Set `SGLANG_SM70_MTP_SHARED_GATE`, `SGLANG_SM70_MOE_PREFILL_2K`, or
+`SGLANG_SM70_QSA_GROUPED_PREFILL` to `0` to disable an individual change.
+
+Grouped QSA uses an optional Flash-V100 extension built against this serving
+environment's PyTorch ABI. Build from the `flash-attention-v100` directory
+bundled in 1Cat-vLLM (validated source revision
+`d8f42b391af06410ab01bb71657ededf7dce7799`):
+
+```bash
+python scripts/setup_v100_grouped_qsa.py \
+  --source /path/to/1Cat-vLLM/flash-attention-v100
+```
+
+This installs `python/sglang/jit_kernel/_sm70_grouped_qsa_v100.so` without
+replacing the existing FlashAttention package. The build directory retains
+the source snapshot, license and hashes. The new route is limited to the
+measured 2,048-row FP16/Page16 Qwen shape; other shapes retain native QSA.
+If the extension is unavailable, a warning is logged and native QSA remains
+active. Restart after installing the library. See the bundled
+[third-party notice](../../python/sglang/jit_kernel/third_party/flash_v100/README.md).
+
 ```bash
 mkdir -p ~/.config/systemd/user
 cp scripts/systemd/sglang-qwen38-8082.service ~/.config/systemd/user/

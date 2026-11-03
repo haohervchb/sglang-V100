@@ -1604,6 +1604,7 @@ class QwenSparseAttnBackend(AttentionBackend):
                 topk_indices,
                 forward_batch.seq_lens,
                 layer.scaling,
+                page_size=self.page_size if self.compress_ratio == 4 else None,
             )
             return self._pad_extend_output(output, num_output_rows)
         req_to_token = self.req_to_token_pool.req_to_token
