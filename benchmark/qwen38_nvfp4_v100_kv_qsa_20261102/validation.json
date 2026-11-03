@@ -16,5 +16,71 @@
       "test/registered/unit/spec/test_qsa_capture_geometry.py"
     ]
   },
-  "retained_core_logs": "../qwen38_qsa_ring_20261102 on PR6 branch"
+  "retained_core_logs": "../qwen38_qsa_ring_20261102 on PR6 branch",
+  "additional_gpu": {
+    "head_graph": 3,
+    "real_tp4_head": "passed",
+    "qsa_state_with_short_prefill": 41
+  },
+  "profile_cpu_tests": 3,
+  "serving": {
+    "e5m2_4": {
+      "text_checks": 6,
+      "passed": true,
+      "tools": "passed",
+      "multimodal": {
+        "passed": 11,
+        "total": 12,
+        "failures": [
+          "ocr"
+        ]
+      }
+    },
+    "fp16_4": {
+      "text_checks": 6,
+      "passed": true,
+      "tools": "passed",
+      "multimodal": {
+        "passed": 11,
+        "total": 12,
+        "failures": [
+          "ocr"
+        ]
+      }
+    },
+    "fp16_8": {
+      "text_checks": 6,
+      "passed": true,
+      "tools": "passed",
+      "multimodal": {
+        "passed": 11,
+        "total": 12,
+        "failures": [
+          "ocr"
+        ]
+      }
+    },
+    "cjk_4": {
+      "text_checks": 6,
+      "passed": true,
+      "tools": "passed",
+      "multimodal": {
+        "passed": 11,
+        "total": 12,
+        "failures": [
+          "ocr"
+        ]
+      }
+    },
+    "fp16_6": {
+      "text_checks": 6,
+      "passed": true,
+      "tools": "passed"
+    },
+    "target_fp16_retry": {
+      "text_checks": 8,
+      "passed": true,
+      "tools": "passed"
+    }
+  }
 }

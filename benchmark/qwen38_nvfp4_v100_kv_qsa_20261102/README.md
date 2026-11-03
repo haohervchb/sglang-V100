@@ -44,8 +44,8 @@ reference was independently verified to resolve to the same revision.
   reasoning, writing, retrieval and four CJK-oriented multilingual cases.
   It permits natural EOS, caps output at 512 tokens, and repeats at temperatures
   0 and 0.7. This is neither a full SPEED-Bench score nor an agent-session replay.
-- All corrected comparisons use a 0.83 memory fraction and the same 262,144
-  context limit. GPU clocks, power, temperature and memory are recorded.
+- All MTP comparisons use a 0.83 memory fraction and the same 262,144
+  context limit. The final target-only check uses 0.84 to admit 262K inputs. GPU clocks, power, temperature and memory are recorded.
 - Profiling is diagnostic and is excluded from throughput summaries.
 
 Full-context checks retrieve two keys from 262,000 input tokens and then run a
@@ -110,5 +110,108 @@ It was not integrated. See [measurements](wide_hc_micro.json) and
 
 ## Results
 
-Corrected full-model measurements are still running. This section will be
-replaced with the completed comparison and recommended profile.
+The completed four-token comparison uses three repeats of each saved prompt.
+
+| Input tokens | Prose E5M2 / FP16 tok/s | Code edit E5M2 / FP16 tok/s |
+| ---: | ---: | ---: |
+| 1,000 | 107.8 / 119.0 | 172.4 / 185.8 |
+| 8,192 | 110.7 / 115.2 | 174.3 / 183.5 |
+| 25,000 | 108.6 / 113.2 | 173.9 / 182.7 |
+| 70,000 | 104.1 / 111.4 | 170.9 / 179.8 |
+
+FP16 preserves the 262K single-request context at memory fraction 0.83, but
+reduces the allocated KV pool from 554,576 to 277,280 tokens. Higher concurrency
+and long-session prefix retention are not established by these measurements.
+
+### Wider verification and draft vocabulary
+
+Eight-token MTP improves the saved copy-heavy code edits by 15.2% relative to
+four-token FP16 MTP, but reduces prose throughput by 32.9%. On the 20-case screen,
+its paired coding gains are 4.4% greedy / 8.1% sampled; the other domains lose
+throughput. Six-token MTP was screened at 8K and likewise did not provide a
+balanced improvement. Both remain opt-in experiments.
+
+The expanded CJK map gives a 1.6% gain on the saved code edits and a 0.9% loss
+on prose. On the small screen, greedy-domain changes range from -3.8% to +1.5%;
+sampled changes range from -3.9% to +14.1%. This is mixed evidence with only two
+repetitions per prompt. Keep the full vocabulary for the general profile.
+
+### Diagnostic profile
+
+The eight-token 8K code diagnostic, using CPU profiling plus CUDA events, measured
+median cycle 37.20 ms: draft 9.05 ms, target forward 25.97 ms, verify 26.30 ms,
+state commit 0.185 ms and draft extension 1.85 ms. Verify contains target forward
+and state commit; these columns must not be added. GPU kernel tracing increased
+the cycle to 41.58 ms. Its 20.7% traced idle fraction is not an unprofiled idle
+estimate. Dense target GEMMs account for substantial traced work; that motivated
+a separate wider-projection kernel screen.
+
+See [profile summary](profiles/summary.json),
+[CPU-launch-correlated kernel phases](profiles/phase_kernels.json), and the
+retained rank-zero traces. Kernel categories are name-based heuristics, and
+duration sums can overlap across streams.
+
+### Recommended single-request profile
+
+The current evidence favors FP16 KV with ordinary full-vocabulary MTP-3/4.
+Run from this source build in the V100 environment with its built SM70 libraries:
+
+```bash
+KV_CACHE_DTYPE=auto PORT=8082 \
+  bash scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
+  RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --revision 7b719225242aacd3dbd3f9407468c2ee9a9d2594 \
+  --mem-fraction-static 0.83 --enable-multimodal \
+  --speculative-algorithm EAGLE \
+  --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
+  --speculative-draft-model-revision 7b719225242aacd3dbd3f9407468c2ee9a9d2594 \
+  --speculative-num-steps 3 --speculative-eagle-topk 1 \
+  --speculative-num-draft-tokens 4
+```
+
+### Final gates and limits
+
+Target-only decode measured **72.9–74.9 tok/s** across the saved contexts, in
+line with the established range. It passed all eight checks at memory fraction
+0.84, including 262K retrieval, the following short request, oversized-input
+rejection and recovery. The initial target-only 0.83 run resolved to only
+259,328 KV slots and is excluded; its failed gate and logs are retained.
+
+That rejection exposed a separate QSA edge case: a padded compression plan read
+four members from a one-token dummy prefill. Short packed prefills now keep their
+pending keys and skip compression until a full group exists. This passed 41 GPU
+state cases, including six new short-prefill cases. The fix is also in PR #6.
+
+Every MTP configuration passed all six text/full-context checks and tool-use
+checks. The four main comparison profiles retained the same 11/12 multimodal
+result; the shorter six-token screen did not repeat multimodal tests. Fresh
+validation also passed 37 kernel/sampler cases, 13 CPU cases, three head-graph
+cases, and the real TP4 row/logit/remapping test. See [validation](validation.json).
+
+The isolated eight-row projection experiment was also rejected: nine of ten
+shapes were slower than the current path. The one improvement saved about
+2.5 microseconds for a 640-by-2560 projection, which does not justify a new
+serving path. [Measurements](wide_projection_micro.json) and
+[source](rejected_wide_projection.tar.gz) are retained.
+
+These are concurrency-one results and a small prompt screen. They do not
+establish higher-concurrency performance, deterministic long-form output, or
+broad model accuracy. The general 140 tok/s prose stretch target was not
+established. Full-vocabulary FP16 MTP-3/4 is the balanced recommendation; the
+wider and pruned-vocabulary paths remain optional experiments.
+
+### Reproduction and acknowledgements
+
+The reusable [runner](../qwen38_spec/README.md) accepts the retained
+[matrix](matrix.json); update its local paths for another checkout. Results are
+archived in `resumed_20261103` as each stage completes. SPEED prompt text and
+responses stay in the local run directory; published records retain stable IDs,
+input/output hashes, token counts and timing events. The archived corpus from
+the previous round supplies the identical synthetic fixed-context prompts.
+
+Source and review: [correctness PR #6](https://github.com/haohervchb/sglang-V100/pull/6)
+and [optimization PR #7](https://github.com/haohervchb/sglang-V100/pull/7).
+Thanks were posted to [andyl98](https://github.com/sgl-project/sglang/pull/46125#issuecomment-6591734845),
+[yangzhuxinyzx](https://github.com/1CatAI/1Cat-vLLM/pull/389#issuecomment-6591978383),
+and [dg1kjd and jpezzulli](https://github.com/haohervchb/sglang-V100/pull/7#issuecomment-6592538493)
+for the concrete fixes, kernels and reference implementations used in this work.
