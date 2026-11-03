@@ -132,6 +132,15 @@ def main():
                 for marker in variant.get("required_log_markers", []):
                     if marker not in server_log:
                         raise RuntimeError(f"Missing required backend marker: {marker}")
+                info = requests.get(args.url + "/get_server_info", timeout=30)
+                info.raise_for_status()
+                required_input = variant.get("required_input_tokens", 262000)
+                resolved_limit = info.json().get("max_req_input_len")
+                if resolved_limit is not None and resolved_limit < required_input:
+                    raise RuntimeError(
+                        f"{label} admits only {resolved_limit} input tokens, "
+                        f"below the required {required_input}; adjust its memory budget"
+                    )
                 with (root / (label + "_gpu.csv")).open("x") as metrics:
                     telemetry = subprocess.Popen(
                         [
