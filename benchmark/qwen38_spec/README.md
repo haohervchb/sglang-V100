@@ -108,6 +108,32 @@ before measuring, for example
 Missing markers abort the sweep instead of benchmarking a silent fallback.
 Pin both `--revision` and `--speculative-draft-model-revision`.
 
+## Resumable V100 round
+
+`round.py` runs a JSON-configured sequence of process-owned servers, checks
+required backend markers, and archives each completed stage immediately. Put
+the output directory on persistent storage; `/tmp` can disappear after reboot.
+The config contains `corpus`, `speed_corpus`, and a `variants` list with `name`,
+`cwd`, `command` (an argument array), `env`, and `required_log_markers`.
+Optional `cases`, `repeats`, `speed`, `multimodal` and `profile` fields bound a
+screening run. Profile activity occurs only after throughput and serving gates.
+
+```bash
+python benchmark/qwen38_spec/round.py \
+  --config /persistent/qwen-round/matrix.json \
+  --output-dir /persistent/qwen-round \
+  --archive-dir benchmark/my-qwen-round/raw
+python benchmark/qwen38_spec/summarize.py /persistent/qwen-round \
+  --output /persistent/qwen-round/summary.json
+python benchmark/qwen38_spec/compare.py /persistent/qwen-round \
+  --baseline e5m2_4 --output /persistent/qwen-round/paired.json
+```
+
+`compare.py` checks matching input hashes, temperatures and output limits,
+then compares each prompt's median decode rate. Its domain summaries are
+geometric means of those paired ratios. SPEED response text stays local;
+published records retain its hash, token counts and timing events.
+
 ## Separate profiling
 
 For diagnostic runs, prepend `benchmark/qwen38_spec/probe` to `PYTHONPATH` and
