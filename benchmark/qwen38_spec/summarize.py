@@ -41,6 +41,10 @@ def main():
     p.add_argument("--output", required=True)
     args = p.parse_args()
     result = {}
+    exclusions_path = args.directory / "exclusions.json"
+    exclusions = (
+        json.loads(exclusions_path.read_text()) if exclusions_path.exists() else {}
+    )
     for path in sorted(args.directory.glob("*.jsonl")):
         lines = path.read_text().splitlines(keepends=True)
         rows = [json.loads(line) for line in lines if line.endswith("\n")]
@@ -56,10 +60,13 @@ def main():
             log.exists() and "SM70 FP16 MoE operators unavailable" in log.read_text()
         )
         entry = dict(
-            excluded=excluded,
-            exclusion_reason="MTP silently fell back without the local TurboMind binary"
-            if excluded
-            else None,
+            excluded=excluded or root_label in exclusions,
+            exclusion_reason=exclusions.get(root_label)
+            or (
+                "MTP silently fell back without the local TurboMind binary"
+                if excluded
+                else None
+            ),
             cases={
                 case: summarize([r for r in rows if r["case_id"] == case])
                 for case in sorted({r["case_id"] for r in rows})

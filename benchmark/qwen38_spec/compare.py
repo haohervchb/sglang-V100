@@ -19,6 +19,12 @@ def main():
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     result = {}
+    exclusions_path = args.directory / "exclusions.json"
+    exclusions = (
+        json.loads(exclusions_path.read_text()) if exclusions_path.exists() else {}
+    )
+    if args.baseline in exclusions:
+        raise ValueError("The selected baseline is excluded")
     for path in sorted(args.directory.glob("*.jsonl")):
         label = path.stem
         suffix = (
@@ -29,6 +35,9 @@ def main():
             else ""
         )
         control_path = args.directory / (args.baseline + suffix + ".jsonl")
+        root_label = label[: -len(suffix)] if suffix else label
+        if root_label in exclusions:
+            continue
         if path == control_path or not control_path.exists():
             continue
         rows, control = observations(path), observations(control_path)
