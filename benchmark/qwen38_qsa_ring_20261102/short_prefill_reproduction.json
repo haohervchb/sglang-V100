@@ -1,0 +1,10 @@
+{
+  "requested_input": 262000,
+  "resolved_max_input": 259322,
+  "kv_tokens": 259328,
+  "memory_fraction": 0.83,
+  "rejection_handler": "Req.set_finish_with_abort replaces origin_input_ids with [0]",
+  "failure": "QSA padded compression plan read four members from one-token packed input",
+  "fix": "Preserve pending stores and skip compression when packed extend has fewer than compress_ratio rows",
+  "gpu_validation": "41 cases including six new short-prefill fused/fallback cases"
+}

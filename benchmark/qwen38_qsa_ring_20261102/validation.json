@@ -24,5 +24,14 @@
       70000
     ]
   },
-  "capture_geometry_cpu_tests": 5
+  "capture_geometry_cpu_tests": 5,
+  "short_prefill_gpu_cases": 6,
+  "short_prefill_total_state_gpu_cases": 41,
+  "target_only_followup": {
+    "date": "2026-11-03",
+    "kv": "float16",
+    "memory_fraction": 0.84,
+    "checks": "8/8 including262K retrieval, oversize rejection and nextshort request",
+    "tools": "passed"
+  }
 }

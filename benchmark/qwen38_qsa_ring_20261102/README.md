@@ -15,6 +15,13 @@ and 16 for widths 6/8. Allocation follows the launch maximum. Metadata builders
 and the runtime guard use that allocated size; the guard still refuses unknown
 or oversized verification geometry.
 
+A follow-up target-only gate also exposed an out-of-bounds read for one-to-three-token
+prefills. The fixed-capacity compression plan has a padding entry even when no
+group completed. Such chunks now preserve their pending keys and skip compression.
+This also keeps an oversized-request rejection (which the scheduler represents
+with a one-token dummy) from crashing the server. Six additional GPU cases cover
+the fused and fallback compression paths.
+
 The main-based fix changes no speculative width or serving default. Wider MTP
 performance and FP16 KV experiments are separate work.
 
@@ -35,6 +42,10 @@ next short request; tool arguments and a tool-result continuation passed. Image
 and video checks remained 11/12 with the same existing OCR miss (`V100` read as
 `V10`). MTP-3/4 with E5M2 KV completed three repetitions at 1K/8K/25K/70K.
 Launch settings, raw observations and validation responses are retained here.
+The target-only follow-up passed eight checks, including 262K retrieval, clean
+oversized-input rejection and the next short request, with FP16 KV at memory
+fraction 0.84. The original 0.83 target-only launch had only 259K KV slots and
+exposed the short-prefill bug through its rejected-request dummy.
 
 ```bash
 CUDA_VISIBLE_DEVICES='' PYTHONPATH=python python -m pytest -q \
