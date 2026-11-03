@@ -29,8 +29,12 @@ Validation on V100:
 - The experimental fused metadata path, maintained separately from this
   main-based change, also passed the combined 44-case graph suite.
 
-Full-model corrected runs are in progress; their results will be added before
-the change is marked ready. Raw test logs are retained beside this report.
+The corrected main-based build completed full-model validation on November 3:
+six text checks passed, including retrieval from 262,000 input tokens and the
+next short request; tool arguments and a tool-result continuation passed. Image
+and video checks remained 11/12 with the same existing OCR miss (`V100` read as
+`V10`). MTP-3/4 with E5M2 KV completed three repetitions at 1K/8K/25K/70K.
+Launch settings, raw observations and validation responses are retained here.
 
 ```bash
 CUDA_VISIBLE_DEVICES='' PYTHONPATH=python python -m pytest -q \
