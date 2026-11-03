@@ -1,0 +1,3430 @@
+{
+  "e5m2_4": {
+    "excluded": false,
+    "exclusion_reason": null,
+    "cases": {
+      "code_edit_1000": {
+        "decode_tok_s": {
+          "median": 172.44759778996584,
+          "min": 172.35376458662716,
+          "max": 174.3294869421877
+        },
+        "observed_cycle_ms": {
+          "median": 21.788375073526822,
+          "min": 21.55316927206072,
+          "max": 21.80023714705679
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.7573529411764706,
+          "min": 3.7573529411764706,
+          "max": 3.7573529411764706
+        },
+        "ttft_s": {
+          "median": 0.33608965400026136,
+          "min": 0.30230518200005463,
+          "max": 0.34110611599999174
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "code_edit_25000": {
+        "decode_tok_s": {
+          "median": 173.92791204313673,
+          "min": 172.5118261878389,
+          "max": 176.43736749797557
+        },
+        "observed_cycle_ms": {
+          "median": 22.10534152985345,
+          "min": 22.090216676694165,
+          "max": 22.10848764122137
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8421052631578947,
+          "min": 3.8134328358208953,
+          "max": 3.900763358778626
+        },
+        "ttft_s": {
+          "median": 5.356113031999939,
+          "min": 5.346529774999908,
+          "max": 5.360237691999828
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "code_edit_70000": {
+        "decode_tok_s": {
+          "median": 170.94758550255042,
+          "min": 168.3334878987217,
+          "max": 171.13816354317186
+        },
+        "observed_cycle_ms": {
+          "median": 22.475340917292883,
+          "min": 22.450312563910813,
+          "max": 22.486227977777972
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8421052631578947,
+          "min": 3.785185185185185,
+          "max": 3.8421052631578947
+        },
+        "ttft_s": {
+          "median": 15.121765274000154,
+          "min": 15.113995390000127,
+          "max": 15.1287714529999
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "code_edit_8192": {
+        "decode_tok_s": {
+          "median": 174.30474297127066,
+          "min": 173.11851266914735,
+          "max": 177.7244790759914
+        },
+        "observed_cycle_ms": {
+          "median": 22.027874298509463,
+          "min": 21.782098568182434,
+          "max": 22.042459646615356
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8421052631578947,
+          "min": 3.8134328358208953,
+          "max": 3.871212121212121
+        },
+        "ttft_s": {
+          "median": 1.5151526219997322,
+          "min": 1.508300699999836,
+          "max": 1.545911855000213
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_1000": {
+        "decode_tok_s": {
+          "median": 107.75971947029439,
+          "min": 107.74203249087593,
+          "max": 109.14622850050876
+        },
+        "observed_cycle_ms": {
+          "median": 21.653112543379926,
+          "min": 21.378048196346583,
+          "max": 21.65666712785403
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3333333333333335,
+          "min": 2.3333333333333335,
+          "max": 2.3333333333333335
+        },
+        "ttft_s": {
+          "median": 0.3303123539999433,
+          "min": 0.29763996200017573,
+          "max": 0.3333363219999228
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_25000": {
+        "decode_tok_s": {
+          "median": 108.59923925604728,
+          "min": 107.62225955027628,
+          "max": 109.11921412196565
+        },
+        "observed_cycle_ms": {
+          "median": 21.98568833333377,
+          "min": 21.981890648147683,
+          "max": 21.987727387848654
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3878504672897196,
+          "min": 2.365740740740741,
+          "max": 2.39906103286385
+        },
+        "ttft_s": {
+          "median": 5.338607388000128,
+          "min": 5.324373318000198,
+          "max": 5.346502415000032
+        },
+        "observations": 3,
+        "output_hashes": 3,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_70000": {
+        "decode_tok_s": {
+          "median": 104.07799660954674,
+          "min": 103.08078820552024,
+          "max": 112.21262310988165
+        },
+        "observed_cycle_ms": {
+          "median": 22.322817980392863,
+          "min": 22.317178927272092,
+          "max": 22.330075680179313
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3227272727272728,
+          "min": 2.3018018018018016,
+          "max": 2.5049019607843137
+        },
+        "ttft_s": {
+          "median": 15.10979506800004,
+          "min": 15.097915715,
+          "max": 15.120869856999889
+        },
+        "observations": 3,
+        "output_hashes": 3,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_8192": {
+        "decode_tok_s": {
+          "median": 110.67919926559591,
+          "min": 108.84373823330536,
+          "max": 112.7972109328114
+        },
+        "observed_cycle_ms": {
+          "median": 21.88126553080425,
+          "min": 21.63504072811105,
+          "max": 21.88528433816388
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4218009478672986,
+          "min": 2.3548387096774195,
+          "max": 2.468599033816425
+        },
+        "ttft_s": {
+          "median": 1.504057981999722,
+          "min": 1.4965047460000278,
+          "max": 1.5137024200002998
+        },
+        "observations": 3,
+        "output_hashes": 3,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      }
+    }
+  },
+  "e5m2_4_speed": {
+    "excluded": false,
+    "exclusion_reason": null,
+    "cases": {
+      "speed_003d477fd51145f8bcd8f3fe35e1a85c": {
+        "decode_tok_s": {
+          "median": 116.05492238105671,
+          "min": 115.35164715569299,
+          "max": 116.75819760642044
+        },
+        "observed_cycle_ms": {
+          "median": 21.350828716665802,
+          "min": 21.221445933330568,
+          "max": 21.480211500001033
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.477777777777778,
+          "min": 2.477777777777778,
+          "max": 2.477777777777778
+        },
+        "ttft_s": {
+          "median": 0.26271038250001766,
+          "min": 0.2467561100002058,
+          "max": 0.2786646549998295
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          224,
+          224
+        ]
+      },
+      "speed_0042b6eb553f41398140f79a252210fb": {
+        "decode_tok_s": {
+          "median": 116.08901528830437,
+          "min": 115.38215048915613,
+          "max": 116.7958800874526
+        },
+        "observed_cycle_ms": {
+          "median": 21.344565983331954,
+          "min": 21.21459914444333,
+          "max": 21.47453282222058
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.477777777777778,
+          "min": 2.477777777777778,
+          "max": 2.477777777777778
+        },
+        "ttft_s": {
+          "median": 0.552552209499936,
+          "min": 0.24304634500003885,
+          "max": 0.8620580739998331
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          224,
+          224
+        ]
+      },
+      "speed_01fa8e8862984a30bc598b65bd77ca95": {
+        "decode_tok_s": {
+          "median": 163.79889012513416,
+          "min": 162.8405269524569,
+          "max": 164.7572532978114
+        },
+        "observed_cycle_ms": {
+          "median": 21.51376089285523,
+          "min": 21.387887047618886,
+          "max": 21.639634738091576
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.5238095238095237,
+          "min": 3.5238095238095237,
+          "max": 3.5238095238095237
+        },
+        "ttft_s": {
+          "median": 0.6332520325001951,
+          "min": 0.29306552400021246,
+          "max": 0.9734385410001778
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          149,
+          149
+        ]
+      },
+      "speed_025ad33d686a4b14ad6021cc041a400c": {
+        "decode_tok_s": {
+          "median": 140.36214699684564,
+          "min": 140.3389300550856,
+          "max": 140.3853639386057
+        },
+        "observed_cycle_ms": {
+          "median": 21.373284366662425,
+          "min": 21.369749066661825,
+          "max": 21.37681966666302
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.0,
+          "min": 3.0,
+          "max": 3.0
+        },
+        "ttft_s": {
+          "median": 0.6268573095001102,
+          "min": 0.30473281400009,
+          "max": 0.9489818050001304
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          91,
+          91
+        ]
+      },
+      "speed_02ca690c74b14ccb82a44471d97e094e": {
+        "decode_tok_s": {
+          "median": 105.12359883229318,
+          "min": 105.10325203821637,
+          "max": 105.14394562637
+        },
+        "observed_cycle_ms": {
+          "median": 21.226833521835363,
+          "min": 21.222725043669005,
+          "max": 21.230942000001722
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.2314410480349345,
+          "min": 2.2314410480349345,
+          "max": 2.2314410480349345
+        },
+        "ttft_s": {
+          "median": 0.5422778654997273,
+          "min": 0.24395597599959729,
+          "max": 0.8405997549998574
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_02cdc14782c5405da93af16c2156e493": {
+        "decode_tok_s": {
+          "median": 110.23263389182864,
+          "min": 110.14818478228419,
+          "max": 110.3170830013731
+        },
+        "observed_cycle_ms": {
+          "median": 21.46135899768511,
+          "min": 21.444917472222272,
+          "max": 21.477800523147952
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.365740740740741,
+          "min": 2.365740740740741,
+          "max": 2.365740740740741
+        },
+        "ttft_s": {
+          "median": 0.6832598189998862,
+          "min": 0.38009115800014115,
+          "max": 0.9864284799996312
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_046f05feedfe413cb872cb5c638f5ea7": {
+        "decode_tok_s": {
+          "median": 114.2899667850493,
+          "min": 113.8893343177801,
+          "max": 114.6905992523185
+        },
+        "observed_cycle_ms": {
+          "median": 21.49585853124974,
+          "min": 21.420506870192376,
+          "max": 21.571210192307106
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.456730769230769,
+          "min": 2.456730769230769,
+          "max": 2.456730769230769
+        },
+        "ttft_s": {
+          "median": 0.6039525564999622,
+          "min": 0.30260687400004826,
+          "max": 0.905298238999876
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_04dbbad1651540119148d95967058c11": {
+        "decode_tok_s": {
+          "median": 127.88770076747704,
+          "min": 127.85419644897135,
+          "max": 127.92120508598273
+        },
+        "observed_cycle_ms": {
+          "median": 21.418249028984988,
+          "min": 21.41263782608592,
+          "max": 21.423860231884053
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.739130434782609,
+          "min": 2.739130434782609,
+          "max": 2.739130434782609
+        },
+        "ttft_s": {
+          "median": 0.6142832095001722,
+          "min": 0.29517835400019976,
+          "max": 0.9333880650001447
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          190,
+          190
+        ]
+      },
+      "speed_08a5bcca5621439cb1b93a663843d75c": {
+        "decode_tok_s": {
+          "median": 172.41891069243786,
+          "min": 171.2222704086765,
+          "max": 173.61555097619922
+        },
+        "observed_cycle_ms": {
+          "median": 21.46039674444435,
+          "min": 21.311454988886503,
+          "max": 21.609338500002195
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.7,
+          "min": 3.7,
+          "max": 3.7
+        },
+        "ttft_s": {
+          "median": 0.6632247079999161,
+          "min": 0.2659355499999947,
+          "max": 1.0605138659998374
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          334,
+          334
+        ]
+      },
+      "speed_08f4c31730b4427f90e8146fef066c4c": {
+        "decode_tok_s": {
+          "median": 153.95664975877338,
+          "min": 152.99500963746536,
+          "max": 154.9182898800814
+        },
+        "observed_cycle_ms": {
+          "median": 21.546341750000998,
+          "min": 21.41175953658781,
+          "max": 21.680923963414187
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.317073170731707,
+          "min": 3.317073170731707,
+          "max": 3.317073170731707
+        },
+        "ttft_s": {
+          "median": 0.5835324314998616,
+          "min": 0.26692645899993295,
+          "max": 0.9001384039997902
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          273,
+          273
+        ]
+      },
+      "speed_0a7a83477d19422db773738a353b2795": {
+        "decode_tok_s": {
+          "median": 162.65408534566168,
+          "min": 162.64159233438235,
+          "max": 162.66657835694102
+        },
+        "observed_cycle_ms": {
+          "median": 21.360416416667086,
+          "min": 21.358775782048795,
+          "max": 21.362057051285376
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.4743589743589745,
+          "min": 3.4743589743589745,
+          "max": 3.4743589743589745
+        },
+        "ttft_s": {
+          "median": 0.5923482470000181,
+          "min": 0.2676582439999038,
+          "max": 0.9170382500001324
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          272,
+          272
+        ]
+      },
+      "speed_0af14f1626604fb78c17db8e076be523": {
+        "decode_tok_s": {
+          "median": 116.08347117139974,
+          "min": 115.38317005021591,
+          "max": 116.78377229258355
+        },
+        "observed_cycle_ms": {
+          "median": 21.345570838889216,
+          "min": 21.21679861111261,
+          "max": 21.474343066665824
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.477777777777778,
+          "min": 2.477777777777778,
+          "max": 2.477777777777778
+        },
+        "ttft_s": {
+          "median": 0.25849762849998115,
+          "min": 0.24184553299983236,
+          "max": 0.27514972400012994
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          224,
+          224
+        ]
+      },
+      "speed_0daf539b787c4dccbb547330a8b4c3d7": {
+        "decode_tok_s": {
+          "median": 164.2204695226996,
+          "min": 163.37935202031372,
+          "max": 165.06158702508552
+        },
+        "observed_cycle_ms": {
+          "median": 21.384179709304043,
+          "min": 21.27465251162924,
+          "max": 21.49370690697884
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.511627906976744,
+          "min": 3.511627906976744,
+          "max": 3.511627906976744
+        },
+        "ttft_s": {
+          "median": 0.6605387689999134,
+          "min": 0.2405749439999454,
+          "max": 1.0805025939998814
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          152,
+          152
+        ]
+      },
+      "speed_13027a52cab44af49105732cab0fa27b": {
+        "decode_tok_s": {
+          "median": 116.34512787064634,
+          "min": 115.92602340409573,
+          "max": 116.76423233719694
+        },
+        "observed_cycle_ms": {
+          "median": 21.29706654444211,
+          "min": 21.22034914443955,
+          "max": 21.373783944444668
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.477777777777778,
+          "min": 2.477777777777778,
+          "max": 2.477777777777778
+        },
+        "ttft_s": {
+          "median": 0.26078925800015895,
+          "min": 0.2416835600001832,
+          "max": 0.2798949560001347
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          224,
+          224
+        ]
+      },
+      "speed_150f42512f514ee6b63b2723fc2a69ff": {
+        "decode_tok_s": {
+          "median": 116.76579836584516,
+          "min": 116.7334474378418,
+          "max": 116.79814929384851
+        },
+        "observed_cycle_ms": {
+          "median": 21.220066172218644,
+          "min": 21.21418697777497,
+          "max": 21.22594536666232
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.477777777777778,
+          "min": 2.477777777777778,
+          "max": 2.477777777777778
+        },
+        "ttft_s": {
+          "median": 0.24299327550011185,
+          "min": 0.24184574400032943,
+          "max": 0.24414080699989427
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          224,
+          224
+        ]
+      },
+      "speed_1574e7b555934e60b662de65184269cc": {
+        "decode_tok_s": {
+          "median": 125.1306562356169,
+          "min": 124.4453384809755,
+          "max": 125.81597399025831
+        },
+        "observed_cycle_ms": {
+          "median": 21.381434437171503,
+          "min": 21.264332225129206,
+          "max": 21.4985366492138
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.675392670157068,
+          "min": 2.675392670157068,
+          "max": 2.675392670157068
+        },
+        "ttft_s": {
+          "median": 0.5558303120001256,
+          "min": 0.2453443330000482,
+          "max": 0.8663162910002029
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_1672523d190a47e599498ce10e972d89": {
+        "decode_tok_s": {
+          "median": 134.09148300757641,
+          "min": 133.70251323592987,
+          "max": 134.480452779223
+        },
+        "observed_cycle_ms": {
+          "median": 21.32994477272729,
+          "min": 21.268071314686615,
+          "max": 21.391818230767967
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.86013986013986,
+          "min": 2.86013986013986,
+          "max": 2.86013986013986
+        },
+        "ttft_s": {
+          "median": 0.5923464505001448,
+          "min": 0.2709208999999646,
+          "max": 0.913772001000325
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          410,
+          410
+        ]
+      },
+      "speed_4b1cb30c6051425d81a78d9ebb27039b": {
+        "decode_tok_s": {
+          "median": 124.8713922082394,
+          "min": 123.76103025959975,
+          "max": 125.98175415687905
+        },
+        "observed_cycle_ms": {
+          "median": 21.356993666699964,
+          "min": 21.16708633335899,
+          "max": 21.546901000040936
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.6666666666666665,
+          "min": 2.6666666666666665,
+          "max": 2.6666666666666665
+        },
+        "ttft_s": {
+          "median": 0.5535475654999118,
+          "min": 0.24301845899981345,
+          "max": 0.8640766720000101
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          17,
+          17
+        ]
+      },
+      "speed_61528e7d09564903a7e6358ed3b3f4c6": {
+        "decode_tok_s": {
+          "median": 144.80681237767362,
+          "min": 144.78820463595937,
+          "max": 144.82542011938787
+        },
+        "observed_cycle_ms": {
+          "median": 21.258069653613237,
+          "min": 21.25533798192623,
+          "max": 21.260801325300246
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.0783132530120483,
+          "min": 3.0783132530120483,
+          "max": 3.0783132530120483
+        },
+        "ttft_s": {
+          "median": 0.5655276755001069,
+          "min": 0.26805562300023666,
+          "max": 0.862999727999977
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_6aebfdd4784f4cce9c493132f0062407": {
+        "decode_tok_s": {
+          "median": 125.57464593678256,
+          "min": 125.57001921614486,
+          "max": 125.57927265742026
+        },
+        "observed_cycle_ms": {
+          "median": 21.2357092500118,
+          "min": 21.23492683335826,
+          "max": 21.23649166666534
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.6666666666666665,
+          "min": 2.6666666666666665,
+          "max": 2.6666666666666665
+        },
+        "ttft_s": {
+          "median": 0.2463933574999828,
+          "min": 0.24260773900005006,
+          "max": 0.25017897599991556
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          17,
+          17
+        ]
+      }
+    },
+    "domains": {
+      "coding": {
+        "decode_tok_s": {
+          "median": 163.02296518862738,
+          "min": 152.99500963746536,
+          "max": 173.61555097619922
+        },
+        "observed_cycle_ms": {
+          "median": 21.386908293936592,
+          "min": 21.27465251162924,
+          "max": 21.680923963414187
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.4929934406678593,
+          "min": 3.317073170731707,
+          "max": 3.7
+        },
+        "ttft_s": {
+          "median": 0.583898323999847,
+          "min": 0.2405749439999454,
+          "max": 1.0805025939998814
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          334,
+          273,
+          272,
+          152,
+          152,
+          272,
+          273,
+          334
+        ]
+      },
+      "multilingual": {
+        "decode_tok_s": {
+          "median": 129.84213369640446,
+          "min": 123.76103025959975,
+          "max": 144.82542011938787
+        },
+        "observed_cycle_ms": {
+          "median": 21.258069653613237,
+          "min": 21.16708633335899,
+          "max": 21.546901000040936
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.763403263403263,
+          "min": 2.6666666666666665,
+          "max": 3.0783132530120483
+        },
+        "ttft_s": {
+          "median": 0.26948826150010063,
+          "min": 0.24260773900005006,
+          "max": 0.913772001000325
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          512,
+          410,
+          17,
+          17,
+          17,
+          17,
+          410,
+          512
+        ]
+      },
+      "rag": {
+        "decode_tok_s": {
+          "median": 134.13006757053415,
+          "min": 115.35164715569299,
+          "max": 164.7572532978114
+        },
+        "observed_cycle_ms": {
+          "median": 21.4002624368524,
+          "min": 21.221445933330568,
+          "max": 21.639634738091576
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.8695652173913047,
+          "min": 2.477777777777778,
+          "max": 3.5238095238095237
+        },
+        "ttft_s": {
+          "median": 0.2999555840001449,
+          "min": 0.2467561100002058,
+          "max": 0.9734385410001778
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          224,
+          149,
+          91,
+          190,
+          190,
+          91,
+          149,
+          224
+        ]
+      },
+      "reasoning": {
+        "decode_tok_s": {
+          "median": 116.74883988751938,
+          "min": 115.38215048915613,
+          "max": 116.79814929384851
+        },
+        "observed_cycle_ms": {
+          "median": 21.223147255550934,
+          "min": 21.21418697777497,
+          "max": 21.47453282222058
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.477777777777778,
+          "min": 2.477777777777778,
+          "max": 2.477777777777778
+        },
+        "ttft_s": {
+          "median": 0.24359357599996656,
+          "min": 0.2416835600001832,
+          "max": 0.8620580739998331
+        },
+        "observations": 8,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          224,
+          224,
+          224,
+          224,
+          224,
+          224,
+          224,
+          224
+        ]
+      },
+      "writing": {
+        "decode_tok_s": {
+          "median": 112.10320865957661,
+          "min": 105.10325203821637,
+          "max": 125.81597399025831
+        },
+        "observed_cycle_ms": {
+          "median": 21.432712171207324,
+          "min": 21.222725043669005,
+          "max": 21.571210192307106
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4112357549857553,
+          "min": 2.2314410480349345,
+          "max": 2.675392670157068
+        },
+        "ttft_s": {
+          "median": 0.6103454564999993,
+          "min": 0.24395597599959729,
+          "max": 0.9864284799996312
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512
+        ]
+      }
+    }
+  },
+  "e5m2_4_speed_sampled": {
+    "excluded": false,
+    "exclusion_reason": null,
+    "cases": {
+      "speed_003d477fd51145f8bcd8f3fe35e1a85c": {
+        "decode_tok_s": {
+          "median": 98.72730834771957,
+          "min": 98.49988751568532,
+          "max": 98.95472917975381
+        },
+        "observed_cycle_ms": {
+          "median": 22.07030883427644,
+          "min": 22.048649922075505,
+          "max": 22.091967746477373
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.1789372599231753,
+          "min": 2.176056338028169,
+          "max": 2.1818181818181817
+        },
+        "ttft_s": {
+          "median": 0.24350109650026752,
+          "min": 0.24139712000032887,
+          "max": 0.24560507300020618
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          310,
+          169
+        ]
+      },
+      "speed_0042b6eb553f41398140f79a252210fb": {
+        "decode_tok_s": {
+          "median": 117.82499667766032,
+          "min": 105.41605265543386,
+          "max": 130.23394069988677
+        },
+        "observed_cycle_ms": {
+          "median": 22.096632645722163,
+          "min": 22.075658500000372,
+          "max": 22.117606791443954
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.603275401069519,
+          "min": 2.3315508021390374,
+          "max": 2.875
+        },
+        "ttft_s": {
+          "median": 0.2423331219999909,
+          "min": 0.24061181200022475,
+          "max": 0.24405443199975707
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          24,
+          437
+        ]
+      },
+      "speed_01fa8e8862984a30bc598b65bd77ca95": {
+        "decode_tok_s": {
+          "median": 158.31413670618016,
+          "min": 157.8923724740406,
+          "max": 158.73590093831973
+        },
+        "observed_cycle_ms": {
+          "median": 22.23756644049387,
+          "min": 22.23448976471499,
+          "max": 22.24064311627275
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.5205198358413132,
+          "min": 3.511627906976744,
+          "max": 3.5294117647058822
+        },
+        "ttft_s": {
+          "median": 0.2923175925000123,
+          "min": 0.29000245299994276,
+          "max": 0.2946327320000819
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          152,
+          121
+        ]
+      },
+      "speed_025ad33d686a4b14ad6021cc041a400c": {
+        "decode_tok_s": {
+          "median": 134.42677438786023,
+          "min": 130.50089290207177,
+          "max": 138.35265587364873
+        },
+        "observed_cycle_ms": {
+          "median": 22.309773921913127,
+          "min": 22.269764621612282,
+          "max": 22.349783222213976
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.998873873873874,
+          "min": 2.9166666666666665,
+          "max": 3.081081081081081
+        },
+        "ttft_s": {
+          "median": 0.30410496400008924,
+          "min": 0.3035094330002721,
+          "max": 0.30470049499990637
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          106,
+          115
+        ]
+      },
+      "speed_02ca690c74b14ccb82a44471d97e094e": {
+        "decode_tok_s": {
+          "median": 97.72597476044746,
+          "min": 94.30933845492501,
+          "max": 101.14261106596992
+        },
+        "observed_cycle_ms": {
+          "median": 22.13431637681559,
+          "min": 22.062323925763444,
+          "max": 22.206308827867733
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.162851671558451,
+          "min": 2.0942622950819674,
+          "max": 2.2314410480349345
+        },
+        "ttft_s": {
+          "median": 0.24219128600020667,
+          "min": 0.23925812000015867,
+          "max": 0.24512445200025468
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_02cdc14782c5405da93af16c2156e493": {
+        "decode_tok_s": {
+          "median": 106.09025197672253,
+          "min": 105.63950552601443,
+          "max": 106.54099842743062
+        },
+        "observed_cycle_ms": {
+          "median": 22.29976435018731,
+          "min": 22.291269709678115,
+          "max": 22.308258990696505
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3657914478619655,
+          "min": 2.3548387096774195,
+          "max": 2.3767441860465115
+        },
+        "ttft_s": {
+          "median": 0.37859906150015377,
+          "min": 0.37817977500026245,
+          "max": 0.3790183480000451
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_046f05feedfe413cb872cb5c638f5ea7": {
+        "decode_tok_s": {
+          "median": 112.83561180717285,
+          "min": 110.86413282205137,
+          "max": 114.80709079229433
+        },
+        "observed_cycle_ms": {
+          "median": 22.151918427047743,
+          "min": 22.14400295024778,
+          "max": 22.159833903847705
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4995096632223497,
+          "min": 2.456730769230769,
+          "max": 2.54228855721393
+        },
+        "ttft_s": {
+          "median": 0.26733647900005053,
+          "min": 0.2644119159999718,
+          "max": 0.27026104200012924
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_04dbbad1651540119148d95967058c11": {
+        "decode_tok_s": {
+          "median": 125.05537608622858,
+          "min": 118.37791032770613,
+          "max": 131.73284184475102
+        },
+        "observed_cycle_ms": {
+          "median": 22.42574049206339,
+          "min": 22.26728955555599,
+          "max": 22.584191428570787
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.8034013605442176,
+          "min": 2.673469387755102,
+          "max": 2.933333333333333
+        },
+        "ttft_s": {
+          "median": 0.30742150950004543,
+          "min": 0.289799457999834,
+          "max": 0.3250435610002569
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          132,
+          133
+        ]
+      },
+      "speed_08a5bcca5621439cb1b93a663843d75c": {
+        "decode_tok_s": {
+          "median": 112.07278323282463,
+          "min": 111.64605587990633,
+          "max": 112.49951058574294
+        },
+        "observed_cycle_ms": {
+          "median": 22.08920971951357,
+          "min": 22.064502097558634,
+          "max": 22.113917341468508
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.475609756097561,
+          "min": 2.4634146341463414,
+          "max": 2.4878048780487805
+        },
+        "ttft_s": {
+          "median": 0.3440497945000516,
+          "min": 0.27072583900007885,
+          "max": 0.4173737500000243
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          102,
+          103
+        ]
+      },
+      "speed_08f4c31730b4427f90e8146fef066c4c": {
+        "decode_tok_s": {
+          "median": 148.88460764712812,
+          "min": 147.80806088434815,
+          "max": 149.96115440990806
+        },
+        "observed_cycle_ms": {
+          "median": 22.25789480031988,
+          "min": 22.119549451218052,
+          "max": 22.396240149421715
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.313708999158957,
+          "min": 3.310344827586207,
+          "max": 3.317073170731707
+        },
+        "ttft_s": {
+          "median": 0.28956279500016535,
+          "min": 0.27044257900024604,
+          "max": 0.30868301100008466
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          289,
+          273
+        ]
+      },
+      "speed_0a7a83477d19422db773738a353b2795": {
+        "decode_tok_s": {
+          "median": 157.3510391789457,
+          "min": 157.29871837315858,
+          "max": 157.40335998473287
+        },
+        "observed_cycle_ms": {
+          "median": 22.07816425522851,
+          "min": 22.068678907891425,
+          "max": 22.087649602565598
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.474021592442645,
+          "min": 3.473684210526316,
+          "max": 3.4743589743589745
+        },
+        "ttft_s": {
+          "median": 0.28932628450002085,
+          "min": 0.2702960940000594,
+          "max": 0.3083564749999823
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          272,
+          265
+        ]
+      },
+      "speed_0af14f1626604fb78c17db8e076be523": {
+        "decode_tok_s": {
+          "median": 107.20788684731252,
+          "min": 97.46246360083444,
+          "max": 116.95331009379059
+        },
+        "observed_cycle_ms": {
+          "median": 22.068683444860635,
+          "min": 22.040774148148625,
+          "max": 22.096592741572646
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3662089055347484,
+          "min": 2.1481481481481484,
+          "max": 2.5842696629213484
+        },
+        "ttft_s": {
+          "median": 0.24366147449995879,
+          "min": 0.24313161899999614,
+          "max": 0.24419132999992144
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          59,
+          231
+        ]
+      },
+      "speed_0daf539b787c4dccbb547330a8b4c3d7": {
+        "decode_tok_s": {
+          "median": 156.26427520302727,
+          "min": 152.68901118123705,
+          "max": 159.83953922481749
+        },
+        "observed_cycle_ms": {
+          "median": 21.973056219900236,
+          "min": 21.96970739534959,
+          "max": 21.976405044450885
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.4335917312661497,
+          "min": 3.3555555555555556,
+          "max": 3.511627906976744
+        },
+        "ttft_s": {
+          "median": 0.24108006949995797,
+          "min": 0.23813324799994007,
+          "max": 0.24402689099997588
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          152,
+          152
+        ]
+      },
+      "speed_13027a52cab44af49105732cab0fa27b": {
+        "decode_tok_s": {
+          "median": 106.78438983851186,
+          "min": 102.96881473940908,
+          "max": 110.59996493761463
+        },
+        "observed_cycle_ms": {
+          "median": 22.139237393375144,
+          "min": 22.05122241176094,
+          "max": 22.227252374989348
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3644607843137253,
+          "min": 2.2705882352941176,
+          "max": 2.4583333333333335
+        },
+        "ttft_s": {
+          "median": 0.260639853000157,
+          "min": 0.24402184000018678,
+          "max": 0.27725786600012725
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          194,
+          60
+        ]
+      },
+      "speed_150f42512f514ee6b63b2723fc2a69ff": {
+        "decode_tok_s": {
+          "median": 111.63579923201625,
+          "min": 105.19144031370953,
+          "max": 118.08015815032297
+        },
+        "observed_cycle_ms": {
+          "median": 22.1830906224177,
+          "min": 22.137801377192247,
+          "max": 22.228379867643152
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.476135190918473,
+          "min": 2.338235294117647,
+          "max": 2.6140350877192984
+        },
+        "ttft_s": {
+          "median": 0.24501732400017318,
+          "min": 0.24349642200013477,
+          "max": 0.24653822600021158
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          299,
+          160
+        ]
+      },
+      "speed_1574e7b555934e60b662de65184269cc": {
+        "decode_tok_s": {
+          "median": 122.05650212328456,
+          "min": 121.77357441304991,
+          "max": 122.3394298335192
+        },
+        "observed_cycle_ms": {
+          "median": 22.09293764430551,
+          "min": 22.08585645263204,
+          "max": 22.100018835978982
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.696588693957115,
+          "min": 2.6894736842105265,
+          "max": 2.7037037037037037
+        },
+        "ttft_s": {
+          "median": 0.2410664460001044,
+          "min": 0.23772379299998647,
+          "max": 0.24440909900022234
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_1672523d190a47e599498ce10e972d89": {
+        "decode_tok_s": {
+          "median": 130.66291833864452,
+          "min": 129.2174819155693,
+          "max": 132.10835476171974
+        },
+        "observed_cycle_ms": {
+          "median": 22.097828244564838,
+          "min": 22.09258810055785,
+          "max": 22.103068388571824
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.887374301675978,
+          "min": 2.8547486033519553,
+          "max": 2.92
+        },
+        "ttft_s": {
+          "median": 0.2665039404998879,
+          "min": 0.264702601999943,
+          "max": 0.2683052789998328
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_4b1cb30c6051425d81a78d9ebb27039b": {
+        "decode_tok_s": {
+          "median": 93.21563812518067,
+          "min": 70.19688013684649,
+          "max": 116.23439611351488
+        },
+        "observed_cycle_ms": {
+          "median": 22.14134051585836,
+          "min": 22.12278514285312,
+          "max": 22.159895888863602
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.0634920634920637,
+          "min": 1.5555555555555556,
+          "max": 2.5714285714285716
+        },
+        "ttft_s": {
+          "median": 0.23842470499994306,
+          "min": 0.2378195239998604,
+          "max": 0.23902988600002573
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          15,
+          19
+        ]
+      },
+      "speed_61528e7d09564903a7e6358ed3b3f4c6": {
+        "decode_tok_s": {
+          "median": 143.0737118939902,
+          "min": 136.26492004108735,
+          "max": 149.8825037468931
+        },
+        "observed_cycle_ms": {
+          "median": 22.02741516726747,
+          "min": 21.995724058063885,
+          "max": 22.059106276471056
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.151328273244782,
+          "min": 3.0058823529411764,
+          "max": 3.296774193548387
+        },
+        "ttft_s": {
+          "median": 0.28695414350022475,
+          "min": 0.2655176510002093,
+          "max": 0.3083906360002402
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_6aebfdd4784f4cce9c493132f0062407": {
+        "decode_tok_s": {
+          "median": 109.35024561729506,
+          "min": 90.9357880029598,
+          "max": 127.76470323163034
+        },
+        "observed_cycle_ms": {
+          "median": 22.084861683341238,
+          "min": 21.99354120002681,
+          "max": 22.17618216665566
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.416666666666667,
+          "min": 2.0,
+          "max": 2.8333333333333335
+        },
+        "ttft_s": {
+          "median": 0.23723310749983284,
+          "min": 0.23670233099983307,
+          "max": 0.23776388399983261
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          18,
+          11
+        ]
+      }
+    },
+    "domains": {
+      "coding": {
+        "decode_tok_s": {
+          "median": 151.32508279557254,
+          "min": 111.64605587990633,
+          "max": 159.83953922481749
+        },
+        "observed_cycle_ms": {
+          "median": 22.07816425522851,
+          "min": 21.96970739534959,
+          "max": 22.396240149421715
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.3363143631436314,
+          "min": 2.4634146341463414,
+          "max": 3.511627906976744
+        },
+        "ttft_s": {
+          "median": 0.27058420900016245,
+          "min": 0.23813324799994007,
+          "max": 0.4173737500000243
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          102,
+          289,
+          272,
+          152,
+          152,
+          265,
+          273,
+          103
+        ]
+      },
+      "multilingual": {
+        "decode_tok_s": {
+          "median": 128.49109257359981,
+          "min": 70.19688013684649,
+          "max": 149.8825037468931
+        },
+        "observed_cycle_ms": {
+          "median": 22.097828244564838,
+          "min": 21.99354120002681,
+          "max": 22.17618216665566
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.8440409683426444,
+          "min": 1.5555555555555556,
+          "max": 3.296774193548387
+        },
+        "ttft_s": {
+          "median": 0.25186624399998436,
+          "min": 0.23670233099983307,
+          "max": 0.3083906360002402
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          512,
+          512,
+          15,
+          18,
+          11,
+          19,
+          512,
+          512
+        ]
+      },
+      "rag": {
+        "decode_tok_s": {
+          "median": 131.1168673734114,
+          "min": 98.49988751568532,
+          "max": 158.73590093831973
+        },
+        "observed_cycle_ms": {
+          "median": 22.25396633591437,
+          "min": 22.048649922075505,
+          "max": 22.584191428570787
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.925,
+          "min": 2.176056338028169,
+          "max": 3.5294117647058822
+        },
+        "ttft_s": {
+          "median": 0.2923175925000123,
+          "min": 0.24139712000032887,
+          "max": 0.3250435610002569
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          310,
+          152,
+          106,
+          132,
+          133,
+          115,
+          121,
+          169
+        ]
+      },
+      "reasoning": {
+        "decode_tok_s": {
+          "median": 108.00800879652425,
+          "min": 97.46246360083444,
+          "max": 130.23394069988677
+        },
+        "observed_cycle_ms": {
+          "median": 22.1070997665083,
+          "min": 22.040774148148625,
+          "max": 22.228379867643152
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3982843137254903,
+          "min": 2.1481481481481484,
+          "max": 2.875
+        },
+        "ttft_s": {
+          "median": 0.24403813599997193,
+          "min": 0.24061181200022475,
+          "max": 0.27725786600012725
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          24,
+          59,
+          194,
+          299,
+          160,
+          60,
+          231,
+          437
+        ]
+      },
+      "writing": {
+        "decode_tok_s": {
+          "median": 108.702565624741,
+          "min": 94.30933845492501,
+          "max": 122.3394298335192
+        },
+        "observed_cycle_ms": {
+          "median": 22.151918427047743,
+          "min": 22.062323925763444,
+          "max": 22.308258990696505
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.41673747763864,
+          "min": 2.0942622950819674,
+          "max": 2.7037037037037037
+        },
+        "ttft_s": {
+          "median": 0.25476818400011325,
+          "min": 0.23772379299998647,
+          "max": 0.3790183480000451
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512
+        ]
+      }
+    }
+  },
+  "fp16_4": {
+    "excluded": false,
+    "exclusion_reason": null,
+    "cases": {
+      "code_edit_1000": {
+        "decode_tok_s": {
+          "median": 185.76597144752236,
+          "min": 185.66396878560604,
+          "max": 185.82302355530143
+        },
+        "observed_cycle_ms": {
+          "median": 21.490413281249232,
+          "min": 21.483815210938673,
+          "max": 21.50221998437374
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.9921875,
+          "min": 3.9921875,
+          "max": 3.9921875
+        },
+        "ttft_s": {
+          "median": 0.3041190640001332,
+          "min": 0.30410750600003666,
+          "max": 0.3041616539999268
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "code_edit_25000": {
+        "decode_tok_s": {
+          "median": 182.71299532513288,
+          "min": 182.67464478931257,
+          "max": 182.76156548052614
+        },
+        "observed_cycle_ms": {
+          "median": 21.849499500000036,
+          "min": 21.84369284375265,
+          "max": 21.854086562502317
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.9921875,
+          "min": 3.9921875,
+          "max": 3.9921875
+        },
+        "ttft_s": {
+          "median": 5.400237064000066,
+          "min": 5.396189234999838,
+          "max": 5.401200665000033
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "code_edit_70000": {
+        "decode_tok_s": {
+          "median": 179.7793596557099,
+          "min": 179.7595548647133,
+          "max": 179.8695046602788
+        },
+        "observed_cycle_ms": {
+          "median": 22.206039156248636,
+          "min": 22.194910179688776,
+          "max": 22.208485679687584
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.9921875,
+          "min": 3.9921875,
+          "max": 3.9921875
+        },
+        "ttft_s": {
+          "median": 15.44426437400034,
+          "min": 15.443646280999928,
+          "max": 15.44895408299999
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "code_edit_8192": {
+        "decode_tok_s": {
+          "median": 183.51075297775972,
+          "min": 183.41244264332414,
+          "max": 183.56957956285598
+        },
+        "observed_cycle_ms": {
+          "median": 21.754515390625784,
+          "min": 21.747543953125614,
+          "max": 21.766175960937773
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.9921875,
+          "min": 3.9921875,
+          "max": 3.9921875
+        },
+        "ttft_s": {
+          "median": 1.5108119920000718,
+          "min": 1.5104064939996533,
+          "max": 1.5152533709997442
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_1000": {
+        "decode_tok_s": {
+          "median": 119.01815914182612,
+          "min": 118.99065403229702,
+          "max": 119.05141685549138
+        },
+        "observed_cycle_ms": {
+          "median": 21.36050982089592,
+          "min": 21.35454263681587,
+          "max": 21.365447378109966
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.54228855721393,
+          "min": 2.54228855721393,
+          "max": 2.54228855721393
+        },
+        "ttft_s": {
+          "median": 0.2997699569996257,
+          "min": 0.29965560899972843,
+          "max": 0.30075221499964755
+        },
+        "observations": 3,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_25000": {
+        "decode_tok_s": {
+          "median": 113.16760438325272,
+          "min": 110.02094940762777,
+          "max": 114.8626188501946
+        },
+        "observed_cycle_ms": {
+          "median": 21.703598088785167,
+          "min": 21.701428643902503,
+          "max": 21.70878125961578
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.456730769230769,
+          "min": 2.3878504672897196,
+          "max": 2.4926829268292683
+        },
+        "ttft_s": {
+          "median": 5.375303753000026,
+          "min": 5.373406344000159,
+          "max": 5.391603332000159
+        },
+        "observations": 3,
+        "output_hashes": 3,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_70000": {
+        "decode_tok_s": {
+          "median": 111.36182925446137,
+          "min": 110.28128889397628,
+          "max": 112.98495824153414
+        },
+        "observed_cycle_ms": {
+          "median": 22.062077692682976,
+          "min": 22.060797543269054,
+          "max": 22.064788666667873
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.456730769230769,
+          "min": 2.433333333333333,
+          "max": 2.4926829268292683
+        },
+        "ttft_s": {
+          "median": 15.421035717999985,
+          "min": 15.408655784000075,
+          "max": 15.433616395999707
+        },
+        "observations": 3,
+        "output_hashes": 3,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      },
+      "prose_8192": {
+        "decode_tok_s": {
+          "median": 115.228054248478,
+          "min": 113.63550424385726,
+          "max": 117.16939836873453
+        },
+        "observed_cycle_ms": {
+          "median": 21.619394269230533,
+          "min": 21.590133648514623,
+          "max": 21.632604517073958
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4926829268292683,
+          "min": 2.456730769230769,
+          "max": 2.5297029702970297
+        },
+        "ttft_s": {
+          "median": 1.498237705000065,
+          "min": 1.4971979590000046,
+          "max": 1.5084401660001276
+        },
+        "observations": 3,
+        "output_hashes": 3,
+        "actual_output_tokens": [
+          512,
+          512,
+          512
+        ]
+      }
+    }
+  },
+  "fp16_4_speed": {
+    "excluded": false,
+    "exclusion_reason": null,
+    "cases": {
+      "speed_003d477fd51145f8bcd8f3fe35e1a85c": {
+        "decode_tok_s": {
+          "median": 115.64005008881071,
+          "min": 115.58985707903662,
+          "max": 115.69024309858482
+        },
+        "observed_cycle_ms": {
+          "median": 21.163678848683716,
+          "min": 21.154492855262824,
+          "max": 21.172864842104612
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4473684210526314,
+          "min": 2.4473684210526314,
+          "max": 2.4473684210526314
+        },
+        "ttft_s": {
+          "median": 0.2437300224999035,
+          "min": 0.24181335100001888,
+          "max": 0.2456466939997881
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          187,
+          187
+        ]
+      },
+      "speed_0042b6eb553f41398140f79a252210fb": {
+        "decode_tok_s": {
+          "median": 115.64981509426963,
+          "min": 115.64862606027222,
+          "max": 115.65100412826703
+        },
+        "observed_cycle_ms": {
+          "median": 21.161887888159693,
+          "min": 21.161670315791525,
+          "max": 21.16210546052786
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4473684210526314,
+          "min": 2.4473684210526314,
+          "max": 2.4473684210526314
+        },
+        "ttft_s": {
+          "median": 0.24804777150006885,
+          "min": 0.24381318499990812,
+          "max": 0.2522823580002296
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          187,
+          187
+        ]
+      },
+      "speed_01fa8e8862984a30bc598b65bd77ca95": {
+        "decode_tok_s": {
+          "median": 168.48000592778087,
+          "min": 168.4755819235128,
+          "max": 168.48442993204893
+        },
+        "observed_cycle_ms": {
+          "median": 21.33925671428404,
+          "min": 21.338696380953913,
+          "max": 21.339817047614165
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.5952380952380953,
+          "min": 3.5952380952380953,
+          "max": 3.5952380952380953
+        },
+        "ttft_s": {
+          "median": 0.2983755244999884,
+          "min": 0.29198543399979826,
+          "max": 0.3047656150001785
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          152,
+          152
+        ]
+      },
+      "speed_025ad33d686a4b14ad6021cc041a400c": {
+        "decode_tok_s": {
+          "median": 149.36359277678025,
+          "min": 149.36329302557493,
+          "max": 149.36389252798557
+        },
+        "observed_cycle_ms": {
+          "median": 21.325043981488747,
+          "min": 21.325001185198712,
+          "max": 21.32508677777878
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.185185185185185,
+          "min": 3.185185185185185,
+          "max": 3.185185185185185
+        },
+        "ttft_s": {
+          "median": 0.3086733124998773,
+          "min": 0.3043685309999091,
+          "max": 0.31297809399984544
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          87,
+          87
+        ]
+      },
+      "speed_02ca690c74b14ccb82a44471d97e094e": {
+        "decode_tok_s": {
+          "median": 108.6837642466682,
+          "min": 108.67093205646636,
+          "max": 108.69659643687007
+        },
+        "observed_cycle_ms": {
+          "median": 21.178893184684497,
+          "min": 21.176392612611988,
+          "max": 21.18139375675701
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.3018018018018016,
+          "min": 2.3018018018018016,
+          "max": 2.3018018018018016
+        },
+        "ttft_s": {
+          "median": 0.24929307050001626,
+          "min": 0.24579984199999672,
+          "max": 0.2527862990000358
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_02cdc14782c5405da93af16c2156e493": {
+        "decode_tok_s": {
+          "median": 119.37061100367795,
+          "min": 119.34648194561237,
+          "max": 119.39474006174353
+        },
+        "observed_cycle_ms": {
+          "median": 21.403929182498587,
+          "min": 21.399602684998627,
+          "max": 21.408255679998547
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.555,
+          "min": 2.555,
+          "max": 2.555
+        },
+        "ttft_s": {
+          "median": 0.38378755550002097,
+          "min": 0.3789153920001809,
+          "max": 0.38865971899986107
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_046f05feedfe413cb872cb5c638f5ea7": {
+        "decode_tok_s": {
+          "median": 120.81686823064288,
+          "min": 120.80066856167504,
+          "max": 120.83306789961074
+        },
+        "observed_cycle_ms": {
+          "median": 21.253979512563667,
+          "min": 21.251129683418156,
+          "max": 21.256829341709178
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.5678391959798996,
+          "min": 2.5678391959798996,
+          "max": 2.5678391959798996
+        },
+        "ttft_s": {
+          "median": 0.27467727299995204,
+          "min": 0.26949992199979533,
+          "max": 0.27985462400010874
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_04dbbad1651540119148d95967058c11": {
+        "decode_tok_s": {
+          "median": 146.15020021182505,
+          "min": 146.07976869052237,
+          "max": 146.22063173312773
+        },
+        "observed_cycle_ms": {
+          "median": 21.361256707323044,
+          "min": 21.350962463424278,
+          "max": 21.371550951221806
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.1219512195121952,
+          "min": 3.1219512195121952,
+          "max": 3.1219512195121952
+        },
+        "ttft_s": {
+          "median": 0.2981031039998925,
+          "min": 0.2943498179997732,
+          "max": 0.30185639000001174
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          129,
+          129
+        ]
+      },
+      "speed_08a5bcca5621439cb1b93a663843d75c": {
+        "decode_tok_s": {
+          "median": 171.4867669851019,
+          "min": 171.19585155669623,
+          "max": 171.77768241350753
+        },
+        "observed_cycle_ms": {
+          "median": 21.342816110000058,
+          "min": 21.306609500002196,
+          "max": 21.37902271999792
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.66,
+          "min": 3.66,
+          "max": 3.66
+        },
+        "ttft_s": {
+          "median": 0.31642840450012955,
+          "min": 0.27007800000001225,
+          "max": 0.36277880900024684
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          367,
+          367
+        ]
+      },
+      "speed_08f4c31730b4427f90e8146fef066c4c": {
+        "decode_tok_s": {
+          "median": 179.36060833587112,
+          "min": 179.2844662695274,
+          "max": 179.43675040221487
+        },
+        "observed_cycle_ms": {
+          "median": 21.359130309856226,
+          "min": 21.35006294365923,
+          "max": 21.368197676053224
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8309859154929575,
+          "min": 3.8309859154929575,
+          "max": 3.8309859154929575
+        },
+        "ttft_s": {
+          "median": 0.2749646700001449,
+          "min": 0.2693200980002075,
+          "max": 0.2806092420000823
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          273,
+          273
+        ]
+      },
+      "speed_0a7a83477d19422db773738a353b2795": {
+        "decode_tok_s": {
+          "median": 181.66172732364254,
+          "min": 181.57810997382634,
+          "max": 181.74534467345873
+        },
+        "observed_cycle_ms": {
+          "median": 21.311199935715713,
+          "min": 21.301390571430343,
+          "max": 21.321009300001087
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8714285714285714,
+          "min": 3.8714285714285714,
+          "max": 3.8714285714285714
+        },
+        "ttft_s": {
+          "median": 0.2745634559998962,
+          "min": 0.26871651300007215,
+          "max": 0.2804103989997202
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          272,
+          272
+        ]
+      },
+      "speed_0af14f1626604fb78c17db8e076be523": {
+        "decode_tok_s": {
+          "median": 115.60466653352373,
+          "min": 115.58876098335712,
+          "max": 115.62057208369035
+        },
+        "observed_cycle_ms": {
+          "median": 21.170152907894877,
+          "min": 21.167240197368493,
+          "max": 21.173065618421262
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4473684210526314,
+          "min": 2.4473684210526314,
+          "max": 2.4473684210526314
+        },
+        "ttft_s": {
+          "median": 0.24478645199997118,
+          "min": 0.24328792100004648,
+          "max": 0.24628498299989587
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          187,
+          187
+        ]
+      },
+      "speed_0daf539b787c4dccbb547330a8b4c3d7": {
+        "decode_tok_s": {
+          "median": 180.53505439012474,
+          "min": 180.51820136675397,
+          "max": 180.55190741349548
+        },
+        "observed_cycle_ms": {
+          "median": 21.210663707323675,
+          "min": 21.20868368293242,
+          "max": 21.212643731714927
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8292682926829267,
+          "min": 3.8292682926829267,
+          "max": 3.8292682926829267
+        },
+        "ttft_s": {
+          "median": 0.3506063304998861,
+          "min": 0.24350002199980736,
+          "max": 0.45771263899996484
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          158,
+          158
+        ]
+      },
+      "speed_13027a52cab44af49105732cab0fa27b": {
+        "decode_tok_s": {
+          "median": 115.61108368585096,
+          "min": 115.598546630192,
+          "max": 115.62362074150992
+        },
+        "observed_cycle_ms": {
+          "median": 21.168977677632483,
+          "min": 21.166682078950018,
+          "max": 21.17127327631495
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4473684210526314,
+          "min": 2.4473684210526314,
+          "max": 2.4473684210526314
+        },
+        "ttft_s": {
+          "median": 0.24464956599990728,
+          "min": 0.24345671399987623,
+          "max": 0.24584241799993833
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          187,
+          187
+        ]
+      },
+      "speed_150f42512f514ee6b63b2723fc2a69ff": {
+        "decode_tok_s": {
+          "median": 115.6390546072412,
+          "min": 115.63215003201593,
+          "max": 115.6459591824665
+        },
+        "observed_cycle_ms": {
+          "median": 21.163857124998973,
+          "min": 21.162593473682616,
+          "max": 21.16512077631533
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4473684210526314,
+          "min": 2.4473684210526314,
+          "max": 2.4473684210526314
+        },
+        "ttft_s": {
+          "median": 0.24560711200001606,
+          "min": 0.24426239800004623,
+          "max": 0.24695182599998589
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          187,
+          187
+        ]
+      },
+      "speed_1574e7b555934e60b662de65184269cc": {
+        "decode_tok_s": {
+          "median": 134.5926069944294,
+          "min": 134.54505437817033,
+          "max": 134.6401596106884
+        },
+        "observed_cycle_ms": {
+          "median": 21.210295449720547,
+          "min": 21.202801687152274,
+          "max": 21.217789212288817
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.8547486033519553,
+          "min": 2.8547486033519553,
+          "max": 2.8547486033519553
+        },
+        "ttft_s": {
+          "median": 0.2472670654999547,
+          "min": 0.24151601600033246,
+          "max": 0.25301811499957694
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_1672523d190a47e599498ce10e972d89": {
+        "decode_tok_s": {
+          "median": 139.89692528566047,
+          "min": 139.86140577686902,
+          "max": 139.9324447944519
+        },
+        "observed_cycle_ms": {
+          "median": 21.236566979652263,
+          "min": 21.231175063954378,
+          "max": 21.241958895350148
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.9709302325581395,
+          "min": 2.9709302325581395,
+          "max": 2.9709302325581395
+        },
+        "ttft_s": {
+          "median": 0.28127337299997635,
+          "min": 0.2745181240002239,
+          "max": 0.2880286219997288
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_4b1cb30c6051425d81a78d9ebb27039b": {
+        "decode_tok_s": {
+          "median": 151.3639992397467,
+          "min": 150.94031476554397,
+          "max": 151.78768371394943
+        },
+        "observed_cycle_ms": {
+          "median": 21.14125610000883,
+          "min": 21.08207940000284,
+          "max": 21.200432800014823
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.2,
+          "min": 3.2,
+          "max": 3.2
+        },
+        "ttft_s": {
+          "median": 0.24790784999981952,
+          "min": 0.24263516699966203,
+          "max": 0.253180532999977
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          17,
+          17
+        ]
+      },
+      "speed_61528e7d09564903a7e6358ed3b3f4c6": {
+        "decode_tok_s": {
+          "median": 165.01994647617138,
+          "min": 165.01640365257742,
+          "max": 165.02348929976534
+        },
+        "observed_cycle_ms": {
+          "median": 21.20955724657574,
+          "min": 21.20910189725928,
+          "max": 21.210012595892206
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.5,
+          "min": 3.5,
+          "max": 3.5
+        },
+        "ttft_s": {
+          "median": 0.27303765150008985,
+          "min": 0.26958267400004843,
+          "max": 0.2764926290001313
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_6aebfdd4784f4cce9c493132f0062407": {
+        "decode_tok_s": {
+          "median": 150.35435958336691,
+          "min": 149.67143331875667,
+          "max": 151.03728584797716
+        },
+        "observed_cycle_ms": {
+          "median": 21.283493399960207,
+          "min": 21.18682139998782,
+          "max": 21.380165399932594
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.2,
+          "min": 3.2,
+          "max": 3.2
+        },
+        "ttft_s": {
+          "median": 0.24261369350006134,
+          "min": 0.24131957000008697,
+          "max": 0.24390781700003572
+        },
+        "observations": 2,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          17,
+          17
+        ]
+      }
+    },
+    "domains": {
+      "coding": {
+        "decode_tok_s": {
+          "median": 179.97747588448442,
+          "min": 171.19585155669623,
+          "max": 181.74534467345873
+        },
+        "observed_cycle_ms": {
+          "median": 21.31380940000164,
+          "min": 21.20868368293242,
+          "max": 21.37902271999792
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.830127104087942,
+          "min": 3.66,
+          "max": 3.8714285714285714
+        },
+        "ttft_s": {
+          "median": 0.2752441994998662,
+          "min": 0.24350002199980736,
+          "max": 0.45771263899996484
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          367,
+          273,
+          272,
+          158,
+          158,
+          272,
+          273,
+          367
+        ]
+      },
+      "multilingual": {
+        "decode_tok_s": {
+          "median": 150.98880030676057,
+          "min": 139.86140577686902,
+          "max": 165.02348929976534
+        },
+        "observed_cycle_ms": {
+          "median": 21.20955724657574,
+          "min": 21.08207940000284,
+          "max": 21.380165399932594
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.2,
+          "min": 2.9709302325581395,
+          "max": 3.5
+        },
+        "ttft_s": {
+          "median": 0.2613816035000127,
+          "min": 0.24131957000008697,
+          "max": 0.2880286219997288
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          512,
+          512,
+          17,
+          17,
+          17,
+          17,
+          512,
+          512
+        ]
+      },
+      "rag": {
+        "decode_tok_s": {
+          "median": 147.79196237935133,
+          "min": 115.58985707903662,
+          "max": 168.48442993204893
+        },
+        "observed_cycle_ms": {
+          "median": 21.331891579366346,
+          "min": 21.154492855262824,
+          "max": 21.371550951221806
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.15356820234869,
+          "min": 2.4473684210526314,
+          "max": 3.5952380952380953
+        },
+        "ttft_s": {
+          "median": 0.2981031039998925,
+          "min": 0.24181335100001888,
+          "max": 0.31297809399984544
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          187,
+          152,
+          87,
+          129,
+          129,
+          87,
+          152,
+          187
+        ]
+      },
+      "reasoning": {
+        "decode_tok_s": {
+          "median": 115.62788538676293,
+          "min": 115.58876098335712,
+          "max": 115.65100412826703
+        },
+        "observed_cycle_ms": {
+          "median": 21.165901427632676,
+          "min": 21.161670315791525,
+          "max": 21.173065618421262
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4473684210526314,
+          "min": 2.4473684210526314,
+          "max": 2.4473684210526314
+        },
+        "ttft_s": {
+          "median": 0.24505240799999228,
+          "min": 0.24328792100004648,
+          "max": 0.2522823580002296
+        },
+        "observations": 8,
+        "output_hashes": 1,
+        "actual_output_tokens": [
+          187,
+          187,
+          187,
+          187,
+          187,
+          187,
+          187,
+          187
+        ]
+      },
+      "writing": {
+        "decode_tok_s": {
+          "median": 120.0977043117093,
+          "min": 108.67093205646636,
+          "max": 134.6401596106884
+        },
+        "observed_cycle_ms": {
+          "median": 21.23445944785349,
+          "min": 21.176392612611988,
+          "max": 21.408255679998547
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.56141959798995,
+          "min": 2.3018018018018016,
+          "max": 2.8547486033519553
+        },
+        "ttft_s": {
+          "median": 0.26125901849968614,
+          "min": 0.24151601600033246,
+          "max": 0.38865971899986107
+        },
+        "observations": 8,
+        "output_hashes": 4,
+        "actual_output_tokens": [
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512
+        ]
+      }
+    }
+  },
+  "fp16_4_speed_sampled": {
+    "excluded": false,
+    "exclusion_reason": null,
+    "cases": {
+      "speed_003d477fd51145f8bcd8f3fe35e1a85c": {
+        "decode_tok_s": {
+          "median": 116.88806108372384,
+          "min": 116.3176846660309,
+          "max": 117.45843750141677
+        },
+        "observed_cycle_ms": {
+          "median": 22.07985774934263,
+          "min": 22.076085879396842,
+          "max": 22.083629619288413
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.580873912710762,
+          "min": 2.5678391959798996,
+          "max": 2.5939086294416245
+        },
+        "ttft_s": {
+          "median": 0.24443155400012984,
+          "min": 0.24402945000019827,
+          "max": 0.2448336580000614
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_0042b6eb553f41398140f79a252210fb": {
+        "decode_tok_s": {
+          "median": 105.87560122310347,
+          "min": 102.22280860426685,
+          "max": 109.52839384194009
+        },
+        "observed_cycle_ms": {
+          "median": 22.039609923077037,
+          "min": 22.00576787179624,
+          "max": 22.07345197435783
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.333333333333333,
+          "min": 2.2564102564102564,
+          "max": 2.41025641025641
+        },
+        "ttft_s": {
+          "median": 0.2453579450000234,
+          "min": 0.2449461579999479,
+          "max": 0.24576973200009888
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          95,
+          353
+        ]
+      },
+      "speed_01fa8e8862984a30bc598b65bd77ca95": {
+        "decode_tok_s": {
+          "median": 154.39384508565053,
+          "min": 148.19833575722006,
+          "max": 160.589354414081
+        },
+        "observed_cycle_ms": {
+          "median": 22.1697021495183,
+          "min": 22.168343679995814,
+          "max": 22.171060619040787
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.4228571428571426,
+          "min": 3.2857142857142856,
+          "max": 3.56
+        },
+        "ttft_s": {
+          "median": 0.29422447800016016,
+          "min": 0.29379718600011984,
+          "max": 0.2946517700002005
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          70,
+          179
+        ]
+      },
+      "speed_025ad33d686a4b14ad6021cc041a400c": {
+        "decode_tok_s": {
+          "median": 126.70162873881648,
+          "min": 118.41118093403016,
+          "max": 134.9920765436028
+        },
+        "observed_cycle_ms": {
+          "median": 22.196020613843054,
+          "min": 22.168514656250693,
+          "max": 22.223526571435418
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.8125,
+          "min": 2.625,
+          "max": 3.0
+        },
+        "ttft_s": {
+          "median": 0.30517463949990997,
+          "min": 0.304967139999917,
+          "max": 0.30538213899990296
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          169,
+          85
+        ]
+      },
+      "speed_02ca690c74b14ccb82a44471d97e094e": {
+        "decode_tok_s": {
+          "median": 102.14642438878937,
+          "min": 101.24034886825073,
+          "max": 103.052499909328
+        },
+        "observed_cycle_ms": {
+          "median": 22.03970708775332,
+          "min": 22.03838929777905,
+          "max": 22.041024877727587
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.2512760795730227,
+          "min": 2.2314410480349345,
+          "max": 2.2711111111111113
+        },
+        "ttft_s": {
+          "median": 0.24437532649994864,
+          "min": 0.24400116200013144,
+          "max": 0.24474949099976584
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_02cdc14782c5405da93af16c2156e493": {
+        "decode_tok_s": {
+          "median": 109.966079372103,
+          "min": 109.12354310674321,
+          "max": 110.80861563746276
+        },
+        "observed_cycle_ms": {
+          "median": 22.28846365976399,
+          "min": 22.2780423671481,
+          "max": 22.29888495237988
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.450966183574879,
+          "min": 2.433333333333333,
+          "max": 2.468599033816425
+        },
+        "ttft_s": {
+          "median": 0.38022128500006147,
+          "min": 0.3797609299999749,
+          "max": 0.38068164000014804
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_046f05feedfe413cb872cb5c638f5ea7": {
+        "decode_tok_s": {
+          "median": 114.40529101982341,
+          "min": 113.28755621880912,
+          "max": 115.5230258208377
+        },
+        "observed_cycle_ms": {
+          "median": 22.11390503642145,
+          "min": 22.111007107843548,
+          "max": 22.11680296499935
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.529950980392157,
+          "min": 2.5049019607843137,
+          "max": 2.555
+        },
+        "ttft_s": {
+          "median": 0.2710207544998866,
+          "min": 0.2708151309998357,
+          "max": 0.27122637799993754
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_04dbbad1651540119148d95967058c11": {
+        "decode_tok_s": {
+          "median": 136.99873557613915,
+          "min": 133.80090578982401,
+          "max": 140.19656536245427
+        },
+        "observed_cycle_ms": {
+          "median": 22.246776726338993,
+          "min": 22.23908529267868,
+          "max": 22.254468159999305
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.0478048780487805,
+          "min": 2.975609756097561,
+          "max": 3.12
+        },
+        "ttft_s": {
+          "median": 0.2944697114999144,
+          "min": 0.2942072679998091,
+          "max": 0.2947321550000197
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          157,
+          123
+        ]
+      },
+      "speed_08a5bcca5621439cb1b93a663843d75c": {
+        "decode_tok_s": {
+          "median": 126.42350230846077,
+          "min": 124.3050131575267,
+          "max": 128.54199145939484
+        },
+        "observed_cycle_ms": {
+          "median": 21.978878377292162,
+          "min": 21.856856095241927,
+          "max": 22.100900659342397
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.7783882783882783,
+          "min": 2.7472527472527473,
+          "max": 2.8095238095238093
+        },
+        "ttft_s": {
+          "median": 0.32545930549986224,
+          "min": 0.27332544199998665,
+          "max": 0.3775931689997378
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          119,
+          251
+        ]
+      },
+      "speed_08f4c31730b4427f90e8146fef066c4c": {
+        "decode_tok_s": {
+          "median": 172.20540751126026,
+          "min": 170.53466797370493,
+          "max": 173.87614704881557
+        },
+        "observed_cycle_ms": {
+          "median": 22.039088563557293,
+          "min": 22.032843380279253,
+          "max": 22.045333746835333
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.7952397931895168,
+          "min": 3.759493670886076,
+          "max": 3.8309859154929575
+        },
+        "ttft_s": {
+          "median": 0.27263000250013647,
+          "min": 0.27130985800022245,
+          "max": 0.2739501470000505
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          273,
+          298
+        ]
+      },
+      "speed_0a7a83477d19422db773738a353b2795": {
+        "decode_tok_s": {
+          "median": 175.44891290335022,
+          "min": 174.82185982670686,
+          "max": 176.07596597999358
+        },
+        "observed_cycle_ms": {
+          "median": 22.06204563732185,
+          "min": 22.04930650000011,
+          "max": 22.074784774643593
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.8707539353769675,
+          "min": 3.859154929577465,
+          "max": 3.8823529411764706
+        },
+        "ttft_s": {
+          "median": 0.27242507350024425,
+          "min": 0.27068624700041255,
+          "max": 0.27416390000007596
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          275,
+          265
+        ]
+      },
+      "speed_0af14f1626604fb78c17db8e076be523": {
+        "decode_tok_s": {
+          "median": 111.27039542404452,
+          "min": 108.70470794566954,
+          "max": 113.83608290241952
+        },
+        "observed_cycle_ms": {
+          "median": 22.09551036649971,
+          "min": 22.07816059999459,
+          "max": 22.112860133004826
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4586206896551723,
+          "min": 2.4,
+          "max": 2.5172413793103448
+        },
+        "ttft_s": {
+          "median": 0.24469886399992902,
+          "min": 0.24333961199999976,
+          "max": 0.24605811599985827
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          13,
+          512
+        ]
+      },
+      "speed_0daf539b787c4dccbb547330a8b4c3d7": {
+        "decode_tok_s": {
+          "median": 168.06139525324252,
+          "min": 163.72754554092324,
+          "max": 172.3952449655618
+        },
+        "observed_cycle_ms": {
+          "median": 21.929556690429308,
+          "min": 21.897355700002663,
+          "max": 21.961757680855953
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.685372340425532,
+          "min": 3.595744680851064,
+          "max": 3.775
+        },
+        "ttft_s": {
+          "median": 0.24408891299981406,
+          "min": 0.24264993399992818,
+          "max": 0.24552789199969993
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          152,
+          170
+        ]
+      },
+      "speed_13027a52cab44af49105732cab0fa27b": {
+        "decode_tok_s": {
+          "median": 132.91613436452104,
+          "min": 117.3207480448574,
+          "max": 148.51152068418472
+        },
+        "observed_cycle_ms": {
+          "median": 22.07185649604522,
+          "min": 22.019407277778352,
+          "max": 22.12430571431209
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.9345238095238093,
+          "min": 2.5833333333333335,
+          "max": 3.2857142857142856
+        },
+        "ttft_s": {
+          "median": 0.24441188349987897,
+          "min": 0.24394962299993495,
+          "max": 0.244874143999823
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          24,
+          94
+        ]
+      },
+      "speed_150f42512f514ee6b63b2723fc2a69ff": {
+        "decode_tok_s": {
+          "median": 116.15804492795223,
+          "min": 114.57840617556013,
+          "max": 117.73768368034433
+        },
+        "observed_cycle_ms": {
+          "median": 22.021355991739703,
+          "min": 21.983066196075836,
+          "max": 22.059645787403568
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.557897174617879,
+          "min": 2.52755905511811,
+          "max": 2.588235294117647
+        },
+        "ttft_s": {
+          "median": 0.24607250249982826,
+          "min": 0.24477610199983246,
+          "max": 0.24736890299982406
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          322,
+          133
+        ]
+      },
+      "speed_1574e7b555934e60b662de65184269cc": {
+        "decode_tok_s": {
+          "median": 123.17367445443787,
+          "min": 121.94217756752914,
+          "max": 124.40517134134662
+        },
+        "observed_cycle_ms": {
+          "median": 22.06945084162561,
+          "min": 22.055319478948533,
+          "max": 22.08358220430269
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.718392756083758,
+          "min": 2.6894736842105265,
+          "max": 2.747311827956989
+        },
+        "ttft_s": {
+          "median": 0.24364579599978242,
+          "min": 0.24274984499970742,
+          "max": 0.24454174699985742
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_1672523d190a47e599498ce10e972d89": {
+        "decode_tok_s": {
+          "median": 131.95969786834334,
+          "min": 130.10750734190776,
+          "max": 133.81188839477892
+        },
+        "observed_cycle_ms": {
+          "median": 22.069339154202396,
+          "min": 22.064726129214293,
+          "max": 22.0739521791905
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.912271871143729,
+          "min": 2.8707865168539324,
+          "max": 2.953757225433526
+        },
+        "ttft_s": {
+          "median": 0.2706218989999343,
+          "min": 0.2705093429999579,
+          "max": 0.27073445499991067
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_4b1cb30c6051425d81a78d9ebb27039b": {
+        "decode_tok_s": {
+          "median": 106.25021860592827,
+          "min": 99.08533784204464,
+          "max": 113.41509936981191
+        },
+        "observed_cycle_ms": {
+          "median": 22.123001766605434,
+          "min": 22.042920333281774,
+          "max": 22.203083199929097
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.35,
+          "min": 2.2,
+          "max": 2.5
+        },
+        "ttft_s": {
+          "median": 0.244598658500081,
+          "min": 0.24223977700012256,
+          "max": 0.24695754000003944
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          16,
+          12
+        ]
+      },
+      "speed_61528e7d09564903a7e6358ed3b3f4c6": {
+        "decode_tok_s": {
+          "median": 155.03140495090273,
+          "min": 152.95325190356755,
+          "max": 157.1095579982379
+        },
+        "observed_cycle_ms": {
+          "median": 21.977970632913042,
+          "min": 21.97640135135144,
+          "max": 21.979539914474643
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.4072724039829305,
+          "min": 3.361842105263158,
+          "max": 3.4527027027027026
+        },
+        "ttft_s": {
+          "median": 0.26899576450000495,
+          "min": 0.26870744799998647,
+          "max": 0.26928408100002343
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          512,
+          512
+        ]
+      },
+      "speed_6aebfdd4784f4cce9c493132f0062407": {
+        "decode_tok_s": {
+          "median": 92.38897962746634,
+          "min": 73.3337169250012,
+          "max": 111.44424232993148
+        },
+        "observed_cycle_ms": {
+          "median": 22.123299230774872,
+          "min": 22.087623461524906,
+          "max": 22.15897500002484
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.043269230769231,
+          "min": 1.625,
+          "max": 2.4615384615384617
+        },
+        "ttft_s": {
+          "median": 0.24225565099982305,
+          "min": 0.24166113799992672,
+          "max": 0.24285016399971937
+        },
+        "observations": 2,
+        "output_hashes": 2,
+        "actual_output_tokens": [
+          14,
+          33
+        ]
+      }
+    },
+    "domains": {
+      "coding": {
+        "decode_tok_s": {
+          "median": 171.46495646963336,
+          "min": 124.3050131575267,
+          "max": 176.07596597999358
+        },
+        "observed_cycle_ms": {
+          "median": 22.039088563557293,
+          "min": 21.856856095241927,
+          "max": 22.100900659342397
+        },
+        "observed_tokens_per_cycle": {
+          "median": 3.767246835443038,
+          "min": 2.7472527472527473,
+          "max": 3.8823529411764706
+        },
+        "ttft_s": {
+          "median": 0.27231765000010455,
+          "min": 0.24264993399992818,
+          "max": 0.3775931689997378
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          119,
+          273,
+          275,
+          152,
+          170,
+          265,
+          298,
+          251
+        ]
+      },
+      "multilingual": {
+        "decode_tok_s": {
+          "median": 121.76130335585984,
+          "min": 73.3337169250012,
+          "max": 157.1095579982379
+        },
+        "observed_cycle_ms": {
+          "median": 22.069339154202396,
+          "min": 21.97640135135144,
+          "max": 22.203083199929097
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.6853932584269664,
+          "min": 1.625,
+          "max": 3.4527027027027026
+        },
+        "ttft_s": {
+          "median": 0.25783249400001296,
+          "min": 0.24166113799992672,
+          "max": 0.27073445499991067
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          512,
+          512,
+          16,
+          14,
+          33,
+          12,
+          512,
+          512
+        ]
+      },
+      "rag": {
+        "decode_tok_s": {
+          "median": 134.39649116671342,
+          "min": 116.3176846660309,
+          "max": 160.589354414081
+        },
+        "observed_cycle_ms": {
+          "median": 22.16978763764574,
+          "min": 22.076085879396842,
+          "max": 22.254468159999305
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.9878048780487805,
+          "min": 2.5678391959798996,
+          "max": 3.56
+        },
+        "ttft_s": {
+          "median": 0.2944295190000048,
+          "min": 0.24402945000019827,
+          "max": 0.30538213899990296
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          512,
+          70,
+          169,
+          157,
+          123,
+          85,
+          179,
+          512
+        ]
+      },
+      "reasoning": {
+        "decode_tok_s": {
+          "median": 114.20724453898983,
+          "min": 102.22280860426685,
+          "max": 148.51152068418472
+        },
+        "observed_cycle_ms": {
+          "median": 22.0665488808807,
+          "min": 21.983066196075836,
+          "max": 22.12430571431209
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.5224002172142272,
+          "min": 2.2564102564102564,
+          "max": 3.2857142857142856
+        },
+        "ttft_s": {
+          "median": 0.24491015099988545,
+          "min": 0.24333961199999976,
+          "max": 0.24736890299982406
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          95,
+          13,
+          24,
+          322,
+          133,
+          94,
+          512,
+          353
+        ]
+      },
+      "writing": {
+        "decode_tok_s": {
+          "median": 112.04808592813595,
+          "min": 101.24034886825073,
+          "max": 124.40517134134662
+        },
+        "observed_cycle_ms": {
+          "median": 22.097294656073117,
+          "min": 22.03838929777905,
+          "max": 22.29888495237988
+        },
+        "observed_tokens_per_cycle": {
+          "median": 2.4867504973003696,
+          "min": 2.2314410480349345,
+          "max": 2.747311827956989
+        },
+        "ttft_s": {
+          "median": 0.25778231099980076,
+          "min": 0.24274984499970742,
+          "max": 0.38068164000014804
+        },
+        "observations": 8,
+        "output_hashes": 8,
+        "actual_output_tokens": [
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512,
+          512
+        ]
+      }
+    }
+  }
+}

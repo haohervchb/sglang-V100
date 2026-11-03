@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-03",
+  "gpu": {
+    "passed": 37,
+    "files": [
+      "test/manual/layers/test_sm70_qsa_decode.py",
+      "test/registered/unit/layers/moe/test_sm70_nvfp4_moe_decode.py",
+      "test/manual/spec/test_hot_vocab_sampling.py"
+    ]
+  },
+  "cpu": {
+    "passed": 13,
+    "files": [
+      "test/registered/unit/spec/test_tp_hot_vocab.py",
+      "test/registered/unit/test_checkpoint_shard_selection.py",
+      "test/registered/unit/spec/test_qsa_capture_geometry.py"
+    ]
+  },
+  "retained_core_logs": "../qwen38_qsa_ring_20261102 on PR6 branch"
+}

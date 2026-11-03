@@ -1,0 +1,18 @@
+{
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+  "revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "gpu": "name, memory.total [MiB], driver_version, power.limit [W]\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04, 300.00 W\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04, 300.00 W\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04, 300.00 W\nTesla V100-SXM2-32GB, 32768 MiB, 580.178.04, 300.00 W\n",
+  "topology": "\t\u001b[4mGPU0\tGPU1\tGPU2\tGPU3\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tNV2\tNV2\tNV2\t0-55\t0\t\tN/A\nGPU1\tNV2\t X \tNV2\tNV2\t0-55\t0\t\tN/A\nGPU2\tNV2\tNV2\t X \tNV2\t0-55\t0\t\tN/A\nGPU3\tNV2\tNV2\tNV2\t X \t0-55\t0\t\tN/A\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks\n",
+  "libraries": {
+    "_sm70_marlin_v100_moe.abi3.so": "1bc45f4d83a120f98bf2bb36099ab8832286af774fc366c52f82e7bc5fd6d0f4",
+    "_sm70_turbomind_v100.so": "7da2882d3b8b0d43e532c1d721d11179d78c10689ee08aeba018b84e8cee2728",
+    "_sm70_marlin_v100_dense.abi3.so": "082177d263098b1bf9873441bc8d2d6d223d5d4f75f04081c7ffa2937c8eefde"
+  },
+  "packages": {
+    "torch": "2.9.1",
+    "triton": "3.5.1",
+    "transformers": "5.8.1",
+    "tilelang": "0.1.8",
+    "numpy": "2.3.5"
+  }
+}

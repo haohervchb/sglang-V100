@@ -1,0 +1,13 @@
+{
+  "model": "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+  "revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "base_sha256": "becfa41d394b86c26c632bea8f3c6ea64bbb76d7b238d8673c06afae21269f25",
+  "base_tokens": 65536,
+  "cjk_tokens": 65929,
+  "cjk_tokens_missing_from_base": 65634,
+  "output_tokens": 131328,
+  "token_ids_sha256": "e9480dce277506399f3df7f486945ded93e6db5c9e53b1ee36b38067534cc7e3",
+  "file_sha256": "efc4d980affe37a70561325c7616edcc3695488e3f26baab7dd34b89a2343860",
+  "rule": "[\u1100-\u11ff\u3000-\u318f\u31f0-\u31ff\u3400-\u9fff\uac00-\ud7af\uff00-\uffef\ud840\udc00-\ud884\udf4f]",
+  "note": "Vocabulary-entry coverage, not frequency-weighted language coverage. No evaluation prompts or outputs were used."
+}
