@@ -1,0 +1,50 @@
+{
+  "http_status": 200,
+  "seconds": 81.1340007520048,
+  "images": 32,
+  "dimensions": [
+    768,
+    1024
+  ],
+  "response": {
+    "id": "9dd699354ede4982b4013f7a37446c97",
+    "object": "chat.completion",
+    "created": 1793771937,
+    "model": "qwen",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Blue, Red",
+          "reasoning_content": null,
+          "tool_calls": null
+        },
+        "logprobs": null,
+        "finish_reason": "stop",
+        "matched_stop": 248046
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 24675,
+      "total_tokens": 24679,
+      "completion_tokens": 4,
+      "prompt_tokens_details": null,
+      "reasoning_tokens": 0
+    },
+    "metadata": {
+      "weight_version": "default"
+    }
+  },
+  "frontend_pid": 151775,
+  "max_frontend_mib": 308.0,
+  "min_free_mib": [
+    2566.6875,
+    2898.375,
+    2930.375,
+    2994.375
+  ],
+  "multimodal_passed": 11,
+  "multimodal_total": 12,
+  "passed": true
+}
