@@ -28,6 +28,25 @@ tokens per cycle use verification-counter differences over that same interval;
 they are client observations, not isolated kernel timings. Acceptance length
 includes the bonus token. Server configuration is saved next to each JSONL file.
 
+## Small SPEED-Bench screen
+
+Generate a pinned 20-case first-turn subset covering coding, reasoning,
+writing, retrieval and multilingual prompts:
+
+```bash
+python benchmark/qwen38_spec/speed_corpus.py \
+  --output /tmp/speed-corpus.json --manifest /tmp/speed-manifest.json
+python benchmark/qwen38_spec/bench.py run \
+  --corpus /tmp/speed-corpus.json --label mtp-speed \
+  --output /tmp/mtp-speed.jsonl --natural-eos --repeats 2 --warmups 0
+```
+
+This is a screening subset, not a full SPEED-Bench score or agent-session
+replay. `--natural-eos` permits normal completion and records actual output
+length; a response delivered in a single burst has no decode-rate estimate.
+The manifest records dataset revision, question IDs, input hashes and lengths.
+Keep the downloaded dataset and generated prompt corpus local.
+
 ## Experimental switches
 
 Both switches default to **off**:
@@ -80,6 +99,40 @@ never shell-evaluated strings. The harness refuses to start over a listening
 server and only terminates process groups it launched. Use no simulated
 acceptance (`SGLANG_SIMULATE_ACC_LEN=-1`), no competing GPU workload, and the
 same model revision, launch configuration and output length for every variant.
+
+An isolated worktree does not contain ignored compiled extensions. Set
+`SGLANG_SM70_TURBOMIND_OPS_PATH` to the same built library in every variant,
+and verify the Marlin libraries too. A variant can require boot-log markers
+before measuring, for example
+`"required_log_markers": ["SM70 FP16 MoE: using TurboMind batched GEMM"]`.
+Missing markers abort the sweep instead of benchmarking a silent fallback.
+Pin both `--revision` and `--speculative-draft-model-revision`.
+
+## Resumable V100 round
+
+`round.py` runs a JSON-configured sequence of process-owned servers, checks
+required backend markers, and archives each completed stage immediately. Put
+the output directory on persistent storage; `/tmp` can disappear after reboot.
+The config contains `corpus`, `speed_corpus`, and a `variants` list with `name`,
+`cwd`, `command` (an argument array), `env`, and `required_log_markers`.
+Optional `cases`, `repeats`, `speed`, `multimodal` and `profile` fields bound a
+screening run. Profile activity occurs only after throughput and serving gates.
+
+```bash
+python benchmark/qwen38_spec/round.py \
+  --config /persistent/qwen-round/matrix.json \
+  --output-dir /persistent/qwen-round \
+  --archive-dir benchmark/my-qwen-round/raw
+python benchmark/qwen38_spec/summarize.py /persistent/qwen-round \
+  --output /persistent/qwen-round/summary.json
+python benchmark/qwen38_spec/compare.py /persistent/qwen-round \
+  --baseline e5m2_4 --output /persistent/qwen-round/paired.json
+```
+
+`compare.py` checks matching input hashes, temperatures and output limits,
+then compares each prompt's median decode rate. Its domain summaries are
+geometric means of those paired ratios. SPEED response text stays local;
+published records retain its hash, token counts and timing events.
 
 ## Separate profiling
 
@@ -146,3 +199,51 @@ These are smoke tests, not a distributional quality evaluation. Pair them with
 the real chain-verifier rejection tests and the graph metadata equivalence tests.
 Record baseline failures as well as candidate failures; do not silently loosen
 the expected answers to make a gate pass.
+
+For long-document serving, also exercise queued clients and retained caches:
+
+```bash
+python benchmark/qwen38_spec/check_queue.py \
+  --output-dir /persistent/qwen-checks/queue
+```
+
+This sends four clients with six requests each, growing document inputs from
+roughly 19K–95K to 34K–110K tokens. It checks exact archive-key retrieval,
+records prefix-cache hits and request latency, and samples free GPU memory via
+NVML every 100 ms. It does not flush caches between requests. The server may
+still process one request at a time; this tests its queue and repeated prefill
+allocations, not four-way model execution. These synthetic text requests do not
+validate PDF extraction or vision memory use for documents sent as images.
+
+## Prefill and decode core audit
+
+The [November 3 core audit](../qwen38_nvfp4_v100_core_audit_20261103/README.md)
+contains phase timings, semantic kernel attribution, hardware activity,
+calibration, and prioritized experiments for the 2K-chunk serving profile.
+
+`core_audit.py` runs timing, DCGM, CPU-event and GPU-trace passes against a
+dedicated endpoint. It flushes caches. Enable `SGLANG_CORE_AUDIT_DIR` alongside
+the existing `SGLANG_SPEC_PROBE_DIR` / `SGLANG_SPEC_PROBE_ON_PROFILE=1` hooks when
+launching that endpoint; the report retains the exact launch configuration.
+The runner separates SM/occupancy and Tensor counter passes and always resumes
+DCGM after tracing. DCGM pause/resume affects the whole host engine.
+
+`analyze_core_audit.py` joins kernel launches to enclosing model ranges and
+excludes delayed hardware-counter samples near phase transitions.
+`plot_core_audit.py` produces standalone SVG/PNG figures using Matplotlib.
+`hardware_calibration.py` runs with the model stopped and explicitly binds each
+CUDA graph capture stream to its device. Its synthetic projection measurements
+and byte-rate estimates are not end-to-end model throughput claims.
+
+## Core optimization follow-up
+
+The [measured optimization round](../qwen38_nvfp4_v100_core_optimization_20261103/README.md)
+uses captured model routing to screen the 2K MoE geometry, tests the shared gate
+for MTP verification, and adapts grouped Page4 QSA prefill. `prefill_ab.py`
+interleaves prefill modes through a test-only control file; the MTP decode graph
+remains fixed per server launch. `check_cached_document.py` checks a real long
+prefix-cache hit against a cold replay. `summarize_core_optimization.py` keeps
+fixed-output end-to-end latency, decode timing, and acceptance separate.
+
+Tensor captures stay local. The compact-state QSA prototype was removed; its
+archived patch is required for the explicit `--compact-experiment` modes.

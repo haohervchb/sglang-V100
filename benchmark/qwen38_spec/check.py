@@ -16,7 +16,10 @@ def main():
     args = p.parse_args()
     if args.output.exists():
         raise FileExistsError(args.output)
-    tokenizer = AutoTokenizer.from_pretrained("RadixArk/Qwen3.8-Flash-Next-NVFP4")
+    tokenizer = AutoTokenizer.from_pretrained(
+        "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+        revision="7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+    )
     results = []
 
     def chat(text):
@@ -57,7 +60,13 @@ def main():
         )
         args.output.write_text(
             json.dumps(
-                dict(passed=all(r["passed"] for r in results), cases=results), indent=2
+                dict(
+                    passed=all(r["passed"] for r in results),
+                    complete=False,
+                    expected_cases=8 if args.full_context else 4,
+                    cases=results,
+                ),
+                indent=2,
             )
             + "\n"
         )
@@ -110,8 +119,9 @@ def main():
         note = enc(
             "Reference entry: measure CPU time, memory use, storage capacity, and queueing delays in a repeatable workload.\n"
         )
-        keys = enc("\nArchive key for cedar is 731946.\n"), enc(
-            "\nArchive key for maple is 284613.\n"
+        keys = (
+            enc("\nArchive key for cedar is 731946.\n"),
+            enc("\nArchive key for maple is 284613.\n"),
         )
         remaining = 262000 - len(prefix) - len(suffix) - sum(map(len, keys))
         n = remaining // 3
@@ -137,9 +147,50 @@ def main():
             "391",
             flush=False,
         )
+        info_response = requests.get(args.url + "/get_server_info", timeout=30)
+        info_response.raise_for_status()
+        limit = info_response.json()["max_req_input_len"]
+        response = requests.post(
+            args.url + "/generate",
+            json=dict(
+                input_ids=[0] * (limit + 1),
+                sampling_params=dict(temperature=0, max_new_tokens=1),
+            ),
+            timeout=120,
+        )
+        data = response.json()
+        reason = data.get("meta_info", {}).get("finish_reason", {})
+        rejected = response.status_code == 400 or (
+            isinstance(reason, dict)
+            and reason.get("type") == "abort"
+            and reason.get("status_code") == 400
+        )
+        results.append(
+            dict(
+                name="oversized_input_rejected",
+                prompt_tokens=limit + 1,
+                resolved_limit=limit,
+                status_code=response.status_code,
+                response=data,
+                passed=rejected,
+            )
+        )
+        print("oversized_input_rejected", rejected, flush=True)
+        check(
+            "after_rejected_input",
+            chat("Compute 17 * 23. Respond with only the integer."),
+            "391",
+            flush=False,
+        )
     args.output.write_text(
         json.dumps(
-            dict(passed=all(r["passed"] for r in results), cases=results), indent=2
+            dict(
+                passed=all(r["passed"] for r in results),
+                complete=True,
+                expected_cases=8 if args.full_context else 4,
+                cases=results,
+            ),
+            indent=2,
         )
         + "\n"
     )

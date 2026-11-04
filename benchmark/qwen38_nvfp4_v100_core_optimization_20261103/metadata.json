@@ -1,0 +1,51 @@
+{
+  "baseline_commit": "c808ca230e",
+  "model": "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+  "model_revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "tensor_parallel": 4,
+  "kv_cache_dtype": "float16",
+  "dtype": "float16",
+  "context_length": 262144,
+  "prefill_chunk": 2048,
+  "speculative_steps": 3,
+  "verification_tokens": 4,
+  "raw_directory": "/home/rah/qwen38-runs/20261103-core-optimization",
+  "grouped_library": {
+    "source": "/home/rah/1Cat-vLLM/flash-attention-v100",
+    "source_revision": "d8f42b391af06410ab01bb71657ededf7dce7799",
+    "torch": "2.9.1+cu128",
+    "cuda": "12.8",
+    "output": "/home/rah/qwen38-runs/20261103-core-optimization/flash-build/_sm70_grouped_qsa_v100.so",
+    "sha256": "ebee5ccd99d82d869ae873acbea53781cb7984abf0a404f90a561b68704dac50",
+    "source_hashes": {
+      "LICENSE": "f5bb48b59e45ad3f1481627d8906448b456ebed0d31a874cdf2a12f1e3a8854f",
+      "kernel/flash_v100_traits.cuh": "a2fcf0385362a5546f475479efcac49f49a4d7636dc57c12edd52fbbeae38d5c",
+      "kernel/fp8_kv_utils.cuh": "4e63a1f0799b8f2ad73e7424c13604f7fe64f20bc02f5353c541c06bf6d4e86d",
+      "kernel/flash_decode_paged.cu": "359a544e18febded45f105bdf0d675ad00e49840da5397926fbbad0c3a3909fa",
+      "kernel/paged_kv_utils.cuh": "30cb5bd45f176b4621f4b20808b871f3033d030debb1518863b2645e23e9fcae",
+      "include/fused_mha.h": "af1ae9ef5f48e9a7808158601f835ebc4f8c5f7b48e6fd1b894471c0e4023c7b",
+      "include/fused_mma.h": "1fd3d5d6a0aab89fcb91f527ea52628696068d973a392e44272b44c0097c99cc"
+    }
+  },
+  "controls": {
+    "SGLANG_SM70_MTP_SHARED_GATE": "1",
+    "SGLANG_SM70_MOE_PREFILL_2K": "1",
+    "SGLANG_SM70_QSA_GROUPED_PREFILL": "1"
+  },
+  "notes": [
+    "Checkpoint tensors and SPEED prompt/response text remain local.",
+    "Kernel microbenchmarks are not end-to-end gains.",
+    "The 1K fixed-output case regressed about 1.4%; decode-rate differences depend on acceptance.",
+    "The compact-state experiment was removed from production code."
+  ],
+  "final_serving_validation": {
+    "url": "http://127.0.0.1:8082/v1",
+    "model": "qwen",
+    "checks_passed": true,
+    "full_context_tokens": 262000,
+    "cached_tokens": 32512,
+    "tool_arguments": true,
+    "tool_result": true,
+    "streaming_arithmetic": "391"
+  }
+}

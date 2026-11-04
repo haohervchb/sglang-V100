@@ -368,6 +368,9 @@ class DefaultModelLoader(BaseModelLoader):
         model_config: Optional["ModelConfig"] = None
         """The model configuration (for checking architecture, etc)."""
 
+        checkpoint_weight_prefixes: Optional[Tuple[str, ...]] = None
+        """Opt-in prefixes consumed by a model that loads a checkpoint subset."""
+
         @classmethod
         def init_new(cls, model_config: ModelConfig, model):
             return cls(
@@ -376,6 +379,9 @@ class DefaultModelLoader(BaseModelLoader):
                 prefix="",
                 fall_back_to_pt=getattr(model, "fall_back_to_pt_during_load", True),
                 model_config=model_config,
+                checkpoint_weight_prefixes=getattr(
+                    model, "checkpoint_weight_prefixes", None
+                ),
             )
 
     counter_before_loading_weights: float = 0.0
@@ -533,6 +539,20 @@ class DefaultModelLoader(BaseModelLoader):
                 "model.safetensors.index.json",
                 source.model_config.hf_config,
             )
+
+        if use_safetensors and source.checkpoint_weight_prefixes:
+            from sglang.srt.model_loader.shard_selection import select_checkpoint_shards
+
+            selected = select_checkpoint_shards(
+                hf_weights_files, hf_folder, source.checkpoint_weight_prefixes
+            )
+            logger.info(
+                "Checkpoint prefix selection %s: loading %d of %d shards",
+                source.checkpoint_weight_prefixes,
+                len(selected),
+                len(hf_weights_files),
+            )
+            hf_weights_files = selected
 
         if self.load_config.load_format == LoadFormat.NPCACHE:
             # Currently np_cache only support *.bin checkpoints

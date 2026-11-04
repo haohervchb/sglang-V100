@@ -14,7 +14,10 @@ _is_cuda = is_cuda()
 _has_sgl_moe_sum_reduce = False
 if _is_cuda:
     from sglang.jit_kernel.activation import silu_and_mul
-    from sglang.jit_kernel.moe_wna16_marlin import moe_wna16_marlin_gemm
+    from sglang.jit_kernel.moe_wna16_marlin import (
+        moe_wna16_marlin_gemm,
+        sm70_qwen38_prefill_2k_enabled,
+    )
     from sglang.srt.layers.moe.moe_runner.triton_utils.fused_moe_triton_kernels import (
         moe_sum_reduce_triton,
     )
@@ -174,6 +177,18 @@ def fused_marlin_moe(
     for block_size_m in [8, 16, 32, 48, 64]:
         if M * topk / E / block_size_m < 0.9:
             break
+
+    if (
+        is_nvfp4_marlin
+        and (M, K, N, E, topk) == (2048, 2560, 160, 512, 10)
+        and hidden_states.dtype == torch.float16
+        and sm70_qwen38_prefill_2k_enabled()
+        and torch.cuda.get_device_capability(hidden_states.device) == (7, 0)
+    ):
+        # The V100 kernel uses 64-row CTAs. Its 48-row routing groups create
+        # extra tiles for experts with 49–64 rows. The matched geometry and
+        # metadata settings are selected by moe_wna16_marlin_gemm below.
+        block_size_m = 64
 
     if global_num_experts == -1:
         global_num_experts = E

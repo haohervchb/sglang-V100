@@ -19,9 +19,20 @@ def union_us(intervals):
 def category(name):
     name = name.lower()
     for label, patterns in (
-        ("all_reduce", ("allreduce", "all_reduce", "nccl", "one_shot", "twoshot")),
+        ("all_gather", ("allgather", "all_gather")),
+        ("all_reduce", ("allreduce", "all_reduce", "one_shot", "twoshot")),
         ("moe", ("moe", "expert", "marlin")),
-        ("gdn", ("gated_delta", "gdn", "chunk_delta", "causal_conv", "recurrent")),
+        (
+            "gdn",
+            (
+                "gated_delta",
+                "gating_delta",
+                "gdn",
+                "chunk_delta",
+                "causal_conv",
+                "recurrent",
+            ),
+        ),
         (
             "qsa_metadata",
             (

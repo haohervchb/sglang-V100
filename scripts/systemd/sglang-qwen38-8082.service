@@ -1,0 +1,24 @@
+[Unit]
+Description=Qwen3.8 Flash Next NVFP4 on four V100 GPUs (port 8082)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=%h/sglang-V100
+Environment=SGLANG_PYTHON=%h/miniconda3/envs/sglang-v100/bin/python
+Environment=PATH=%h/miniconda3/envs/sglang-v100/bin:/usr/local/cuda-12.8/bin:/usr/local/bin:/usr/bin:/bin
+Environment=CUDA_VISIBLE_DEVICES=0,1,2,3
+Environment=PORT=8082
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/bash %h/sglang-V100/scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh
+Restart=on-failure
+RestartSec=15
+KillMode=control-group
+TimeoutStopSec=60
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=default.target

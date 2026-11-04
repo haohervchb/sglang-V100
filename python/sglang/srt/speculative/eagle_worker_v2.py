@@ -250,9 +250,37 @@ class EagleDraftWorker(BaseDraftWorker):
 
         else:
             if self.hot_token_id is not None:
-                head = head.clone()
                 self.hot_token_id = self.hot_token_id.to(head.device)
-                head.data = head.data[self.hot_token_id]
+                from sglang.srt.models.qwen4_exp_mtp import Qwen4ExpForCausalLMMTP
+
+                if isinstance(self.draft_runner.model, Qwen4ExpForCausalLMMTP):
+                    from sglang.srt.distributed import get_tp_group
+                    from sglang.srt.speculative.tp_hot_vocab import (
+                        build_sharded_hot_head,
+                    )
+
+                    if (
+                        self.server_args.enable_dp_attention
+                        or self.server_args.enable_lora
+                    ):
+                        raise ValueError(
+                            "Qwen Flash-Next FR-Spec currently requires ordinary TP without LoRA"
+                        )
+                    target_head = self.target_worker.model_runner.model.lm_head
+                    head = build_sharded_hot_head(
+                        head, self.hot_token_id, target_head, get_tp_group()
+                    )
+                    width = self.hot_token_id.numel()
+                    self.draft_runner.model.logits_processor.vocab_size = width
+                    self.draft_runner.model_config.hf_config.hot_vocab_size = width
+                    logger.info(
+                        "Native MTP FR-Spec: %d global tokens, %d local head rows",
+                        width,
+                        head.shape[0],
+                    )
+                else:
+                    head = head.clone()
+                    head.data = head.data[self.hot_token_id]
 
             # Share the embedding and lm_head
             self.draft_runner.model.set_embed_and_head(embed, head)

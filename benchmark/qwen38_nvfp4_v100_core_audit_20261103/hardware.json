@@ -1,0 +1,549 @@
+{
+  "devices": [
+    {
+      "device": 0,
+      "name": "Tesla V100-SXM2-32GB",
+      "copy_ms": 2.727731132507324,
+      "copy_read_write_gb_s": 787.2783436782635,
+      "gemm_8192_ms": 11.835562388102213,
+      "gemm_8192_tflops": 92.8989761298789,
+      "pinned_host_to_device_gb_s": 12.452398045638313,
+      "sm_mhz_after_gemm": 1237
+    },
+    {
+      "device": 1,
+      "name": "Tesla V100-SXM2-32GB",
+      "copy_ms": 2.7184383392333986,
+      "copy_read_write_gb_s": 789.9696001953797,
+      "gemm_8192_ms": 11.97964859008789,
+      "gemm_8192_tflops": 91.78162610594016,
+      "pinned_host_to_device_gb_s": 12.446604260550972,
+      "sm_mhz_after_gemm": 1230
+    },
+    {
+      "device": 2,
+      "name": "Tesla V100-SXM2-32GB",
+      "copy_ms": 2.727692794799805,
+      "copy_read_write_gb_s": 787.2894088711377,
+      "gemm_8192_ms": 11.331925710042318,
+      "gemm_8192_tflops": 97.02778291262676,
+      "pinned_host_to_device_gb_s": 12.451153154953978,
+      "sm_mhz_after_gemm": 1297
+    },
+    {
+      "device": 3,
+      "name": "Tesla V100-SXM2-32GB",
+      "copy_ms": 2.7276800155639647,
+      "copy_read_write_gb_s": 787.2930973378834,
+      "gemm_8192_ms": 11.462869008382162,
+      "gemm_8192_tflops": 95.91940961481701,
+      "pinned_host_to_device_gb_s": 12.446343386303134,
+      "sm_mhz_after_gemm": 1282
+    }
+  ],
+  "projections": [
+    {
+      "m": 1,
+      "n": 4096,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.03192319869995117,
+      "tflops": 0.6569366747083548,
+      "weight_read_equivalent_gb_s": 656.9366747083549
+    },
+    {
+      "m": 1,
+      "n": 4096,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.02680320143699646,
+      "tflops": 0.7824259370394842,
+      "weight_read_equivalent_gb_s": 782.4259370394841
+    },
+    {
+      "m": 4,
+      "n": 4096,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.04116480052471161,
+      "tflops": 2.037810919298453,
+      "weight_read_equivalent_gb_s": 509.45272982461324
+    },
+    {
+      "m": 4,
+      "n": 4096,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.028543999791145323,
+      "tflops": 2.9388341022207554,
+      "weight_read_equivalent_gb_s": 734.7085255551889
+    },
+    {
+      "m": 2048,
+      "n": 4096,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.5807104110717773,
+      "tflops": 73.96056991768192,
+      "weight_read_equivalent_gb_s": 36.113559530118124
+    },
+    {
+      "m": 1,
+      "n": 3584,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.02913280129432678,
+      "tflops": 0.629876949168408,
+      "weight_read_equivalent_gb_s": 629.8769491684079
+    },
+    {
+      "m": 1,
+      "n": 3584,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.024089600145816802,
+      "tflops": 0.7617428221691144,
+      "weight_read_equivalent_gb_s": 761.7428221691143
+    },
+    {
+      "m": 4,
+      "n": 3584,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.03768320083618164,
+      "tflops": 1.9478260437347046,
+      "weight_read_equivalent_gb_s": 486.95651093367616
+    },
+    {
+      "m": 4,
+      "n": 3584,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.026368001103401185,
+      "tflops": 2.7836892039014725,
+      "weight_read_equivalent_gb_s": 695.9223009753682
+    },
+    {
+      "m": 2048,
+      "n": 3584,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.4765952110290527,
+      "tflops": 78.85300349295602,
+      "weight_read_equivalent_gb_s": 38.50244311179493
+    },
+    {
+      "m": 1,
+      "n": 2560,
+      "k": 1536,
+      "method": "torch",
+      "weight_ring": 3,
+      "ms": 0.013875199854373932,
+      "tflops": 0.5667896738453753,
+      "weight_read_equivalent_gb_s": 566.7896738453752
+    },
+    {
+      "m": 1,
+      "n": 2560,
+      "k": 1536,
+      "method": "native",
+      "weight_ring": 3,
+      "ms": 0.011366400122642516,
+      "tflops": 0.6918918844264356,
+      "weight_read_equivalent_gb_s": 691.8918844264356
+    },
+    {
+      "m": 4,
+      "n": 2560,
+      "k": 1536,
+      "method": "torch",
+      "weight_ring": 3,
+      "ms": 0.017407999932765962,
+      "tflops": 1.8070588305087236,
+      "weight_read_equivalent_gb_s": 451.7647076271809
+    },
+    {
+      "m": 4,
+      "n": 2560,
+      "k": 1536,
+      "method": "native",
+      "weight_ring": 3,
+      "ms": 0.013414399325847625,
+      "tflops": 2.345038285790876,
+      "weight_read_equivalent_gb_s": 586.2595714477189
+    },
+    {
+      "m": 2048,
+      "n": 2560,
+      "k": 1536,
+      "method": "torch",
+      "weight_ring": 3,
+      "ms": 0.19642879962921142,
+      "tflops": 81.99473493908587,
+      "weight_read_equivalent_gb_s": 40.036491669475524
+    },
+    {
+      "m": 1,
+      "n": 320,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 11,
+      "ms": 0.007577600262381814,
+      "tflops": 0.21621620872951847,
+      "weight_read_equivalent_gb_s": 216.21620872951846
+    },
+    {
+      "m": 1,
+      "n": 320,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 11,
+      "ms": 0.005306181582537564,
+      "tflops": 0.30877194353693255,
+      "weight_read_equivalent_gb_s": 308.77194353693255
+    },
+    {
+      "m": 4,
+      "n": 320,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 11,
+      "ms": 0.009700072895396839,
+      "tflops": 0.6756237886737949,
+      "weight_read_equivalent_gb_s": 168.90594716844873
+    },
+    {
+      "m": 4,
+      "n": 320,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 11,
+      "ms": 0.007819636301560835,
+      "tflops": 0.838095244748387,
+      "weight_read_equivalent_gb_s": 209.52381118709678
+    },
+    {
+      "m": 2048,
+      "n": 320,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 11,
+      "ms": 0.08510371121493253,
+      "tflops": 39.42769536249372,
+      "weight_read_equivalent_gb_s": 19.251804376217635
+    },
+    {
+      "m": 1,
+      "n": 2560,
+      "k": 160,
+      "method": "torch",
+      "weight_ring": 21,
+      "ms": 0.004349561816170102,
+      "tflops": 0.18834081101101033,
+      "weight_read_equivalent_gb_s": 188.34081101101032
+    },
+    {
+      "m": 1,
+      "n": 2560,
+      "k": 160,
+      "method": "native",
+      "weight_ring": 21,
+      "ms": 0.0034328381220499675,
+      "tflops": 0.23863636177251588,
+      "weight_read_equivalent_gb_s": 238.63636177251587
+    },
+    {
+      "m": 4,
+      "n": 2560,
+      "k": 160,
+      "method": "torch",
+      "weight_ring": 21,
+      "ms": 0.005510095187595912,
+      "tflops": 0.5946902709369867,
+      "weight_read_equivalent_gb_s": 148.67256773424668
+    },
+    {
+      "m": 4,
+      "n": 2560,
+      "k": 160,
+      "method": "native",
+      "weight_ring": 21,
+      "ms": 0.003920457192829677,
+      "tflops": 0.8358208848685061,
+      "weight_read_equivalent_gb_s": 208.95522121712654
+    },
+    {
+      "m": 2048,
+      "n": 2560,
+      "k": 160,
+      "method": "torch",
+      "weight_ring": 21,
+      "ms": 0.03426986648922875,
+      "tflops": 48.9561755522835,
+      "weight_read_equivalent_gb_s": 23.90438259388843
+    },
+    {
+      "m": 1,
+      "n": 512,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 7,
+      "ms": 0.008499199897050858,
+      "tflops": 0.3084337386757564,
+      "weight_read_equivalent_gb_s": 308.4337386757564
+    },
+    {
+      "m": 1,
+      "n": 512,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 7,
+      "ms": 0.005862399935722351,
+      "tflops": 0.4471615769552563,
+      "weight_read_equivalent_gb_s": 447.16157695525635
+    },
+    {
+      "m": 4,
+      "n": 512,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 7,
+      "ms": 0.012083200365304947,
+      "tflops": 0.8677965839338597,
+      "weight_read_equivalent_gb_s": 216.94914598346494
+    },
+    {
+      "m": 4,
+      "n": 512,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 7,
+      "ms": 0.008064000308513642,
+      "tflops": 1.3003174105697346,
+      "weight_read_equivalent_gb_s": 325.07935264243366
+    },
+    {
+      "m": 2048,
+      "n": 512,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 7,
+      "ms": 0.09966080188751221,
+      "tflops": 53.86981660111161,
+      "weight_read_equivalent_gb_s": 26.30362138726153
+    },
+    {
+      "m": 1,
+      "n": 640,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 6,
+      "ms": 0.009369599819183349,
+      "tflops": 0.34972678270539037,
+      "weight_read_equivalent_gb_s": 349.7267827053904
+    },
+    {
+      "m": 1,
+      "n": 640,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 6,
+      "ms": 0.006374400109052658,
+      "tflops": 0.5140562161051712,
+      "weight_read_equivalent_gb_s": 514.0562161051712
+    },
+    {
+      "m": 4,
+      "n": 640,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 6,
+      "ms": 0.014003199338912965,
+      "tflops": 0.9360146694175018,
+      "weight_read_equivalent_gb_s": 234.00366735437547
+    },
+    {
+      "m": 4,
+      "n": 640,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 6,
+      "ms": 0.008371199667453765,
+      "tflops": 1.5657492976734557,
+      "weight_read_equivalent_gb_s": 391.43732441836397
+    },
+    {
+      "m": 2048,
+      "n": 640,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 6,
+      "ms": 0.10158079862594604,
+      "tflops": 66.06451702266779,
+      "weight_read_equivalent_gb_s": 32.258064952474506
+    },
+    {
+      "m": 1,
+      "n": 10240,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.08340479731559754,
+      "tflops": 0.6286065272913898,
+      "weight_read_equivalent_gb_s": 628.6065272913897
+    },
+    {
+      "m": 1,
+      "n": 10240,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.06320639848709106,
+      "tflops": 0.8294856415637697,
+      "weight_read_equivalent_gb_s": 829.4856415637696
+    },
+    {
+      "m": 4,
+      "n": 10240,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.08384000062942505,
+      "tflops": 2.501374027022573,
+      "weight_read_equivalent_gb_s": 625.3435067556431
+    },
+    {
+      "m": 2048,
+      "n": 10240,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 1.3034751892089844,
+      "tflops": 82.37531737382754,
+      "weight_read_equivalent_gb_s": 40.222322936439234
+    },
+    {
+      "m": 1,
+      "n": 2560,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.02088959962129593,
+      "tflops": 0.627450991767111,
+      "weight_read_equivalent_gb_s": 627.4509917671111
+    },
+    {
+      "m": 1,
+      "n": 2560,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.017664000391960144,
+      "tflops": 0.7420289690417923,
+      "weight_read_equivalent_gb_s": 742.0289690417923
+    },
+    {
+      "m": 4,
+      "n": 2560,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.025062400102615356,
+      "tflops": 2.0919305328035542,
+      "weight_read_equivalent_gb_s": 522.9826332008886
+    },
+    {
+      "m": 4,
+      "n": 2560,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.021299199759960176,
+      "tflops": 2.461538489279751,
+      "weight_read_equivalent_gb_s": 615.3846223199378
+    },
+    {
+      "m": 2048,
+      "n": 2560,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.3193599939346313,
+      "tflops": 84.05418997313267,
+      "weight_read_equivalent_gb_s": 41.04208494781869
+    },
+    {
+      "m": 1,
+      "n": 62080,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.47662081718444826,
+      "tflops": 0.6668814884705191,
+      "weight_read_equivalent_gb_s": 666.881488470519
+    },
+    {
+      "m": 1,
+      "n": 62080,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.3648000001907349,
+      "tflops": 0.8712982451584788,
+      "weight_read_equivalent_gb_s": 871.2982451584787
+    },
+    {
+      "m": 4,
+      "n": 62080,
+      "k": 2560,
+      "method": "torch",
+      "weight_ring": 2,
+      "ms": 0.4807936191558838,
+      "tflops": 2.6443745285808062,
+      "weight_read_equivalent_gb_s": 661.0936321452016
+    },
+    {
+      "m": 4,
+      "n": 62080,
+      "k": 2560,
+      "method": "native",
+      "weight_ring": 2,
+      "ms": 0.37941761016845704,
+      "tflops": 3.3509209006812144,
+      "weight_read_equivalent_gb_s": 837.7302251703036
+    }
+  ],
+  "peer_copies": [
+    {
+      "source": 0,
+      "destination": 1,
+      "one_way_gb_s": 48.42024818688642
+    },
+    {
+      "source": 0,
+      "destination": 2,
+      "one_way_gb_s": 48.42227718496093
+    },
+    {
+      "source": 0,
+      "destination": 3,
+      "one_way_gb_s": 48.41919248587015
+    }
+  ],
+  "notes": [
+    "Copy GB/s counts both HBM reads and writes; peer GB/s is one-way payload.",
+    "Projection timings use CUDA graphs with rotating synthetic weights.",
+    "Equivalent weight GB/s is logical bytes/time and is not measured DRAM throughput.",
+    "Calibration cannot be applied as an end-to-end model FLOP utilization score."
+  ]
+}

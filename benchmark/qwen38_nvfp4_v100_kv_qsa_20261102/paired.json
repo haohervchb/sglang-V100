@@ -1,0 +1,1208 @@
+{
+  "cjk_4": {
+    "control": "e5m2_4",
+    "pairs": [
+      {
+        "case": "code_edit_1000",
+        "kind": "code_edit",
+        "control": 172.44759778996584,
+        "candidate": 188.83116809098152,
+        "ratio": 1.0950060801714976
+      },
+      {
+        "case": "code_edit_25000",
+        "kind": "code_edit",
+        "control": 173.92791204313673,
+        "candidate": 185.70225485590927,
+        "ratio": 1.0676966834963921
+      },
+      {
+        "case": "code_edit_70000",
+        "kind": "code_edit",
+        "control": 170.94758550255042,
+        "candidate": 182.78501157664599,
+        "ratio": 1.0692459389777047
+      },
+      {
+        "case": "code_edit_8192",
+        "kind": "code_edit",
+        "control": 174.30474297127066,
+        "candidate": 186.34135883152882,
+        "ratio": 1.0690550105239653
+      },
+      {
+        "case": "prose_1000",
+        "kind": "prose",
+        "control": 107.75971947029439,
+        "candidate": 115.29767155052222,
+        "ratio": 1.0699514820313336
+      },
+      {
+        "case": "prose_25000",
+        "kind": "prose",
+        "control": 108.59923925604728,
+        "candidate": 111.80598195838897,
+        "ratio": 1.029528224362429
+      },
+      {
+        "case": "prose_70000",
+        "kind": "prose",
+        "control": 104.07799660954674,
+        "candidate": 112.75812381455879,
+        "ratio": 1.0834002141449353
+      },
+      {
+        "case": "prose_8192",
+        "kind": "prose",
+        "control": 110.67919926559591,
+        "candidate": 114.48265966607721,
+        "ratio": 1.0343647263959164
+      }
+    ],
+    "geometric_mean_ratio": 1.064574063198667,
+    "domains": {
+      "code_edit": 1.0751907558418297,
+      "prose": 1.0540622023372763
+    }
+  },
+  "cjk_4_speed": {
+    "control": "e5m2_4_speed",
+    "pairs": [
+      {
+        "case": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+        "kind": "rag",
+        "control": 116.05492238105671,
+        "candidate": 115.92619173997234,
+        "ratio": 0.9988907782759813
+      },
+      {
+        "case": "speed_0042b6eb553f41398140f79a252210fb",
+        "kind": "reasoning",
+        "control": 116.08901528830437,
+        "candidate": 116.45373784522388,
+        "ratio": 1.0031417490794778
+      },
+      {
+        "case": "speed_01fa8e8862984a30bc598b65bd77ca95",
+        "kind": "rag",
+        "control": 163.79889012513416,
+        "candidate": 170.25201823365728,
+        "ratio": 1.039396653442482
+      },
+      {
+        "case": "speed_025ad33d686a4b14ad6021cc041a400c",
+        "kind": "rag",
+        "control": 140.36214699684564,
+        "candidate": 150.65076575817199,
+        "ratio": 1.0733005228365278
+      },
+      {
+        "case": "speed_02ca690c74b14ccb82a44471d97e094e",
+        "kind": "writing",
+        "control": 105.12359883229318,
+        "candidate": 112.0379361149074,
+        "ratio": 1.065773407297869
+      },
+      {
+        "case": "speed_02cdc14782c5405da93af16c2156e493",
+        "kind": "writing",
+        "control": 110.23263389182864,
+        "candidate": 115.56711716224098,
+        "ratio": 1.0483929584377623
+      },
+      {
+        "case": "speed_046f05feedfe413cb872cb5c638f5ea7",
+        "kind": "writing",
+        "control": 114.2899667850493,
+        "candidate": 124.05379353394451,
+        "ratio": 1.085430305245066
+      },
+      {
+        "case": "speed_04dbbad1651540119148d95967058c11",
+        "kind": "rag",
+        "control": 127.88770076747704,
+        "candidate": 122.33496635401914,
+        "ratio": 0.9565811694155502
+      },
+      {
+        "case": "speed_08a5bcca5621439cb1b93a663843d75c",
+        "kind": "coding",
+        "control": 172.41891069243786,
+        "candidate": 174.3248890450665,
+        "ratio": 1.01105434632996
+      },
+      {
+        "case": "speed_08f4c31730b4427f90e8146fef066c4c",
+        "kind": "coding",
+        "control": 153.95664975877338,
+        "candidate": 182.26099729619645,
+        "ratio": 1.1838462163327903
+      },
+      {
+        "case": "speed_0a7a83477d19422db773738a353b2795",
+        "kind": "coding",
+        "control": 162.65408534566168,
+        "candidate": 184.70507790564997,
+        "ratio": 1.1355698660327342
+      },
+      {
+        "case": "speed_0af14f1626604fb78c17db8e076be523",
+        "kind": "reasoning",
+        "control": 116.08347117139974,
+        "candidate": 116.46012498355937,
+        "ratio": 1.0032446808176807
+      },
+      {
+        "case": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+        "kind": "coding",
+        "control": 164.2204695226996,
+        "candidate": 176.61224487665822,
+        "ratio": 1.0754581654161313
+      },
+      {
+        "case": "speed_13027a52cab44af49105732cab0fa27b",
+        "kind": "reasoning",
+        "control": 116.34512787064634,
+        "candidate": 116.51215521199241,
+        "ratio": 1.0014356195605525
+      },
+      {
+        "case": "speed_150f42512f514ee6b63b2723fc2a69ff",
+        "kind": "reasoning",
+        "control": 116.76579836584516,
+        "candidate": 116.44697067770034,
+        "ratio": 0.997269511341447
+      },
+      {
+        "case": "speed_1574e7b555934e60b662de65184269cc",
+        "kind": "writing",
+        "control": 125.1306562356169,
+        "candidate": 130.30516740160277,
+        "ratio": 1.0413528652502424
+      },
+      {
+        "case": "speed_1672523d190a47e599498ce10e972d89",
+        "kind": "multilingual",
+        "control": 134.09148300757641,
+        "candidate": 141.5280434468968,
+        "ratio": 1.055458857434668
+      },
+      {
+        "case": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+        "kind": "multilingual",
+        "control": 124.8713922082394,
+        "candidate": 154.05021404974985,
+        "ratio": 1.2336709900122755
+      },
+      {
+        "case": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+        "kind": "multilingual",
+        "control": 144.80681237767362,
+        "candidate": 166.881675313201,
+        "ratio": 1.1524435388989398
+      },
+      {
+        "case": "speed_6aebfdd4784f4cce9c493132f0062407",
+        "kind": "multilingual",
+        "control": 125.57464593678256,
+        "candidate": 153.43783175607592,
+        "ratio": 1.2218854420128757
+      }
+    ],
+    "geometric_mean_ratio": 1.0665352219533548,
+    "domains": {
+      "coding": 1.0995609121867929,
+      "multilingual": 1.1636508799870406,
+      "rag": 1.0160980585591755,
+      "reasoning": 1.0012699604927333,
+      "writing": 1.0601009130783372
+    }
+  },
+  "cjk_4_speed_sampled": {
+    "control": "e5m2_4_speed_sampled",
+    "pairs": [
+      {
+        "case": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+        "kind": "rag",
+        "control": 98.72730834771957,
+        "candidate": 108.3088263728159,
+        "ratio": 1.0970503317212905
+      },
+      {
+        "case": "speed_0042b6eb553f41398140f79a252210fb",
+        "kind": "reasoning",
+        "control": 117.82499667766032,
+        "candidate": 121.50119351478929,
+        "ratio": 1.0312004832657549
+      },
+      {
+        "case": "speed_01fa8e8862984a30bc598b65bd77ca95",
+        "kind": "rag",
+        "control": 158.31413670618016,
+        "candidate": 161.12730071746904,
+        "ratio": 1.0177695060581349
+      },
+      {
+        "case": "speed_025ad33d686a4b14ad6021cc041a400c",
+        "kind": "rag",
+        "control": 134.42677438786023,
+        "candidate": 164.80371491714496,
+        "ratio": 1.2259738855418671
+      },
+      {
+        "case": "speed_02ca690c74b14ccb82a44471d97e094e",
+        "kind": "writing",
+        "control": 97.72597476044746,
+        "candidate": 99.00496903127157,
+        "ratio": 1.0130875570590037
+      },
+      {
+        "case": "speed_02cdc14782c5405da93af16c2156e493",
+        "kind": "writing",
+        "control": 106.09025197672253,
+        "candidate": 108.71981893552714,
+        "ratio": 1.0247861317115317
+      },
+      {
+        "case": "speed_046f05feedfe413cb872cb5c638f5ea7",
+        "kind": "writing",
+        "control": 112.83561180717285,
+        "candidate": 115.16057693249272,
+        "ratio": 1.0206048878371223
+      },
+      {
+        "case": "speed_04dbbad1651540119148d95967058c11",
+        "kind": "rag",
+        "control": 125.05537608622858,
+        "candidate": 127.47954651928586,
+        "ratio": 1.0193847758403107
+      },
+      {
+        "case": "speed_08a5bcca5621439cb1b93a663843d75c",
+        "kind": "coding",
+        "control": 112.07278323282463,
+        "candidate": 117.35558846450283,
+        "ratio": 1.0471372716844507
+      },
+      {
+        "case": "speed_08f4c31730b4427f90e8146fef066c4c",
+        "kind": "coding",
+        "control": 148.88460764712812,
+        "candidate": 174.17662415527207,
+        "ratio": 1.1698766374028982
+      },
+      {
+        "case": "speed_0a7a83477d19422db773738a353b2795",
+        "kind": "coding",
+        "control": 157.3510391789457,
+        "candidate": 177.68577729355803,
+        "ratio": 1.1292316734653838
+      },
+      {
+        "case": "speed_0af14f1626604fb78c17db8e076be523",
+        "kind": "reasoning",
+        "control": 107.20788684731252,
+        "candidate": 114.97013233347421,
+        "ratio": 1.072403679565262
+      },
+      {
+        "case": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+        "kind": "coding",
+        "control": 156.26427520302727,
+        "candidate": 172.32223114537166,
+        "ratio": 1.1027615296041338
+      },
+      {
+        "case": "speed_13027a52cab44af49105732cab0fa27b",
+        "kind": "reasoning",
+        "control": 106.78438983851186,
+        "candidate": 104.23629050405592,
+        "ratio": 0.9761379042544571
+      },
+      {
+        "case": "speed_150f42512f514ee6b63b2723fc2a69ff",
+        "kind": "reasoning",
+        "control": 111.63579923201625,
+        "candidate": 106.57003816488866,
+        "ratio": 0.9546224320336592
+      },
+      {
+        "case": "speed_1574e7b555934e60b662de65184269cc",
+        "kind": "writing",
+        "control": 122.05650212328456,
+        "candidate": 119.37858273960225,
+        "ratio": 0.9780600022358706
+      },
+      {
+        "case": "speed_1672523d190a47e599498ce10e972d89",
+        "kind": "multilingual",
+        "control": 130.66291833864452,
+        "candidate": 138.1043712874335,
+        "ratio": 1.0569515287382658
+      },
+      {
+        "case": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+        "kind": "multilingual",
+        "control": 93.21563812518067,
+        "candidate": 138.3513509912084,
+        "ratio": 1.4842075189724528
+      },
+      {
+        "case": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+        "kind": "multilingual",
+        "control": 143.0737118939902,
+        "candidate": 154.87184545054055,
+        "ratio": 1.082461923999652
+      },
+      {
+        "case": "speed_6aebfdd4784f4cce9c493132f0062407",
+        "kind": "multilingual",
+        "control": 109.35024561729506,
+        "candidate": 115.14369398514043,
+        "ratio": 1.0529806616815598
+      }
+    ],
+    "geometric_mean_ratio": 1.0726343479247242,
+    "domains": {
+      "coding": 1.1113531533253413,
+      "multilingual": 1.1563669767251923,
+      "rag": 1.0868605805761404,
+      "reasoning": 1.007537116340043,
+      "writing": 1.0089643951036116
+    }
+  },
+  "fp16_4": {
+    "control": "e5m2_4",
+    "pairs": [
+      {
+        "case": "code_edit_1000",
+        "kind": "code_edit",
+        "control": 172.44759778996584,
+        "candidate": 185.76597144752236,
+        "ratio": 1.077231424666047
+      },
+      {
+        "case": "code_edit_25000",
+        "kind": "code_edit",
+        "control": 173.92791204313673,
+        "candidate": 182.71299532513288,
+        "ratio": 1.0505099105646558
+      },
+      {
+        "case": "code_edit_70000",
+        "kind": "code_edit",
+        "control": 170.94758550255042,
+        "candidate": 179.7793596557099,
+        "ratio": 1.0516636378758781
+      },
+      {
+        "case": "code_edit_8192",
+        "kind": "code_edit",
+        "control": 174.30474297127066,
+        "candidate": 183.51075297775972,
+        "ratio": 1.0528156024303161
+      },
+      {
+        "case": "prose_1000",
+        "kind": "prose",
+        "control": 107.75971947029439,
+        "candidate": 119.01815914182612,
+        "ratio": 1.104477254830227
+      },
+      {
+        "case": "prose_25000",
+        "kind": "prose",
+        "control": 108.59923925604728,
+        "candidate": 113.16760438325272,
+        "ratio": 1.0420662719048563
+      },
+      {
+        "case": "prose_70000",
+        "kind": "prose",
+        "control": 104.07799660954674,
+        "candidate": 111.36182925446137,
+        "ratio": 1.0699843663617032
+      },
+      {
+        "case": "prose_8192",
+        "kind": "prose",
+        "control": 110.67919926559591,
+        "candidate": 115.228054248478,
+        "ratio": 1.0410994569265561
+      }
+    ],
+    "geometric_mean_ratio": 1.061041848785861,
+    "domains": {
+      "code_edit": 1.0579973614772615,
+      "prose": 1.0640950968941654
+    }
+  },
+  "fp16_4_speed": {
+    "control": "e5m2_4_speed",
+    "pairs": [
+      {
+        "case": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+        "kind": "rag",
+        "control": 116.05492238105671,
+        "candidate": 115.64005008881071,
+        "ratio": 0.996425207274847
+      },
+      {
+        "case": "speed_0042b6eb553f41398140f79a252210fb",
+        "kind": "reasoning",
+        "control": 116.08901528830437,
+        "candidate": 115.64981509426963,
+        "ratio": 0.996216694637783
+      },
+      {
+        "case": "speed_01fa8e8862984a30bc598b65bd77ca95",
+        "kind": "rag",
+        "control": 163.79889012513416,
+        "candidate": 168.48000592778087,
+        "ratio": 1.0285784341949482
+      },
+      {
+        "case": "speed_025ad33d686a4b14ad6021cc041a400c",
+        "kind": "rag",
+        "control": 140.36214699684564,
+        "candidate": 149.36359277678025,
+        "ratio": 1.0641301517006356
+      },
+      {
+        "case": "speed_02ca690c74b14ccb82a44471d97e094e",
+        "kind": "writing",
+        "control": 105.12359883229318,
+        "candidate": 108.6837642466682,
+        "ratio": 1.0338664719808028
+      },
+      {
+        "case": "speed_02cdc14782c5405da93af16c2156e493",
+        "kind": "writing",
+        "control": 110.23263389182864,
+        "candidate": 119.37061100367795,
+        "ratio": 1.0828972037519888
+      },
+      {
+        "case": "speed_046f05feedfe413cb872cb5c638f5ea7",
+        "kind": "writing",
+        "control": 114.2899667850493,
+        "candidate": 120.81686823064288,
+        "ratio": 1.0571082626865143
+      },
+      {
+        "case": "speed_04dbbad1651540119148d95967058c11",
+        "kind": "rag",
+        "control": 127.88770076747704,
+        "candidate": 146.15020021182505,
+        "ratio": 1.1428010616716968
+      },
+      {
+        "case": "speed_08a5bcca5621439cb1b93a663843d75c",
+        "kind": "coding",
+        "control": 172.41891069243786,
+        "candidate": 171.4867669851019,
+        "ratio": 0.9945937269665348
+      },
+      {
+        "case": "speed_08f4c31730b4427f90e8146fef066c4c",
+        "kind": "coding",
+        "control": 153.95664975877338,
+        "candidate": 179.36060833587112,
+        "ratio": 1.1650072187002112
+      },
+      {
+        "case": "speed_0a7a83477d19422db773738a353b2795",
+        "kind": "coding",
+        "control": 162.65408534566168,
+        "candidate": 181.66172732364254,
+        "ratio": 1.1168592964485773
+      },
+      {
+        "case": "speed_0af14f1626604fb78c17db8e076be523",
+        "kind": "reasoning",
+        "control": 116.08347117139974,
+        "candidate": 115.60466653352373,
+        "ratio": 0.9958753418290788
+      },
+      {
+        "case": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+        "kind": "coding",
+        "control": 164.2204695226996,
+        "candidate": 180.53505439012474,
+        "ratio": 1.0993456230812324
+      },
+      {
+        "case": "speed_13027a52cab44af49105732cab0fa27b",
+        "kind": "reasoning",
+        "control": 116.34512787064634,
+        "candidate": 115.61108368585096,
+        "ratio": 0.9936908042628867
+      },
+      {
+        "case": "speed_150f42512f514ee6b63b2723fc2a69ff",
+        "kind": "reasoning",
+        "control": 116.76579836584516,
+        "candidate": 115.6390546072412,
+        "ratio": 0.9903503956263486
+      },
+      {
+        "case": "speed_1574e7b555934e60b662de65184269cc",
+        "kind": "writing",
+        "control": 125.1306562356169,
+        "candidate": 134.5926069944294,
+        "ratio": 1.0756165678616434
+      },
+      {
+        "case": "speed_1672523d190a47e599498ce10e972d89",
+        "kind": "multilingual",
+        "control": 134.09148300757641,
+        "candidate": 139.89692528566047,
+        "ratio": 1.0432946384652635
+      },
+      {
+        "case": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+        "kind": "multilingual",
+        "control": 124.8713922082394,
+        "candidate": 151.3639992397467,
+        "ratio": 1.2121591387988004
+      },
+      {
+        "case": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+        "kind": "multilingual",
+        "control": 144.80681237767362,
+        "candidate": 165.01994647617138,
+        "ratio": 1.1395869004130792
+      },
+      {
+        "case": "speed_6aebfdd4784f4cce9c493132f0062407",
+        "kind": "multilingual",
+        "control": 125.57464593678256,
+        "candidate": 150.35435958336691,
+        "ratio": 1.1973305475936526
+      }
+    ],
+    "geometric_mean_ratio": 1.0690684497391438,
+    "domains": {
+      "coding": 1.0921360977403427,
+      "multilingual": 1.1461251213185202,
+      "rag": 1.0566030890426596,
+      "reasoning": 0.9940305597022849,
+      "writing": 1.0622021070436067
+    }
+  },
+  "fp16_4_speed_sampled": {
+    "control": "e5m2_4_speed_sampled",
+    "pairs": [
+      {
+        "case": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+        "kind": "rag",
+        "control": 98.72730834771957,
+        "candidate": 116.88806108372384,
+        "ratio": 1.1839486261697902
+      },
+      {
+        "case": "speed_0042b6eb553f41398140f79a252210fb",
+        "kind": "reasoning",
+        "control": 117.82499667766032,
+        "candidate": 105.87560122310347,
+        "ratio": 0.8985835281858959
+      },
+      {
+        "case": "speed_01fa8e8862984a30bc598b65bd77ca95",
+        "kind": "rag",
+        "control": 158.31413670618016,
+        "candidate": 154.39384508565053,
+        "ratio": 0.9752372611688783
+      },
+      {
+        "case": "speed_025ad33d686a4b14ad6021cc041a400c",
+        "kind": "rag",
+        "control": 134.42677438786023,
+        "candidate": 126.70162873881648,
+        "ratio": 0.9425326860350419
+      },
+      {
+        "case": "speed_02ca690c74b14ccb82a44471d97e094e",
+        "kind": "writing",
+        "control": 97.72597476044746,
+        "candidate": 102.14642438878937,
+        "ratio": 1.0452331085893758
+      },
+      {
+        "case": "speed_02cdc14782c5405da93af16c2156e493",
+        "kind": "writing",
+        "control": 106.09025197672253,
+        "candidate": 109.966079372103,
+        "ratio": 1.036533303702878
+      },
+      {
+        "case": "speed_046f05feedfe413cb872cb5c638f5ea7",
+        "kind": "writing",
+        "control": 112.83561180717285,
+        "candidate": 114.40529101982341,
+        "ratio": 1.0139112039852543
+      },
+      {
+        "case": "speed_04dbbad1651540119148d95967058c11",
+        "kind": "rag",
+        "control": 125.05537608622858,
+        "candidate": 136.99873557613915,
+        "ratio": 1.0955045665663774
+      },
+      {
+        "case": "speed_08a5bcca5621439cb1b93a663843d75c",
+        "kind": "coding",
+        "control": 112.07278323282463,
+        "candidate": 126.42350230846077,
+        "ratio": 1.1280482081525838
+      },
+      {
+        "case": "speed_08f4c31730b4427f90e8146fef066c4c",
+        "kind": "coding",
+        "control": 148.88460764712812,
+        "candidate": 172.20540751126026,
+        "ratio": 1.156636741921669
+      },
+      {
+        "case": "speed_0a7a83477d19422db773738a353b2795",
+        "kind": "coding",
+        "control": 157.3510391789457,
+        "candidate": 175.44891290335022,
+        "ratio": 1.1150159148540666
+      },
+      {
+        "case": "speed_0af14f1626604fb78c17db8e076be523",
+        "kind": "reasoning",
+        "control": 107.20788684731252,
+        "candidate": 111.27039542404452,
+        "ratio": 1.0378937473370584
+      },
+      {
+        "case": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+        "kind": "coding",
+        "control": 156.26427520302727,
+        "candidate": 168.06139525324252,
+        "ratio": 1.0754946710301365
+      },
+      {
+        "case": "speed_13027a52cab44af49105732cab0fa27b",
+        "kind": "reasoning",
+        "control": 106.78438983851186,
+        "candidate": 132.91613436452104,
+        "ratio": 1.2447150240360765
+      },
+      {
+        "case": "speed_150f42512f514ee6b63b2723fc2a69ff",
+        "kind": "reasoning",
+        "control": 111.63579923201625,
+        "candidate": 116.15804492795223,
+        "ratio": 1.040508920319881
+      },
+      {
+        "case": "speed_1574e7b555934e60b662de65184269cc",
+        "kind": "writing",
+        "control": 122.05650212328456,
+        "candidate": 123.17367445443787,
+        "ratio": 1.0091529112478161
+      },
+      {
+        "case": "speed_1672523d190a47e599498ce10e972d89",
+        "kind": "multilingual",
+        "control": 130.66291833864452,
+        "candidate": 131.95969786834334,
+        "ratio": 1.009924617834862
+      },
+      {
+        "case": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+        "kind": "multilingual",
+        "control": 93.21563812518067,
+        "candidate": 106.25021860592827,
+        "ratio": 1.1398325510923741
+      },
+      {
+        "case": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+        "kind": "multilingual",
+        "control": 143.0737118939902,
+        "candidate": 155.03140495090273,
+        "ratio": 1.0835771498384867
+      },
+      {
+        "case": "speed_6aebfdd4784f4cce9c493132f0062407",
+        "kind": "multilingual",
+        "control": 109.35024561729506,
+        "candidate": 92.38897962746634,
+        "ratio": 0.8448904628052697
+      }
+    ],
+    "geometric_mean_ratio": 1.0495833188233439,
+    "domains": {
+      "coding": 1.1184163137651737,
+      "multilingual": 1.013205561517366,
+      "rag": 1.0449329861416352,
+      "reasoning": 1.048351140718976,
+      "writing": 1.0260967911927354
+    }
+  },
+  "fp16_6": {
+    "control": "e5m2_4",
+    "pairs": [
+      {
+        "case": "code_edit_8192",
+        "kind": "code_edit",
+        "control": 174.30474297127066,
+        "candidate": 187.1252571832524,
+        "ratio": 1.0735522969337377
+      },
+      {
+        "case": "prose_8192",
+        "kind": "prose",
+        "control": 110.67919926559591,
+        "candidate": 91.43639158206526,
+        "ratio": 0.8261388968187793
+      }
+    ],
+    "geometric_mean_ratio": 0.9417554407945327,
+    "domains": {
+      "code_edit": 1.0735522969337377,
+      "prose": 0.8261388968187793
+    }
+  },
+  "fp16_8": {
+    "control": "e5m2_4",
+    "pairs": [
+      {
+        "case": "code_edit_1000",
+        "kind": "code_edit",
+        "control": 172.44759778996584,
+        "candidate": 212.48852460092266,
+        "ratio": 1.2321918503018234
+      },
+      {
+        "case": "code_edit_25000",
+        "kind": "code_edit",
+        "control": 173.92791204313673,
+        "candidate": 209.02836714152875,
+        "ratio": 1.2018103631905073
+      },
+      {
+        "case": "code_edit_70000",
+        "kind": "code_edit",
+        "control": 170.94758550255042,
+        "candidate": 208.77637266204266,
+        "ratio": 1.221288806439023
+      },
+      {
+        "case": "code_edit_8192",
+        "kind": "code_edit",
+        "control": 174.30474297127066,
+        "candidate": 212.81311783323332,
+        "ratio": 1.2209255709599922
+      },
+      {
+        "case": "prose_1000",
+        "kind": "prose",
+        "control": 107.75971947029439,
+        "candidate": 72.53082277828288,
+        "ratio": 0.6730791722066157
+      },
+      {
+        "case": "prose_25000",
+        "kind": "prose",
+        "control": 108.59923925604728,
+        "candidate": 76.2651699069935,
+        "ratio": 0.7022624691429109
+      },
+      {
+        "case": "prose_70000",
+        "kind": "prose",
+        "control": 104.07799660954674,
+        "candidate": 76.64056146960856,
+        "ratio": 0.7363762175124206
+      },
+      {
+        "case": "prose_8192",
+        "kind": "prose",
+        "control": 110.67919926559591,
+        "candidate": 82.45421762563691,
+        "ratio": 0.7449838648341884
+      }
+    ],
+    "geometric_mean_ratio": 0.9326726881492371,
+    "domains": {
+      "code_edit": 1.219004926376581,
+      "prose": 0.7135970695419462
+    }
+  },
+  "fp16_8_speed": {
+    "control": "e5m2_4_speed",
+    "pairs": [
+      {
+        "case": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+        "kind": "rag",
+        "control": 116.05492238105671,
+        "candidate": 91.86974726028792,
+        "ratio": 0.7916057791899703
+      },
+      {
+        "case": "speed_0042b6eb553f41398140f79a252210fb",
+        "kind": "reasoning",
+        "control": 116.08901528830437,
+        "candidate": 91.78925270969492,
+        "ratio": 0.7906799147338657
+      },
+      {
+        "case": "speed_01fa8e8862984a30bc598b65bd77ca95",
+        "kind": "rag",
+        "control": 163.79889012513416,
+        "candidate": 159.90419217211956,
+        "ratio": 0.9762226841095245
+      },
+      {
+        "case": "speed_025ad33d686a4b14ad6021cc041a400c",
+        "kind": "rag",
+        "control": 140.36214699684564,
+        "candidate": 174.4159841672348,
+        "ratio": 1.2426141085684195
+      },
+      {
+        "case": "speed_02ca690c74b14ccb82a44471d97e094e",
+        "kind": "writing",
+        "control": 105.12359883229318,
+        "candidate": 70.38232225498761,
+        "ratio": 0.6695197180917544
+      },
+      {
+        "case": "speed_02cdc14782c5405da93af16c2156e493",
+        "kind": "writing",
+        "control": 110.23263389182864,
+        "candidate": 79.137888534622,
+        "ratio": 0.7179170608613059
+      },
+      {
+        "case": "speed_046f05feedfe413cb872cb5c638f5ea7",
+        "kind": "writing",
+        "control": 114.2899667850493,
+        "candidate": 84.87691144970276,
+        "ratio": 0.7426453418202045
+      },
+      {
+        "case": "speed_04dbbad1651540119148d95967058c11",
+        "kind": "rag",
+        "control": 127.88770076747704,
+        "candidate": 142.82318060969206,
+        "ratio": 1.1167858969438385
+      },
+      {
+        "case": "speed_08a5bcca5621439cb1b93a663843d75c",
+        "kind": "coding",
+        "control": 172.41891069243786,
+        "candidate": 168.75476850032612,
+        "ratio": 0.9787486060699695
+      },
+      {
+        "case": "speed_08f4c31730b4427f90e8146fef066c4c",
+        "kind": "coding",
+        "control": 153.95664975877338,
+        "candidate": 191.25515535109193,
+        "ratio": 1.2422662850273738
+      },
+      {
+        "case": "speed_0a7a83477d19422db773738a353b2795",
+        "kind": "coding",
+        "control": 162.65408534566168,
+        "candidate": 200.89185728821104,
+        "ratio": 1.2350864527090666
+      },
+      {
+        "case": "speed_0af14f1626604fb78c17db8e076be523",
+        "kind": "reasoning",
+        "control": 116.08347117139974,
+        "candidate": 91.81915050037156,
+        "ratio": 0.7909752316486006
+      },
+      {
+        "case": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+        "kind": "coding",
+        "control": 164.2204695226996,
+        "candidate": 184.8746582735792,
+        "ratio": 1.1257710979082582
+      },
+      {
+        "case": "speed_13027a52cab44af49105732cab0fa27b",
+        "kind": "reasoning",
+        "control": 116.34512787064634,
+        "candidate": 91.82749104674744,
+        "ratio": 0.7892680400750615
+      },
+      {
+        "case": "speed_150f42512f514ee6b63b2723fc2a69ff",
+        "kind": "reasoning",
+        "control": 116.76579836584516,
+        "candidate": 91.83078859193435,
+        "ratio": 0.786452795913872
+      },
+      {
+        "case": "speed_1574e7b555934e60b662de65184269cc",
+        "kind": "writing",
+        "control": 125.1306562356169,
+        "candidate": 93.90354493093332,
+        "ratio": 0.7504439579867307
+      },
+      {
+        "case": "speed_1672523d190a47e599498ce10e972d89",
+        "kind": "multilingual",
+        "control": 134.09148300757641,
+        "candidate": 112.41620592336017,
+        "ratio": 0.838354557664251
+      },
+      {
+        "case": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+        "kind": "multilingual",
+        "control": 124.8713922082394,
+        "candidate": 75.58144426444255,
+        "ratio": 0.605274298042586
+      },
+      {
+        "case": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+        "kind": "multilingual",
+        "control": 144.80681237767362,
+        "candidate": 147.73209908048614,
+        "ratio": 1.0202013058279538
+      },
+      {
+        "case": "speed_6aebfdd4784f4cce9c493132f0062407",
+        "kind": "multilingual",
+        "control": 125.57464593678256,
+        "candidate": 113.25120449204667,
+        "ratio": 0.9018636178282372
+      }
+    ],
+    "geometric_mean_ratio": 0.8855847114334967,
+    "domains": {
+      "coding": 1.1402716505463288,
+      "multilingual": 0.8266119439085838,
+      "rag": 1.0176326043777422,
+      "reasoning": 0.7893419646031635,
+      "writing": 0.7194230415525665
+    }
+  },
+  "fp16_8_speed_sampled": {
+    "control": "e5m2_4_speed_sampled",
+    "pairs": [
+      {
+        "case": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+        "kind": "rag",
+        "control": 98.72730834771957,
+        "candidate": 83.16428867480573,
+        "ratio": 0.8423635776830807
+      },
+      {
+        "case": "speed_0042b6eb553f41398140f79a252210fb",
+        "kind": "reasoning",
+        "control": 117.82499667766032,
+        "candidate": 73.27550175570073,
+        "ratio": 0.6219011569859335
+      },
+      {
+        "case": "speed_01fa8e8862984a30bc598b65bd77ca95",
+        "kind": "rag",
+        "control": 158.31413670618016,
+        "candidate": 167.17813626230503,
+        "ratio": 1.0559899434159554
+      },
+      {
+        "case": "speed_025ad33d686a4b14ad6021cc041a400c",
+        "kind": "rag",
+        "control": 134.42677438786023,
+        "candidate": 114.80120701396254,
+        "ratio": 0.8540055174033095
+      },
+      {
+        "case": "speed_02ca690c74b14ccb82a44471d97e094e",
+        "kind": "writing",
+        "control": 97.72597476044746,
+        "candidate": 63.445390527202605,
+        "ratio": 0.6492172698479013
+      },
+      {
+        "case": "speed_02cdc14782c5405da93af16c2156e493",
+        "kind": "writing",
+        "control": 106.09025197672253,
+        "candidate": 80.22574159241594,
+        "ratio": 0.7562027622483019
+      },
+      {
+        "case": "speed_046f05feedfe413cb872cb5c638f5ea7",
+        "kind": "writing",
+        "control": 112.83561180717285,
+        "candidate": 92.05688774233649,
+        "ratio": 0.815849590993085
+      },
+      {
+        "case": "speed_04dbbad1651540119148d95967058c11",
+        "kind": "rag",
+        "control": 125.05537608622858,
+        "candidate": 100.59065615966003,
+        "ratio": 0.8043689068617126
+      },
+      {
+        "case": "speed_08a5bcca5621439cb1b93a663843d75c",
+        "kind": "coding",
+        "control": 112.07278323282463,
+        "candidate": 141.81492028778752,
+        "ratio": 1.2653823363445462
+      },
+      {
+        "case": "speed_08f4c31730b4427f90e8146fef066c4c",
+        "kind": "coding",
+        "control": 148.88460764712812,
+        "candidate": 181.27201868852978,
+        "ratio": 1.2175336426863088
+      },
+      {
+        "case": "speed_0a7a83477d19422db773738a353b2795",
+        "kind": "coding",
+        "control": 157.3510391789457,
+        "candidate": 192.64641396041145,
+        "ratio": 1.2243097660214781
+      },
+      {
+        "case": "speed_0af14f1626604fb78c17db8e076be523",
+        "kind": "reasoning",
+        "control": 107.20788684731252,
+        "candidate": 82.85792695268375,
+        "ratio": 0.7728715618720436
+      },
+      {
+        "case": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+        "kind": "coding",
+        "control": 156.26427520302727,
+        "candidate": 177.0596096850689,
+        "ratio": 1.1330779825076664
+      },
+      {
+        "case": "speed_13027a52cab44af49105732cab0fa27b",
+        "kind": "reasoning",
+        "control": 106.78438983851186,
+        "candidate": 84.86756337652713,
+        "ratio": 0.7947562701334048
+      },
+      {
+        "case": "speed_150f42512f514ee6b63b2723fc2a69ff",
+        "kind": "reasoning",
+        "control": 111.63579923201625,
+        "candidate": 84.08678701793932,
+        "ratio": 0.7532242129890525
+      },
+      {
+        "case": "speed_1574e7b555934e60b662de65184269cc",
+        "kind": "writing",
+        "control": 122.05650212328456,
+        "candidate": 87.05993871431879,
+        "ratio": 0.713275714114623
+      },
+      {
+        "case": "speed_1672523d190a47e599498ce10e972d89",
+        "kind": "multilingual",
+        "control": 130.66291833864452,
+        "candidate": 117.4168062629449,
+        "ratio": 0.8986237852014822
+      },
+      {
+        "case": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+        "kind": "multilingual",
+        "control": 93.21563812518067,
+        "candidate": 71.38499404235806,
+        "ratio": 0.7658049172660716
+      },
+      {
+        "case": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+        "kind": "multilingual",
+        "control": 143.0737118939902,
+        "candidate": 136.86454919314676,
+        "ratio": 0.9566016522626875
+      },
+      {
+        "case": "speed_6aebfdd4784f4cce9c493132f0062407",
+        "kind": "multilingual",
+        "control": 109.35024561729506,
+        "candidate": 86.40265225616513,
+        "ratio": 0.7901459367412661
+      }
+    ],
+    "geometric_mean_ratio": 0.8656599448196126,
+    "domains": {
+      "coding": 1.209103457723448,
+      "multilingual": 0.8492462238877264,
+      "rag": 0.8841354992200594,
+      "reasoning": 0.7323972954315859,
+      "writing": 0.7310952549513697
+    }
+  },
+  "target_fp16_retry": {
+    "control": "e5m2_4",
+    "pairs": [
+      {
+        "case": "code_edit_1000",
+        "kind": "code_edit",
+        "control": 172.44759778996584,
+        "candidate": 74.91487616613472,
+        "ratio": 0.43442110604160455
+      },
+      {
+        "case": "code_edit_25000",
+        "kind": "code_edit",
+        "control": 173.92791204313673,
+        "candidate": 73.71880410231859,
+        "ratio": 0.4238468871174353
+      },
+      {
+        "case": "code_edit_70000",
+        "kind": "code_edit",
+        "control": 170.94758550255042,
+        "candidate": 72.95301190346895,
+        "ratio": 0.42675660898632894
+      },
+      {
+        "case": "code_edit_8192",
+        "kind": "code_edit",
+        "control": 174.30474297127066,
+        "candidate": 74.02381957217503,
+        "ratio": 0.4246804665801654
+      },
+      {
+        "case": "prose_1000",
+        "kind": "prose",
+        "control": 107.75971947029439,
+        "candidate": 74.90821662716456,
+        "ratio": 0.6951411621650905
+      },
+      {
+        "case": "prose_25000",
+        "kind": "prose",
+        "control": 108.59923925604728,
+        "candidate": 73.70754977335231,
+        "ratio": 0.6787114742081212
+      },
+      {
+        "case": "prose_70000",
+        "kind": "prose",
+        "control": 104.07799660954674,
+        "candidate": 72.92507994233264,
+        "ratio": 0.7006772066906163
+      },
+      {
+        "case": "prose_8192",
+        "kind": "prose",
+        "control": 110.67919926559591,
+        "candidate": 74.01074770633123,
+        "ratio": 0.6686960892148152
+      }
+    ],
+    "geometric_mean_ratio": 0.5413565905575951,
+    "domains": {
+      "code_edit": 0.4274059995013732,
+      "prose": 0.6856875160434011
+    }
+  }
+}

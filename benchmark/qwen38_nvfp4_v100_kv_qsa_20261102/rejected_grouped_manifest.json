@@ -1,0 +1,6 @@
+{
+  "python/sglang/jit_kernel/csrc/sm70_qsa_grouped_prefill.cu": "dc006d0fd11113942efb4579a4eee7fb83ef63933e9d7dad09a7dddb34749c98",
+  "python/sglang/jit_kernel/sm70_qsa_grouped_prefill.py": "2afae93b48c2fbe8dba5a988f1bac624c0bc8732f387d77bf303cecad01440e2",
+  "test/manual/layers/test_sm70_qsa_grouped_prefill.py": "dae28e1698a5282f9c5cf0f3ed8a299a0260825f01b34cf2897c0bc281b47607",
+  "benchmark/qwen38_spec/bench_qsa_prefill.py": "69e67bfed464dbe593c6f6cb6e3b2196aad40f190ad5b75be485d99199b19521"
+}

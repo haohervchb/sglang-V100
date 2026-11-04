@@ -572,6 +572,9 @@ class Envs:
     SGLANG_MM_PRECOMPUTE_HASH = EnvBool(False)
     SGLANG_VIT_ENABLE_CUDA_GRAPH = EnvBool(False)
     SGLANG_MM_SKIP_COMPUTE_HASH = EnvBool(False)
+    # Keep pixel preprocessing and JPEG decoding out of the tokenizer GPU.
+    # Vision encoding in model workers is unaffected.
+    SGLANG_MM_PREPROCESS_ON_CPU = EnvBool(False)
 
 
     # VLM Item CUDA IPC Transport
