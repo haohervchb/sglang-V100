@@ -179,7 +179,9 @@ class EAGLEDraftExtendCudaGraphRunner:
                 global_num_tokens_gpu = None
                 global_num_tokens_for_logprob_gpu = None
 
-            if hasattr(
+            if getattr(self.model_runner, "sm70_draft_logits_width", None) is not None:
+                vocab_size = self.model_runner.sm70_draft_logits_width
+            elif hasattr(
                 self.model_runner.model_config.hf_config, "draft_vocab_size"
             ):  # llama_eagle
                 vocab_size = self.model_runner.model_config.hf_config.draft_vocab_size
@@ -414,9 +416,9 @@ class EAGLEDraftExtendCudaGraphRunner:
             # path on FP8 logits, which corrupts MTP draft selection on AMD.
             # Keep the fastpath CUDA-only.
             if self.topk == 1 and not _is_hip:
-                ret.topk_index = torch.argmax(
-                    ret.next_token_logits, dim=-1, keepdim=True
-                )
+                from sglang.srt.speculative.sm70_draft_top1 import draft_top1
+
+                ret.topk_index = draft_top1(ret.next_token_logits, self.model_runner)
                 ret.topk_p = torch.ones_like(ret.topk_index, dtype=torch.float32)
             else:
                 probs = torch.softmax(ret.next_token_logits, dim=-1)

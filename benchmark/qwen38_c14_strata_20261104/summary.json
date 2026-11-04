@@ -1,0 +1,902 @@
+{
+  "baseline_commit": "23c879b38c6114ce3effd96baa052955b31dbcc1",
+  "model": "RadixArk/Qwen3.8-Flash-Next-NVFP4",
+  "model_revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "record_claim": false,
+  "selected_office_profile": "v5.5 MTP-3/4, cap8; new flags off",
+  "aggregation": "Arithmetic mean of per-batch aggregate rates; decode is per-stream, never summed",
+  "runs": {
+    "adaptive_code": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          45.26236560863372,
+          45.162868884853005
+        ],
+        "mean_aggregate_e2e_tok_s": 45.21261724674336,
+        "batch_median_decode_tok_s": [
+          55.85020913396602,
+          55.89387128264677
+        ],
+        "output_tokens_per_verification": 1.2172362555720653
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          61.455994266044584,
+          61.007986165718066
+        ],
+        "mean_aggregate_e2e_tok_s": 61.231990215881325,
+        "batch_median_decode_tok_s": [
+          35.279388741523775,
+          35.789230795641075
+        ],
+        "output_tokens_per_verification": 1.2166938957374127
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          70.43793122272709,
+          73.20044515132125
+        ],
+        "mean_aggregate_e2e_tok_s": 71.81918818702417,
+        "batch_median_decode_tok_s": [
+          27.964226408905017,
+          28.834542112638033
+        ],
+        "output_tokens_per_verification": 1.2197736748064325
+      }
+    },
+    "adaptive_control_code": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          45.254887962442766
+        ],
+        "mean_aggregate_e2e_tok_s": 45.254887962442766,
+        "batch_median_decode_tok_s": [
+          56.106231561547276
+        ],
+        "output_tokens_per_verification": 1.2226865671641791
+      },
+      "2": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          61.020042113511835
+        ],
+        "mean_aggregate_e2e_tok_s": 61.020042113511835,
+        "batch_median_decode_tok_s": [
+          35.21903118695005
+        ],
+        "output_tokens_per_verification": 1.2183224271267104
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          70.32716616691087
+        ],
+        "mean_aggregate_e2e_tok_s": 70.32716616691087,
+        "batch_median_decode_tok_s": [
+          31.920206362811577
+        ],
+        "output_tokens_per_verification": 1.2161520190023754
+      }
+    },
+    "adaptive_control_prose": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          101.1192142752258
+        ],
+        "mean_aggregate_e2e_tok_s": 101.1192142752258,
+        "batch_median_decode_tok_s": [
+          104.96253527814893
+        ],
+        "output_tokens_per_verification": 2.2309368191721135
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          222.4987921561567
+        ],
+        "mean_aggregate_e2e_tok_s": 222.4987921561567,
+        "batch_median_decode_tok_s": [
+          58.993599012808545
+        ],
+        "output_tokens_per_verification": 2.1974248927038627
+      }
+    },
+    "adaptive_control_speed": {
+      "1": {
+        "successful_batches": 0,
+        "failed_batches": 1,
+        "successful_requests": 0,
+        "aggregate_e2e_tok_s": [],
+        "mean_aggregate_e2e_tok_s": null,
+        "batch_median_decode_tok_s": [],
+        "output_tokens_per_verification": null
+      }
+    },
+    "adaptive_prose": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          101.00768185516392,
+          101.02710138530733
+        ],
+        "mean_aggregate_e2e_tok_s": 101.01739162023563,
+        "batch_median_decode_tok_s": [
+          104.7738382264427,
+          104.88004332545249
+        ],
+        "output_tokens_per_verification": 2.2309368191721135
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          146.22116138465086,
+          146.28694738802852
+        ],
+        "mean_aggregate_e2e_tok_s": 146.2540543863397,
+        "batch_median_decode_tok_s": [
+          76.43744946070878,
+          76.47324932422703
+        ],
+        "output_tokens_per_verification": 2.223669923995657
+      },
+      "3": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          173.00589382461067,
+          172.36124125520854
+        ],
+        "mean_aggregate_e2e_tok_s": 172.6835675399096,
+        "batch_median_decode_tok_s": [
+          64.15705922940148,
+          64.4332912851251
+        ],
+        "output_tokens_per_verification": 2.195952285216459
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          223.26219485914078,
+          225.09056196318798
+        ],
+        "mean_aggregate_e2e_tok_s": 224.17637841116436,
+        "batch_median_decode_tok_s": [
+          59.68845548977727,
+          59.29182369840315
+        ],
+        "output_tokens_per_verification": 2.1877420216317267
+      }
+    },
+    "adaptive_speed": {
+      "1": {
+        "successful_batches": 0,
+        "failed_batches": 1,
+        "successful_requests": 0,
+        "aggregate_e2e_tok_s": [],
+        "mean_aggregate_e2e_tok_s": null,
+        "batch_median_decode_tok_s": [],
+        "output_tokens_per_verification": null
+      }
+    },
+    "baseline_code": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          101.12094383505409,
+          101.07245314040401
+        ],
+        "mean_aggregate_e2e_tok_s": 101.09669848772904,
+        "batch_median_decode_tok_s": [
+          181.4171009386026,
+          181.41128941244696
+        ],
+        "output_tokens_per_verification": 4.0
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          124.15630201814704,
+          124.22060668633449
+        ],
+        "mean_aggregate_e2e_tok_s": 124.18845435224077,
+        "batch_median_decode_tok_s": [
+          113.87995734910085,
+          113.99135260523289
+        ],
+        "output_tokens_per_verification": 4.0
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          149.57130772099873,
+          149.89007313441394
+        ],
+        "mean_aggregate_e2e_tok_s": 149.73069042770635,
+        "batch_median_decode_tok_s": [
+          68.3621889626317,
+          68.46800646802458
+        ],
+        "output_tokens_per_verification": 3.9980478282088825
+      }
+    },
+    "baseline_prose": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          115.47990559151384,
+          114.07315960306373
+        ],
+        "mean_aggregate_e2e_tok_s": 114.77653259728879,
+        "batch_median_decode_tok_s": [
+          119.49897268886605,
+          118.53798329070293
+        ],
+        "output_tokens_per_verification": 2.56
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          166.43133261672835,
+          165.54018262082684
+        ],
+        "mean_aggregate_e2e_tok_s": 165.9857576187776,
+        "batch_median_decode_tok_s": [
+          86.76131791543176,
+          86.48110824971462
+        ],
+        "output_tokens_per_verification": 2.5528201932066064
+      },
+      "3": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          199.25027716827606,
+          198.4784008680749
+        ],
+        "mean_aggregate_e2e_tok_s": 198.86433901817549,
+        "batch_median_decode_tok_s": [
+          73.94306223561861,
+          75.37233169657901
+        ],
+        "output_tokens_per_verification": 2.5652105839987476
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          255.3933362428473,
+          254.85282934258885
+        ],
+        "mean_aggregate_e2e_tok_s": 255.1230827927181,
+        "batch_median_decode_tok_s": [
+          68.58032487849846,
+          68.53553854804244
+        ],
+        "output_tokens_per_verification": 2.5528201932066064
+      }
+    },
+    "compact_c8": {
+      "8": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          360.53302784410295,
+          364.98442367376464
+        ],
+        "mean_aggregate_e2e_tok_s": 362.7587257589338,
+        "batch_median_decode_tok_s": [
+          49.40715487981055,
+          49.56165906404555
+        ],
+        "output_tokens_per_verification": 2.577721837633732
+      }
+    },
+    "compact_code": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          102.69902793549741,
+          102.75101941189577
+        ],
+        "mean_aggregate_e2e_tok_s": 102.7250236736966,
+        "batch_median_decode_tok_s": [
+          181.8818950389931,
+          182.05716015097573
+        ],
+        "output_tokens_per_verification": 4.0
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          126.62194213611194,
+          126.79118368352671
+        ],
+        "mean_aggregate_e2e_tok_s": 126.70656290981933,
+        "batch_median_decode_tok_s": [
+          114.56357755107273,
+          114.9266038057023
+        ],
+        "output_tokens_per_verification": 4.0
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          153.41710779530513,
+          153.43013218051172
+        ],
+        "mean_aggregate_e2e_tok_s": 153.4236199879084,
+        "batch_median_decode_tok_s": [
+          69.58764414576126,
+          69.55673093430221
+        ],
+        "output_tokens_per_verification": 4.0
+      }
+    },
+    "compact_prose": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          115.03628980688029,
+          115.15153957607461
+        ],
+        "mean_aggregate_e2e_tok_s": 115.09391469147745,
+        "batch_median_decode_tok_s": [
+          119.21280548308115,
+          119.27091165524322
+        ],
+        "output_tokens_per_verification": 2.575290789060044
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          166.75895280892263,
+          166.75138759080383
+        ],
+        "mean_aggregate_e2e_tok_s": 166.75517019986324,
+        "batch_median_decode_tok_s": [
+          86.97728998121488,
+          86.95251838237374
+        ],
+        "output_tokens_per_verification": 2.5528201932066064
+      },
+      "3": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          200.10566200378193,
+          197.74389002554184
+        ],
+        "mean_aggregate_e2e_tok_s": 198.9247760146619,
+        "batch_median_decode_tok_s": [
+          73.24850551775295,
+          72.12521099363394
+        ],
+        "output_tokens_per_verification": 2.527225050131112
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          256.2624181859297,
+          256.22300103044637
+        ],
+        "mean_aggregate_e2e_tok_s": 256.242709608188,
+        "batch_median_decode_tok_s": [
+          68.83214793385122,
+          68.8091036624032
+        ],
+        "output_tokens_per_verification": 2.5656122768556218
+      }
+    },
+    "compact_speed": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 20,
+        "aggregate_e2e_tok_s": [
+          119.66766407623214
+        ],
+        "mean_aggregate_e2e_tok_s": 119.66766407623214,
+        "batch_median_decode_tok_s": [
+          141.67729795175208
+        ],
+        "output_tokens_per_verification": 2.900408580183861
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 20,
+        "aggregate_e2e_tok_s": [
+          234.16451448500928
+        ],
+        "mean_aggregate_e2e_tok_s": 234.16451448500928,
+        "batch_median_decode_tok_s": [
+          65.1693394759008
+        ],
+        "output_tokens_per_verification": 2.9482114255205554
+      }
+    },
+    "post_c8": {
+      "8": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          361.33296054861535
+        ],
+        "mean_aggregate_e2e_tok_s": 361.33296054861535,
+        "batch_median_decode_tok_s": [
+          49.02341794976053
+        ],
+        "output_tokens_per_verification": 2.577721837633732
+      }
+    },
+    "post_code": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          101.02557006721457
+        ],
+        "mean_aggregate_e2e_tok_s": 101.02557006721457,
+        "batch_median_decode_tok_s": [
+          181.40168146209663
+        ],
+        "output_tokens_per_verification": 4.0
+      },
+      "2": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          126.49506285911286
+        ],
+        "mean_aggregate_e2e_tok_s": 126.49506285911286,
+        "batch_median_decode_tok_s": [
+          113.76153676469306
+        ],
+        "output_tokens_per_verification": 3.9960975609756098
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          153.33285689187875
+        ],
+        "mean_aggregate_e2e_tok_s": 153.33285689187875,
+        "batch_median_decode_tok_s": [
+          69.30957688767039
+        ],
+        "output_tokens_per_verification": 4.0
+      }
+    },
+    "post_prose": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          115.60758170346934
+        ],
+        "mean_aggregate_e2e_tok_s": 115.60758170346934,
+        "batch_median_decode_tok_s": [
+          119.58934349765879
+        ],
+        "output_tokens_per_verification": 2.56
+      },
+      "2": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          166.22489013830932
+        ],
+        "mean_aggregate_e2e_tok_s": 166.22489013830932,
+        "batch_median_decode_tok_s": [
+          86.62403891813447
+        ],
+        "output_tokens_per_verification": 2.5528201932066064
+      },
+      "3": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          198.58416488880394
+        ],
+        "mean_aggregate_e2e_tok_s": 198.58416488880394,
+        "batch_median_decode_tok_s": [
+          73.97953632219209
+        ],
+        "output_tokens_per_verification": 2.56
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 8,
+        "aggregate_e2e_tok_s": [
+          251.95731774363844
+        ],
+        "mean_aggregate_e2e_tok_s": 251.95731774363844,
+        "batch_median_decode_tok_s": [
+          68.36612464948004
+        ],
+        "output_tokens_per_verification": 2.5362229102167184
+      }
+    },
+    "post_speed": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 20,
+        "aggregate_e2e_tok_s": [
+          120.81104872069858
+        ],
+        "mean_aggregate_e2e_tok_s": 120.81104872069858,
+        "batch_median_decode_tok_s": [
+          143.06342204370412
+        ],
+        "output_tokens_per_verification": 2.900408580183861
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 20,
+        "aggregate_e2e_tok_s": [
+          233.30267234020124
+        ],
+        "mean_aggregate_e2e_tok_s": 233.30267234020124,
+        "batch_median_decode_tok_s": [
+          65.04825362396126
+        ],
+        "output_tokens_per_verification": 2.9482114255205554
+      }
+    },
+    "wide8_code": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          112.36825493107224,
+          112.90728966593053
+        ],
+        "mean_aggregate_e2e_tok_s": 112.63777229850139,
+        "batch_median_decode_tok_s": [
+          216.49945419215067,
+          219.7391130961011
+        ],
+        "output_tokens_per_verification": 7.779677113010447
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          142.13132879819935,
+          142.52656239290494
+        ],
+        "mean_aggregate_e2e_tok_s": 142.32894559555214,
+        "batch_median_decode_tok_s": [
+          144.94864922447664,
+          133.46774613274067
+        ],
+        "output_tokens_per_verification": 7.779677113010447
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          151.46385174684923,
+          148.59547931155916
+        ],
+        "mean_aggregate_e2e_tok_s": 150.02966552920418,
+        "batch_median_decode_tok_s": [
+          106.55413364995071,
+          105.15369073866077
+        ],
+        "output_tokens_per_verification": 7.794481446241675
+      }
+    },
+    "wide8_prose": {
+      "1": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          84.28991457342192,
+          84.408158898778
+        ],
+        "mean_aggregate_e2e_tok_s": 84.34903673609996,
+        "batch_median_decode_tok_s": [
+          87.17381027813232,
+          87.28671978808755
+        ],
+        "output_tokens_per_verification": 3.0430906389301633
+      },
+      "2": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          133.97802533358671,
+          134.11994554566104
+        ],
+        "mean_aggregate_e2e_tok_s": 134.0489854396239,
+        "batch_median_decode_tok_s": [
+          69.44814191764075,
+          69.52306955101368
+        ],
+        "output_tokens_per_verification": 2.9767441860465116
+      },
+      "3": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          156.29489183284295,
+          160.91162500865718
+        ],
+        "mean_aggregate_e2e_tok_s": 158.60325842075008,
+        "batch_median_decode_tok_s": [
+          57.839561089967084,
+          58.16259495976274
+        ],
+        "output_tokens_per_verification": 2.9654298642533936
+      },
+      "4": {
+        "successful_batches": 2,
+        "failed_batches": 0,
+        "successful_requests": 16,
+        "aggregate_e2e_tok_s": [
+          199.28106797059965,
+          199.1456726538509
+        ],
+        "mean_aggregate_e2e_tok_s": 199.21337031222527,
+        "batch_median_decode_tok_s": [
+          52.47645978099913,
+          52.51576433821179
+        ],
+        "output_tokens_per_verification": 2.988690259029551
+      }
+    },
+    "wide8_speed": {
+      "1": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 20,
+        "aggregate_e2e_tok_s": [
+          97.32291395038195
+        ],
+        "mean_aggregate_e2e_tok_s": 97.32291395038195,
+        "batch_median_decode_tok_s": [
+          103.63111776959107
+        ],
+        "output_tokens_per_verification": 3.769588313413015
+      },
+      "4": {
+        "successful_batches": 1,
+        "failed_batches": 0,
+        "successful_requests": 20,
+        "aggregate_e2e_tok_s": [
+          206.95004798349478
+        ],
+        "mean_aggregate_e2e_tok_s": 206.95004798349478,
+        "batch_median_decode_tok_s": [
+          59.45663266831165
+        ],
+        "output_tokens_per_verification": 3.797668038408779
+      }
+    }
+  },
+  "first_repeat_output_parity": {
+    "compact_code": {
+      "1": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      }
+    },
+    "wide8_code": {
+      "1": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      }
+    },
+    "adaptive_code": {
+      "1": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      }
+    },
+    "adaptive_control_code": {
+      "1": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      }
+    },
+    "post_code": {
+      "4": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "1": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      }
+    },
+    "compact_prose": {
+      "1": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "3": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      }
+    },
+    "wide8_prose": {
+      "1": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "3": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      }
+    },
+    "adaptive_prose": {
+      "1": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "3": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      }
+    },
+    "adaptive_control_prose": {
+      "1": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "4": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      }
+    },
+    "post_prose": {
+      "4": {
+        "equal_output_hashes": 1,
+        "compared": 8
+      },
+      "3": {
+        "equal_output_hashes": 0,
+        "compared": 8
+      },
+      "2": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      },
+      "1": {
+        "equal_output_hashes": 8,
+        "compared": 8
+      }
+    }
+  }
+}

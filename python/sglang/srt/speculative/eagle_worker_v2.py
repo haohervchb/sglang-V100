@@ -189,6 +189,12 @@ class EagleDraftWorker(BaseDraftWorker):
         self.init_token_map()
         self.init_lm_head()
 
+        from sglang.srt.speculative.sm70_draft_top1 import configure_draft_top1
+
+        self.sm70_local_top1 = configure_draft_top1(
+            self.draft_runner, self.topk, self.hot_token_id
+        )
+
         # Init attention backend and cuda graphs
         self.draft_runner.server_args.disable_cuda_graph = backup_disable_cuda_graph
         self.draft_tp_context = (
@@ -616,18 +622,25 @@ class EagleDraftWorker(BaseDraftWorker):
                 # Gated to CUDA: on ROCm the argmax tie-break diverges from
                 # the softmax+max path on FP8 logits and corrupts MTP draft
                 # selection (DSV3.2 MTP GSM8K, see #26358).
-                topk_index = torch.argmax(
-                    logits_output.next_token_logits, dim=-1, keepdim=True
+                from sglang.srt.speculative.sm70_draft_top1 import draft_top1
+
+                topk_index = draft_top1(
+                    logits_output.next_token_logits, self.draft_runner
                 )
                 topk_p = torch.ones_like(topk_index, dtype=torch.float32)
             else:
                 probs = torch.softmax(logits_output.next_token_logits, dim=-1)
                 topk_p, topk_index = fast_topk(probs, self.topk, dim=-1)
+            vocab_limit = (
+                self.draft_runner.model_config.vocab_size
+                if self.sm70_local_top1
+                else logits_output.next_token_logits.shape[-1]
+            )
             maybe_detect_oob(
                 topk_index,
                 0,
-                logits_output.next_token_logits.shape[-1],
-                f"draft_forward step {i}: topk_index OOB vs vocab_size={logits_output.next_token_logits.shape[-1]}",
+                vocab_limit,
+                f"draft_forward step {i}: topk_index OOB vs vocab_size={vocab_limit}",
             )
             if self.hot_token_id is not None:
                 topk_index = self.hot_token_id[topk_index]
@@ -736,10 +749,20 @@ class EagleDraftWorker(BaseDraftWorker):
         maybe_detect_inf(logits_output.next_token_logits, "draft_extend_for_prefill")
 
         # Update spec_info for the next draft step
-        probs = torch.softmax(logits_output.next_token_logits, dim=-1)
-        next_draft_input.topk_p, next_draft_input.topk_index = fast_topk(
-            probs, self.topk, dim=-1
-        )
+        if self.sm70_local_top1:
+            from sglang.srt.speculative.sm70_draft_top1 import draft_top1
+
+            next_draft_input.topk_index = draft_top1(
+                logits_output.next_token_logits, self.draft_runner
+            )
+            next_draft_input.topk_p = torch.ones_like(
+                next_draft_input.topk_index, dtype=torch.float32
+            )
+        else:
+            probs = torch.softmax(logits_output.next_token_logits, dim=-1)
+            next_draft_input.topk_p, next_draft_input.topk_index = fast_topk(
+                probs, self.topk, dim=-1
+            )
         next_draft_input.hidden_states = logits_output.hidden_states
         return next_draft_input
 
@@ -827,8 +850,10 @@ class EagleDraftWorker(BaseDraftWorker):
         if self.topk == 1 and not _is_hip:
             # Gated to CUDA: see #26358 — ROCm's argmax tie-break corrupts
             # MTP draft selection on FP8 logits.
-            ret_topk_index = torch.argmax(
-                draft_logits_output.next_token_logits, dim=-1, keepdim=True
+            from sglang.srt.speculative.sm70_draft_top1 import draft_top1
+
+            ret_topk_index = draft_top1(
+                draft_logits_output.next_token_logits, self.draft_runner
             )
             ret_topk_p = torch.ones_like(ret_topk_index, dtype=torch.float32)
         else:

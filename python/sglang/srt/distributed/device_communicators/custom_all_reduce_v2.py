@@ -76,6 +76,16 @@ class CustomAllReduceV2:
             self.max_size = max_push_size
         self.override_shot(None)  # set default config based on world size
         self.override_algo: Optional[AllReduceAlgo] = None
+        if (
+            max_push_blocks is None
+            and full_nvlink
+            and self.world_size == 4
+            and os.environ.get("SGLANG_SM70_AR_PUSH16", "0") == "1"
+            and torch.cuda.get_device_capability(device) == (7, 0)
+        ):
+            # Constant for the communicator lifetime, including all captures.
+            # Small TP4 messages were measured with fewer resident push CTAs.
+            max_push_blocks = 16
         self.obj = get_custom_all_reduce_cls()(
             rank=self.rank,
             world_size=self.world_size,
