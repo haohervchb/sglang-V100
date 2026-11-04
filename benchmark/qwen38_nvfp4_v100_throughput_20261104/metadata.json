@@ -1,0 +1,31 @@
+{
+  "source": "/home/rah/1Cat-vLLM/flash-attention-v100",
+  "source_revision": "d8f42b391af06410ab01bb71657ededf7dce7799",
+  "source_patch": "python/sglang/jit_kernel/third_party/flash_v100/grouped_masked_kv.patch",
+  "source_patch_sha256": "75969b411374e4f9dc728aad74457210d864e48ae2a97e853aad053fee391e06",
+  "torch": "2.9.1+cu128",
+  "cuda": "12.8",
+  "output": "/home/rah/qwen38-runs/20261104-throughput/build/grouped_masked/sglang_grouped_masked.so",
+  "sha256": "d1f134b5aac7134c0dfc3e7dd8b8cd30712d84b2103d622e635d043ec8a8c83d",
+  "source_hashes": {
+    "LICENSE": "f5bb48b59e45ad3f1481627d8906448b456ebed0d31a874cdf2a12f1e3a8854f",
+    "kernel/flash_v100_traits.cuh": "a2fcf0385362a5546f475479efcac49f49a4d7636dc57c12edd52fbbeae38d5c",
+    "kernel/fp8_kv_utils.cuh": "4e63a1f0799b8f2ad73e7424c13604f7fe64f20bc02f5353c541c06bf6d4e86d",
+    "kernel/flash_decode_paged.cu": "7c301fb2f1b56c5d29bfe9da481b11591164429639d4f7a50e96ce7834e943ae",
+    "kernel/paged_kv_utils.cuh": "30cb5bd45f176b4621f4b20808b871f3033d030debb1518863b2645e23e9fcae",
+    "include/fused_mha.h": "af1ae9ef5f48e9a7808158601f835ebc4f8c5f7b48e6fd1b894471c0e4023c7b",
+    "include/fused_mma.h": "1fd3d5d6a0aab89fcb91f527ea52628696068d973a392e44272b44c0097c99cc"
+  },
+  "baseline_revision": "2a1c410b97a7d79549f1e0564c19d40d929504a1",
+  "model_revision": "7b719225242aacd3dbd3f9407468c2ee9a9d2594",
+  "raw_run_directory": "/home/rah/qwen38-runs/20261104-throughput",
+  "device_memcheck_options": [
+    "--tool",
+    "memcheck",
+    "--report-api-errors",
+    "no",
+    "--padding",
+    "4096"
+  ],
+  "device_memcheck_note": "API reports disabled after confirming 34 handled cuGetProcAddress_v2 capability-query errors; padded device memory checking reported zero errors."
+}

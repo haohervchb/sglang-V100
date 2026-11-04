@@ -1,8 +1,8 @@
 """Exercise queued long documents, retained caches and changing prefill sizes.
 
-This sends four concurrent clients to a server that may admit only one active
-request. It never flushes caches between requests. NVML tracks device memory
-without creating another CUDA context.
+This sends one concurrent client per document length (four by default). It
+never flushes caches between requests. NVML tracks device memory without
+creating another CUDA context.
 """
 
 import argparse
@@ -22,6 +22,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8082")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--lengths",
+        type=int,
+        nargs="+",
+        default=[18753, 23791, 70015, 95037],
+        help="One independent client per document length",
+    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=False)
 
@@ -126,10 +133,12 @@ def main():
     thread = threading.Thread(target=monitor, daemon=True)
     thread.start()
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=len(args.lengths)
+        ) as executor:
             futures = [
                 executor.submit(run_client, index, length)
-                for index, length in enumerate((18753, 23791, 70015, 95037))
+                for index, length in enumerate(args.lengths)
             ]
             for future in futures:
                 future.result()
@@ -140,9 +149,10 @@ def main():
         (args.output_dir / "memory.json").write_text(json.dumps(memory_samples) + "\n")
 
     summary = dict(
-        passed=len(results) == 24 and all(r["passed"] for r in results),
+        passed=len(results) == 6 * len(args.lengths)
+        and all(r["passed"] for r in results),
         completed=len(results),
-        expected=24,
+        expected=6 * len(args.lengths),
         seconds=time.monotonic() - start,
         min_free_mib=[
             round(min(s["free_bytes"][i] for s in memory_samples) / 2**20, 1)

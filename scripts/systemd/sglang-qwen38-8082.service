@@ -13,7 +13,7 @@ Environment=PATH=%h/miniconda3/envs/sglang-v100/bin:/usr/local/cuda-12.8/bin:/us
 Environment=CUDA_VISIBLE_DEVICES=0,1,2,3
 Environment=PORT=8082
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/bash %h/sglang-V100/scripts/serve_qwen38_flash_next_nvfp4_v100_mtp.sh
+ExecStart=/usr/bin/bash %h/sglang-V100/scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh
 Restart=on-failure
 RestartSec=15
 KillMode=control-group

@@ -7,7 +7,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("batch_size", [1, 2, 4, 6, 8])
+@pytest.mark.parametrize("batch_size", [1, 2, 4, 6, 8, 12, 16])
 def test_sm70_topk10_softmax_matches_torch(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
@@ -29,7 +29,7 @@ def test_sm70_topk10_softmax_matches_torch(batch_size):
     torch.testing.assert_close(weights, reference_weights, rtol=2e-6, atol=3e-8)
 
 
-@pytest.mark.parametrize("rows", [4, 6, 8])
+@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16])
 def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
 
@@ -83,7 +83,7 @@ def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
-@pytest.mark.parametrize("rows", [4, 6, 8])
+@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16])
 def test_sm70_topk10_softmax_ties_and_signed_zero(dtype, rows):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
@@ -99,7 +99,7 @@ def test_sm70_topk10_softmax_ties_and_signed_zero(dtype, rows):
     torch.testing.assert_close(weights, expected_weights, rtol=2e-6, atol=3e-8)
 
 
-@pytest.mark.parametrize("batch_size", [1, 4])
+@pytest.mark.parametrize("batch_size", [1, 4, 8, 12, 16])
 def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
     from sglang.srt.layers.quantization.gptq import gptq_marlin_moe_repack
@@ -147,6 +147,23 @@ def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     ids[:, -1] = -1  # Masked routes must not read stale partials.
     weights = torch.softmax(torch.randn(batch_size, 10, device=device), dim=-1)
     output = sm70_nvfp4_moe_decode(x, w13, w2, s13, s2, g13, g2, ids, weights)
+    individual = torch.cat(
+        [
+            sm70_nvfp4_moe_decode(
+                x[row : row + 1],
+                w13,
+                w2,
+                s13,
+                s2,
+                g13,
+                g2,
+                ids[row : row + 1],
+                weights[row : row + 1],
+            )
+            for row in range(batch_size)
+        ]
+    )
+    torch.testing.assert_close(output, individual, rtol=0, atol=0)
     reference = torch.zeros_like(x, dtype=torch.float32)
     for row in range(batch_size):
         for route in range(9):
@@ -161,4 +178,15 @@ def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     # cancellations near zero do not require a loose relative tolerance.
     relative_l2 = (output.float() - reference).norm() / reference.norm()
     assert relative_l2 < 0.003
-    torch.testing.assert_close(output.float(), reference, rtol=0.02, atol=0.01)
+    if batch_size in (1, 4):
+        # Preserve the existing pointwise gates for their original fixtures.
+        torch.testing.assert_close(output.float(), reference, rtol=0.02, atol=0.01)
+    else:
+        # Larger random fixtures expose cancellation-sensitive outliers also
+        # produced bit-for-bit by the established one-row kernel above. Bound
+        # peak-relative error as well as the unchanged L2 limit; increasing
+        # batch size must not introduce any additional arithmetic error.
+        relative_peak_error = (
+            output.float() - reference
+        ).abs().max() / reference.abs().max()
+        assert relative_peak_error < 0.003

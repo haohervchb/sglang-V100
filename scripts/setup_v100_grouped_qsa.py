@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import torch
@@ -29,6 +30,7 @@ at::Tensor flash_attention_grouped_sparse_page4(
     std::optional<at::Tensor>&, const at::Tensor&, const at::Tensor&,
     const at::Tensor&, at::Tensor&, float);
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+  m.attr("sglang_masked_sparse_kv") = true;
   m.def("grouped_sparse_page4_plan_fwd", &flash_attention_grouped_sparse_page4_plan);
   m.def("grouped_sparse_page4_fwd", &flash_attention_grouped_sparse_page4);
 }
@@ -55,6 +57,9 @@ def main():
     if "flash_attention_grouped_sparse_page4_plan" not in contents:
         raise RuntimeError("The source checkout lacks grouped Page4 prefill")
     snapshot.mkdir(parents=True, exist_ok=True)
+    patched_cuda = snapshot / "kernel/flash_decode_paged.cu"
+    previous_cuda = patched_cuda.read_bytes() if patched_cuda.exists() else None
+    previous_stat = patched_cuda.stat() if patched_cuda.exists() else None
     for directory in ["include", "kernel"]:
         for path in (source / directory).rglob("*"):
             if path.is_file() and (path.suffix in (".h", ".cuh") or path == cuda_file):
@@ -62,8 +67,23 @@ def main():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, target)
     shutil.copy2(source / "LICENSE", snapshot / "LICENSE")
+    mask_patch = (
+        ROOT / "python/sglang/jit_kernel/third_party/flash_v100/grouped_masked_kv.patch"
+    )
+    subprocess.run(
+        ["patch", "--batch", "-p1", "-i", str(mask_patch)],
+        cwd=snapshot,
+        check=True,
+    )
+    if previous_stat is not None and patched_cuda.read_bytes() == previous_cuda:
+        # Reapplying an unchanged patch need not rebuild the large CUDA unit.
+        os.utime(
+            patched_cuda,
+            ns=(previous_stat.st_atime_ns, previous_stat.st_mtime_ns),
+        )
     bindings = build / "bindings.cpp"
-    bindings.write_text(BINDINGS)
+    if not bindings.exists() or bindings.read_text() != BINDINGS:
+        bindings.write_text(BINDINGS)
     os.environ.setdefault("MAX_JOBS", "2")
     os.environ["TORCH_CUDA_ARCH_LIST"] = "7.0"
     module = load(
@@ -88,13 +108,22 @@ def main():
         module, "grouped_sparse_page4_fwd"
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(module.__file__, args.output)
+    # Keep an already loaded library intact until an atomic replacement.
+    fd, temporary = tempfile.mkstemp(dir=args.output.parent, suffix=".so.tmp")
+    os.close(fd)
+    try:
+        shutil.copy2(module.__file__, temporary)
+        os.replace(temporary, args.output)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
     revision = subprocess.run(
         ["git", "-C", str(source), "rev-parse", "HEAD"], capture_output=True, text=True
     )
     metadata = dict(
         source=str(source),
         source_revision=revision.stdout.strip() if revision.returncode == 0 else None,
+        source_patch=str(mask_patch.relative_to(ROOT)),
+        source_patch_sha256=hashlib.sha256(mask_patch.read_bytes()).hexdigest(),
         torch=torch.__version__,
         cuda=torch.version.cuda,
         output=str(args.output),

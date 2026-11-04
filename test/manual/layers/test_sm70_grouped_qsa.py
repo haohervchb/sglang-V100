@@ -1,6 +1,5 @@
 """Grouped Page4 attention must preserve visibility and dynamic paged mapping."""
 
-
 import pytest
 import torch
 
@@ -10,8 +9,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.mark.parametrize("poison_unused", [False, True])
 @pytest.mark.parametrize("prefix,rows", [(0, 8), (2048, 16), (25000, 16), (262000, 8)])
-def test_grouped_qsa_reference_and_graph_replay(prefix, rows):
+def test_grouped_qsa_reference_and_graph_replay(prefix, rows, poison_unused):
     from sglang.srt.layers.attention.tilelang_fa_v100._grouped_qsa import (
         grouped_qsa_prefill,
         load_grouped_qsa_ops,
@@ -22,7 +22,8 @@ def test_grouped_qsa_reference_and_graph_replay(prefix, rows):
     )
     torch.manual_seed(751 + prefix)
     max_length = prefix + rows + 3
-    capacity = ((max_length + 15) // 16) * 16
+    # Physical page zero is reserved. Planner padding must not read it.
+    capacity = (((max_length + 15) // 16) + 1) * 16
     q = torch.randn(rows, 6, 256, device="cuda", dtype=torch.float16)
     k = torch.randn(capacity, 1, 256, device="cuda", dtype=torch.float16)
     v = torch.randn_like(k)
@@ -30,7 +31,11 @@ def test_grouped_qsa_reference_and_graph_replay(prefix, rows):
     table = torch.stack(
         [
             (
-                torch.randperm(pages, device="cuda", dtype=torch.int32)[:, None] * 16
+                (
+                    torch.randperm(pages - 1, device="cuda", dtype=torch.int32)[:, None]
+                    + 1
+                )
+                * 16
                 + torch.arange(16, device="cuda", dtype=torch.int32)
             ).flatten()
             for _ in range(2)
@@ -45,6 +50,16 @@ def test_grouped_qsa_reference_and_graph_replay(prefix, rows):
         q.normal_()
         req.fill_(iteration % 2)
         lens.fill_(length)
+        if poison_unused:
+            k.fill_(float("nan"))
+            v.fill_(float("nan"))
+            live_slots = table[iteration % 2, :length].long()
+            k[live_slots] = torch.randn(
+                length, 1, 256, device="cuda", dtype=torch.float16
+            )
+            v[live_slots] = torch.randn(
+                length, 1, 256, device="cuda", dtype=torch.float16
+            )
         indices.fill_(-1)
         expected = []
         for row in range(rows):

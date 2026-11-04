@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 import torch
+from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode_max_rows
 from sglang.srt.layers.moe.moe_runner.base import (
     MoeQuantInfo,
     MoeRunnerConfig,
@@ -94,7 +94,7 @@ def fused_experts_none_to_marlin(
     assert runner_config.activation == "silu", "Only SiLU activation is supported."
 
     # Qwen3.8 Flash Next's TP4 decode shape is too skinny for Marlin's
-    # block-padded grouped GEMM: M<=4 routes ten rows through I=160 experts.
+    # block-padded grouped GEMM: small batches route ten rows through I=160 experts.
     # On Volta, stream the existing Marlin-repacked NVFP4 tensors directly and
     # split K widely enough to occupy all 80 SMs. Keep Marlin for prefill and
     # every other model/shape.
@@ -104,7 +104,7 @@ def fused_experts_none_to_marlin(
         and hidden_states.ndim == 2
         and 1
         <= hidden_states.shape[0]
-        <= (8 if os.environ.get("SGLANG_SM70_MTP_WIDE_MOE", "0") == "1" else 4)
+        <= sm70_nvfp4_moe_decode_max_rows()
         and hidden_states.shape[1] == 2560
         and tuple(topk_output.topk_ids.shape) == (hidden_states.shape[0], 10)
         and tuple(quant_info.w13_qweight.shape) == (512, 160, 640)

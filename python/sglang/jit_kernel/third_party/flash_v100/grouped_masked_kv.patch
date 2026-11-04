@@ -1,0 +1,76 @@
+--- a/kernel/flash_decode_paged.cu
++++ b/kernel/flash_decode_paged.cu
+@@ -829,7 +829,8 @@
+     const int kv_head_idx, const int64_t block_stride,
+     const int64_t token_stride, const int64_t head_stride,
+     const int panel_offset, const int copy_thread_idx = threadIdx.x,
+-    const uint16_t* __restrict__ e4m3_lut = nullptr) {
++    const uint16_t* __restrict__ e4m3_lut = nullptr,
++    const uint32_t* __restrict__ sparse_token_masks = nullptr) {
+   uint4* shared_vec = reinterpret_cast<uint4*>(shared_kv);
+   if constexpr (FP8_PAIR_LOAD) {
+     static_assert(KV_DTYPE == flash_v100::KV_CACHE_DTYPE_FP8_E4M3 ||
+@@ -908,6 +909,15 @@
+          copy_idx += NUM_THREADS) {
+       const int row = copy_idx / panel_d_stride_uint4;
+       const int vec_col = copy_idx % panel_d_stride_uint4;
++      // A sparse planner may pad a category with page zero. Never load a
++      // token unused by every query: zero probability times NaN is still NaN.
++      if (sparse_token_masks != nullptr &&
++          (sparse_token_masks[row >> 2] &
++           (0x11111111u << (row & 3))) == 0) {
++        shared_vec[row * kv_smem_stride_uint4 + vec_col] =
++            make_uint4(0, 0, 0, 0);
++        continue;
++      }
+       shared_vec[row * kv_smem_stride_uint4 + vec_col] =
+           load_xqa_tc_kv_vector<BLOCK_SIZE, CONTIGUOUS_HKV1_LAYOUT, KV_DTYPE,
+                                 E4M3_SHARED_LUT>(
+@@ -2118,6 +2128,8 @@
+                           (tile_start >> 2) + tid)
+                   : 0;
+         }
++        // Masked K/V loads consume masks written by other warps.
++        __syncthreads();
+       }
+       const int tile_page_offset =
+           use_staged_page_ids ? split_page_offset + tile_start - split_start
+@@ -2127,7 +2139,8 @@
+                            KV_DTYPE == flash_v100::KV_CACHE_DTYPE_FP8_E5M2>(
+           shared_kv, k_cache, page_ids, valid_k_rows, kPanelStrideVec,
+           kSharedStrideVec, tile_page_offset, 0, page_block_size, 0,
+-          k_block_stride, k_token_stride, k_head_stride, 0);
++          k_block_stride, k_token_stride, k_head_stride, 0, tid, nullptr,
++          SPARSE_PAGE4 ? smem.sparse_token_masks : nullptr);
+       for (int idx = tid + valid_k_rows * kSharedStrideVec;
+            idx < kGroupedVerifyBlockN * kSharedStrideVec;
+            idx += kGroupedVerifyThreads) {
+@@ -2206,6 +2219,8 @@
+                         (tile_start >> 2) + tid)
+                 : 0;
+       }
++      // Masked K/V loads consume masks written by other warps.
++      __syncthreads();
+     }
+     const int tile_page_offset =
+         use_staged_page_ids ? split_page_offset + tile_start - split_start
+@@ -2215,7 +2230,8 @@
+                          KV_DTYPE == flash_v100::KV_CACHE_DTYPE_FP8_E5M2>(
+         shared_kv, k_cache, page_ids, valid_k_rows, kPanelStrideVec,
+         kSharedStrideVec, tile_page_offset, 0, page_block_size, 0,
+-        k_block_stride, k_token_stride, k_head_stride, 0);
++        k_block_stride, k_token_stride, k_head_stride, 0, tid, nullptr,
++          SPARSE_PAGE4 ? smem.sparse_token_masks : nullptr);
+     for (int idx = tid + valid_k_rows * kSharedStrideVec;
+          idx < kGroupedVerifyBlockN * kSharedStrideVec;
+          idx += kGroupedVerifyThreads) {
+@@ -2319,7 +2335,8 @@
+                          KV_DTYPE == flash_v100::KV_CACHE_DTYPE_FP8_E5M2>(
+         shared_kv, v_cache, page_ids, valid_k_rows, kPanelStrideVec,
+         kSharedStrideVec, tile_page_offset, 0, page_block_size, 0,
+-        v_block_stride, v_token_stride, v_head_stride, 0);
++        v_block_stride, v_token_stride, v_head_stride, 0, tid, nullptr,
++        SPARSE_PAGE4 ? smem.sparse_token_masks : nullptr);
+     for (int idx = tid + valid_k_rows * kSharedStrideVec;
+          idx < kGroupedVerifyBlockN * kSharedStrideVec;
+          idx += kGroupedVerifyThreads) {

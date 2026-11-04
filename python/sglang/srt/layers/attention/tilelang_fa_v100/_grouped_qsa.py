@@ -43,6 +43,13 @@ def load_grouped_qsa_ops():
             for name in ["grouped_sparse_page4_plan_fwd", "grouped_sparse_page4_fwd"]
         ):
             raise RuntimeError("Flash-V100 library lacks grouped Page4 bindings")
+        if not getattr(module, "sglang_masked_sparse_kv", False):
+            logger.warning(
+                "Grouped QSA library lacks masked KV-load protection; "
+                "rebuild with scripts/setup_v100_grouped_qsa.py. "
+                "Retaining native QSA."
+            )
+            return None
         return module
     except Exception:
         logger.exception(
