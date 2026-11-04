@@ -14,6 +14,8 @@ export KV_CACHE_DTYPE=auto
 export PYTHONPATH="$q38_repo_dir/python"
 export TORCH_CUDA_ARCH_LIST=7.0
 export MAX_JOBS=${MAX_JOBS:-2}
+# Pixel/JPEG preprocessing otherwise competes with TP0 outside the KV budget.
+export SGLANG_MM_PREPROCESS_ON_CPU=${SGLANG_MM_PREPROCESS_ON_CPU:-1}
 export SGLANG_SM70_TURBOMIND_OPS_PATH=${SGLANG_SM70_TURBOMIND_OPS_PATH:-$q38_repo_dir/python/sglang/jit_kernel/_sm70_turbomind_v100.so}
 export SGLANG_V100_DECODE_CUDA_BUILD_DIR=${SGLANG_V100_DECODE_CUDA_BUILD_DIR:-$q38_cache_dir/attention}
 export SGLANG_V100_NVFP4_MOE_BUILD_DIR=${SGLANG_V100_NVFP4_MOE_BUILD_DIR:-$q38_cache_dir/moe}

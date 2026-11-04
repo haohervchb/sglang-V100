@@ -1,0 +1,56 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "many_pages",
+      "images": 32,
+      "size": [
+        768,
+        1024
+      ],
+      "pixel_values_shape": [
+        98304,
+        1536
+      ],
+      "feature_mib": 576.0,
+      "device": "cpu",
+      "seconds": 0.7342860030039446,
+      "max_rss_mib": 2837.1171875,
+      "cuda_initialized": false
+    },
+    {
+      "case": "two_large_pages",
+      "images": 2,
+      "size": [
+        3072,
+        4096
+      ],
+      "pixel_values_shape": [
+        98304,
+        1536
+      ],
+      "feature_mib": 576.0,
+      "device": "cpu",
+      "seconds": 0.6890749000012875,
+      "max_rss_mib": 2865.96875,
+      "cuda_initialized": false
+    }
+  ],
+  "diagnosis": {
+    "failing_process": "tokenizer/API frontend",
+    "frontend_gpu0_mib": 2004,
+    "tp0_gpu0_mib": 30326,
+    "tp1_gpu1_mib": 30326,
+    "failed_allocation_mib": 534,
+    "gpu0_free_mib_at_failure": 98.69,
+    "failure_site": "transformers Qwen image processor: torch.cat(processed_images, dim=0)",
+    "note": "Additional frontend CUDA allocations, not unequal model shards, explain the observed imbalance."
+  },
+  "change": {
+    "environment": "SGLANG_MM_PREPROCESS_ON_CPU=1",
+    "scope": "Force HF fast image/video preprocessing and JPEG decoding onto CPU; vision encoder and LLM remain on GPU. Enabled in Qwen V100 MTP profiles.",
+    "unit_tests_passed": 22,
+    "test_environment": "CUDA_VISIBLE_DEVICES empty; CUDA backend routing emulated to exercise explicit override; four CPU threads."
+  },
+  "limits": "This verifies preprocessing at the reported allocation scale. Model inference still has finite context and memory limits; these preprocessing tests are not a replay of the user PDFs."
+}

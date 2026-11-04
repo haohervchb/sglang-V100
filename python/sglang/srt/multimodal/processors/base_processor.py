@@ -436,7 +436,11 @@ class BaseMultimodalProcessor(ABC):
             and isinstance(processor.image_processor, BaseImageProcessor)
             and not self.server_args.disable_fast_image_processor
         ):
-            if _is_cpu or get_global_server_args().rl_on_policy_target is not None:
+            if (
+                envs.SGLANG_MM_PREPROCESS_ON_CPU.get()
+                or _is_cpu
+                or get_global_server_args().rl_on_policy_target is not None
+            ):
                 kwargs["device"] = "cpu"
             elif _is_xpu:
                 kwargs["device"] = "xpu"
@@ -534,7 +538,11 @@ class BaseMultimodalProcessor(ABC):
             return data
         try:
             if modality == Modality.IMAGE:
-                img, _ = load_image(data, cls.gpu_image_decode)
+                gpu_decode = (
+                    cls.gpu_image_decode
+                    and not envs.SGLANG_MM_PREPROCESS_ON_CPU.get()
+                )
+                img, _ = load_image(data, gpu_decode)
                 if (
                     discard_alpha_channel
                     and not isinstance(img, torch.Tensor)
