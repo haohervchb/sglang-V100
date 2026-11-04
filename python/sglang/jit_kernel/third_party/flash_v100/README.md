@@ -59,6 +59,12 @@ PYTHONPATH=python python -m pytest -q test/manual/layers/test_sm70_vision_attent
 ```
 
 The performance evidence records the measured binary and interface hashes.
-This round reused that installed library; it did not rebuild a Docker image.
+Docker v5 builds this dependency from the same pinned source and compatibility
+patch. `vision_container_build.patch` permits compilation with CUDA-enabled
+PyTorch and the CUDA toolkit when no GPU is visible to the image builder;
+it does not change kernel code. GPU execution is checked separately after the
+image is built. The grouped-QSA source snapshot and metadata are retained under
+`/opt/deps/qwen38-grouped-qsa-build`, and the vision checkout under
+`/opt/deps/qwen38-vision`, including their licenses and applied patches.
 The in-tree Triton vision path remains available with
 `--mm-attention-backend triton_attn`.

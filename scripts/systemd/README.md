@@ -2,7 +2,7 @@
 
 `sglang-qwen38-8082.service` serves the validated FP16 KV / native MTP-3/4
 profile at `http://127.0.0.1:8082/v1`, with model name `qwen`, TP4, multimodal
-support, a 262,144-token context limit and one active request. The source
+support, a 262,144-token context limit and eight request slots. The source
 checkout and compiled SM70 libraries must already be installed. The unit uses
 `~/sglang-V100` and the `sglang-v100` Conda environment; adjust those paths for
 a different installation.
@@ -14,9 +14,9 @@ its prefill timing results do not describe this more conservative configuration.
 Chunk size does not reduce the context limit. Documents still need to fit the
 token limit after extraction; PDF file size is not a token-count limit.
 
-For concurrent office agents, the v5.5 profile uses
-`scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh` as `ExecStart` in a
-user-service override. It admits eight active requests, preserves shared-prefix
+The unit runs `bash scripts/qwen38.sh host`, which selects the balanced v5.5
+profile in `scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh`.
+It admits eight active requests, preserves shared-prefix
 checkpoints and 262K context, and enables the native SM70 vision backend.
 Install its optional [Flash-V100 vision dependency](../../python/sglang/jit_kernel/third_party/flash_v100/README.md#optional-vision-attention)
 before selecting this launcher. Pixel preprocessing remains on CPU to avoid
@@ -28,8 +28,8 @@ throughput from 253 to 360 output tokens/s, with native verification up to
 
 The optimized profile enables the shared-expert gate for MTP verification,
 the measured 2K MoE routing/geometry settings, and grouped Page4 QSA prefill.
-Set `SGLANG_SM70_MTP_SHARED_GATE`, `SGLANG_SM70_MOE_PREFILL_2K`, or
-`SGLANG_SM70_QSA_GROUPED_PREFILL` to `0` to disable an individual change.
+The wider MTP-7/8 experiment and adaptive speculation are not selected by this
+launcher. Detailed kernel switches remain in the underlying profile script.
 
 Grouped QSA uses an optional Flash-V100 extension built against this serving
 environment's PyTorch ABI. Build from the `flash-attention-v100` directory
