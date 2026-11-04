@@ -1,0 +1,412 @@
+{
+  "selected_profile": "vision4",
+  "baseline_commit": "d6a5a6727a",
+  "release": "v100-qwen38-flash-next-v5.4",
+  "image_end_to_end": {
+    "pages": 32,
+    "dimensions": [
+      768,
+      1024
+    ],
+    "prompt_tokens": 24675,
+    "completion_tokens": 4,
+    "repeats": 2,
+    "identical_image_hashes": true,
+    "baseline_seconds": [
+      80.02631516799738,
+      79.9375880919979
+    ],
+    "candidate_seconds": [
+      12.307136581992381,
+      11.923545251003816
+    ],
+    "baseline_mean_seconds": 79.98195162999764,
+    "candidate_mean_seconds": 12.115340916498099,
+    "speedup": 6.60170870809603,
+    "latency_reduction_percent": 84.85240648722284
+  },
+  "throughput": {
+    "baseline_text": [
+      {
+        "label": "baseline_text",
+        "case": "prose_1000",
+        "repeat": 0,
+        "concurrency": 4,
+        "cached": false,
+        "requested": 8,
+        "completed": 8,
+        "errors": [],
+        "seconds": 32.36033711799246,
+        "output_tok_s": 253.14940231093018,
+        "median_ttft_s": 0.8127791274964693,
+        "median_e2e_s": 15.660396088496782,
+        "median_decode_tok_s": 68.7363160411704,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          2888.6875,
+          3196.375,
+          3228.375,
+          3292.375
+        ]
+      },
+      {
+        "label": "baseline_text",
+        "case": "prose_1000",
+        "repeat": 0,
+        "concurrency": 8,
+        "cached": false,
+        "requested": 8,
+        "completed": 8,
+        "errors": [],
+        "seconds": 32.96662126699812,
+        "output_tok_s": 248.49376991510994,
+        "median_ttft_s": 8.777502187498612,
+        "median_e2e_s": 24.96152977449674,
+        "median_decode_tok_s": 67.12498327576606,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          2888.6875,
+          3198.375,
+          3230.375,
+          3294.375
+        ]
+      }
+    ],
+    "vision4_text": [
+      {
+        "label": "vision4_text",
+        "case": "prose_1000",
+        "repeat": 0,
+        "concurrency": 4,
+        "cached": false,
+        "requested": 8,
+        "completed": 8,
+        "errors": [],
+        "seconds": 32.71085018500162,
+        "output_tok_s": 250.43678026308672,
+        "median_ttft_s": 0.5434814079999342,
+        "median_e2e_s": 15.939966396501404,
+        "median_decode_tok_s": 67.13547294831025,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3962.6875,
+          4294.375,
+          4326.375,
+          4390.375
+        ]
+      },
+      {
+        "label": "vision4_text",
+        "case": "prose_1000",
+        "repeat": 0,
+        "concurrency": 8,
+        "cached": false,
+        "requested": 8,
+        "completed": 8,
+        "errors": [],
+        "seconds": 32.80723760499677,
+        "output_tok_s": 249.70099886594235,
+        "median_ttft_s": 8.803689081498305,
+        "median_e2e_s": 24.597167197003728,
+        "median_decode_tok_s": 65.78562385437718,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3964.6875,
+          4296.375,
+          4328.375,
+          4392.375
+        ]
+      }
+    ],
+    "vision6_text": [
+      {
+        "label": "vision6_text",
+        "case": "prose_1000",
+        "repeat": 0,
+        "concurrency": 4,
+        "cached": false,
+        "requested": 8,
+        "completed": 8,
+        "errors": [],
+        "seconds": 35.18353350300458,
+        "output_tok_s": 232.83619308164214,
+        "median_ttft_s": 0.6258563465089537,
+        "median_e2e_s": 17.495177096003317,
+        "median_decode_tok_s": 61.04888879901356,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3966.6875,
+          4298.375,
+          4330.375,
+          4394.375
+        ]
+      },
+      {
+        "label": "vision6_text",
+        "case": "prose_1000",
+        "repeat": 0,
+        "concurrency": 8,
+        "cached": false,
+        "requested": 8,
+        "completed": 8,
+        "errors": [],
+        "seconds": 32.78077332499379,
+        "output_tok_s": 249.902585237487,
+        "median_ttft_s": 1.657590650007478,
+        "median_e2e_s": 20.650155663002806,
+        "median_decode_tok_s": 54.28324613994819,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3966.6875,
+          4298.375,
+          4330.375,
+          4394.375
+        ]
+      }
+    ],
+    "baseline_speed": [
+      {
+        "label": "baseline_speed",
+        "case": "speed",
+        "repeat": 0,
+        "concurrency": 4,
+        "cached": false,
+        "requested": 20,
+        "completed": 20,
+        "errors": [],
+        "seconds": 24.68086500299978,
+        "output_tok_s": 221.22401298886308,
+        "median_ttft_s": 0.4217153909994522,
+        "median_e2e_s": 4.138911723493948,
+        "median_decode_tok_s": 65.84279308901122,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          2748.6875,
+          3058.375,
+          3090.375,
+          3154.375
+        ]
+      },
+      {
+        "label": "baseline_speed",
+        "case": "speed",
+        "repeat": 0,
+        "concurrency": 8,
+        "cached": false,
+        "requested": 20,
+        "completed": 20,
+        "errors": [],
+        "seconds": 24.321562889992492,
+        "output_tok_s": 224.49215228050195,
+        "median_ttft_s": 4.478494073504407,
+        "median_e2e_s": 8.365128280493082,
+        "median_decode_tok_s": 68.41563634060255,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          2748.6875,
+          3060.375,
+          3090.375,
+          3156.375
+        ]
+      }
+    ],
+    "vision4_speed": [
+      {
+        "label": "vision4_speed",
+        "case": "speed",
+        "repeat": 0,
+        "concurrency": 4,
+        "cached": false,
+        "requested": 20,
+        "completed": 20,
+        "errors": [],
+        "seconds": 25.12229716699221,
+        "output_tok_s": 217.33681293977398,
+        "median_ttft_s": 0.4301828155075782,
+        "median_e2e_s": 4.288411696492403,
+        "median_decode_tok_s": 65.37625517887253,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3822.6875,
+          4154.375,
+          4186.375,
+          4250.375
+        ]
+      },
+      {
+        "label": "vision4_speed",
+        "case": "speed",
+        "repeat": 0,
+        "concurrency": 8,
+        "cached": false,
+        "requested": 20,
+        "completed": 20,
+        "errors": [],
+        "seconds": 24.570482134993654,
+        "output_tok_s": 226.00289117205938,
+        "median_ttft_s": 4.137068060001184,
+        "median_e2e_s": 8.63324848699267,
+        "median_decode_tok_s": 67.60551783931311,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3822.6875,
+          4154.375,
+          4186.375,
+          4250.375
+        ]
+      }
+    ],
+    "vision6_speed": [
+      {
+        "label": "vision6_speed",
+        "case": "speed",
+        "repeat": 0,
+        "concurrency": 4,
+        "cached": false,
+        "requested": 20,
+        "completed": 20,
+        "errors": [],
+        "seconds": 27.788071039001807,
+        "output_tok_s": 196.3432435573617,
+        "median_ttft_s": 0.3093438635041821,
+        "median_e2e_s": 4.189199189997453,
+        "median_decode_tok_s": 56.59952131434349,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3826.6875,
+          4158.375,
+          4190.375,
+          4254.375
+        ]
+      },
+      {
+        "label": "vision6_speed",
+        "case": "speed",
+        "repeat": 0,
+        "concurrency": 8,
+        "cached": false,
+        "requested": 20,
+        "completed": 20,
+        "errors": [],
+        "seconds": 22.53511193599843,
+        "output_tok_s": 235.41041265144972,
+        "median_ttft_s": 2.1824389655012055,
+        "median_e2e_s": 6.886633616006293,
+        "median_decode_tok_s": 49.783195062448954,
+        "cached_input_fraction": 0.0,
+        "retractions": 0,
+        "min_free_mib": [
+          3826.6875,
+          4158.375,
+          4190.375,
+          4254.375
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "vision4": {
+      "text_checks_passed": true,
+      "text_check_count": 8,
+      "tools_passed": true,
+      "multimodal_passed": 11,
+      "multimodal_total": 12,
+      "known_multimodal_failures": [
+        {
+          "name": "ocr",
+          "text": "V10 CHECK 4827"
+        }
+      ],
+      "shared_passed": true,
+      "shared_seconds": 3.161776649998501,
+      "cached_input_tokens": [
+        32384,
+        30720,
+        30720,
+        32000,
+        32000,
+        32000,
+        32000,
+        32000
+      ]
+    },
+    "vision6": {
+      "text_checks_passed": true,
+      "text_check_count": 8,
+      "tools_passed": true,
+      "multimodal_passed": 11,
+      "multimodal_total": 12,
+      "known_multimodal_failures": [
+        {
+          "name": "ocr",
+          "text": "V10 CHECK 4827"
+        }
+      ],
+      "shared_passed": true,
+      "shared_seconds": 3.198006354010431,
+      "cached_input_tokens": [
+        32384,
+        30720,
+        32000,
+        32000,
+        32000,
+        32000,
+        32000,
+        32000
+      ],
+      "queue": {
+        "passed": true,
+        "completed": 48,
+        "expected": 48,
+        "seconds": 265.0934158510063,
+        "min_free_mib": [
+          3792.7,
+          4124.4,
+          4154.4,
+          4220.4
+        ],
+        "cached_requests": 1
+      }
+    },
+    "vision_attention_numerical_tests": 9
+  },
+  "large_pages": [
+    {
+      "label": "vision6_large_pages",
+      "repeat": 0,
+      "pages": 2,
+      "dimensions": [
+        3072,
+        4096
+      ],
+      "start_unix_s": 1793784651.9276783,
+      "image_sha256": [
+        "8deb17506d21acb83d483bda62979d38ac21facbe177ef130b616211e09210e8",
+        "08057a512d4565f9a4294aaf77d5fd52d47e72d1180b80c0b9f9ca9dfcfc6032"
+      ],
+      "seconds": 34.6816967909981,
+      "ttft_s": 34.645058581998455,
+      "text": "blue, red",
+      "passed": true,
+      "usage": {
+        "prompt_tokens": 24615,
+        "total_tokens": 24619,
+        "completion_tokens": 4,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 0
+      }
+    }
+  ],
+  "decision": "Retain four running requests and MTP-3/4. Six running requests with MTP-1/2 was about 4.2% faster for SPEED at eight clients, but 7-10% slower at four clients, essentially tied on fixed-length text at eight clients, and did not improve shared-document completion time. This is a bounded screen, one batch per concurrency, not a statistical throughput study."
+}

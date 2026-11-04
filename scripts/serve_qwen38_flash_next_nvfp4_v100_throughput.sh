@@ -15,4 +15,5 @@ exec bash "$q38_profile_dir/serve_qwen38_flash_next_nvfp4_v100_mtp.sh" "$q38_mod
     --max-total-tokens 277280 \
     --max-mamba-cache-size 24 \
     --prefill-max-requests 1 \
+    --mm-attention-backend fa2_v100 \
     "$@"

@@ -19,6 +19,14 @@ Real-world deployments contributed by V100 users:
 
 ## Current V100 performance
 
+The latest **host v5.4 concurrent-agent profile** retains roughly 250 aggregate
+output tokens/s on the fixed-length text screen and reduces a matched 32-image
+request from 80.0 s to 12.1 s. It uses four running requests, native MTP-3/4,
+FP16 KV, CPU pixel preprocessing and SM70 vision attention, with 262K context
+and shared-prefix caching. These are host measurements; the Docker v4 rows
+below describe the separately tested image.
+[Results, validation and setup](benchmark/qwen38_vision_v100_20261104/README.md).
+
 Models are grouped newest to oldest by when V100 serving support was added
 here, with configurations kept together. All current rows are retained. Unless
 a row says otherwise, LLM results use TP4, one cold request, and 256 greedy
