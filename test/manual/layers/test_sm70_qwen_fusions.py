@@ -8,7 +8,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
-@pytest.mark.parametrize("rows", [1, 2, 4])
+@pytest.mark.parametrize("rows", [1, 2, 4, 8, 12, 16, 20, 24, 28, 32])
 def test_shared_gate_preserves_fp16_boundaries_and_replays(seed, rows):
     from sglang.jit_kernel.sm70_qwen_fusions import gate
 
@@ -59,6 +59,23 @@ def test_shared_gate_batch_dispatch_and_validation(monkeypatch):
     assert not gate_supported(shifted, weight, value)
     with pytest.raises((RuntimeError, ValueError)):
         gate(x[:3], weight, value[:3])
+
+
+@pytest.mark.parametrize("rows", [8, 12, 16, 20, 24, 28, 32])
+def test_shared_gate_concurrent_dispatch_is_opt_in(monkeypatch, rows):
+    from sglang.jit_kernel.sm70_qwen_fusions import gate_supported
+
+    monkeypatch.setenv("SGLANG_SM70_DENSE_GEMV", "1")
+    monkeypatch.setenv("SGLANG_SM70_QWEN_FUSIONS", "1")
+    monkeypatch.setenv("SGLANG_SM70_MTP_SHARED_GATE", "1")
+    x = torch.zeros(rows, 2560, device="cuda", dtype=torch.float16)
+    weight = torch.ones(1, 2560, device="cuda", dtype=torch.float16)
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_FUSIONS", "0")
+    assert not gate_supported(x, weight, x)
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_FUSIONS", "1")
+    assert gate_supported(x, weight, x)
+    monkeypatch.setenv("SGLANG_SM70_MTP_SHARED_GATE", "0")
+    assert not gate_supported(x, weight, x)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])

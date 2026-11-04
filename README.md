@@ -19,13 +19,14 @@ Real-world deployments contributed by V100 users:
 
 ## Current V100 performance
 
-The latest **host v5.4 concurrent-agent profile** retains roughly 250 aggregate
-output tokens/s on the fixed-length text screen and reduces a matched 32-image
-request from 80.0 s to 12.1 s. It uses four running requests, native MTP-3/4,
-FP16 KV, CPU pixel preprocessing and SM70 vision attention, with 262K context
-and shared-prefix caching. These are host measurements; the Docker v4 rows
-below describe the separately tested image.
-[Results, validation and setup](benchmark/qwen38_vision_v100_20261104/README.md).
+The latest **host v5.5 concurrent-agent profile** reaches roughly **360 aggregate
+output tokens/s** with eight clients, up from 253 in the four-request profile;
+the diverse SPEED screen rises from 227 to 308 tok/s. It preserves native
+MTP-3/4, FP16 KV, 2K prefill chunks, 262K context and shared-prefix caching.
+CPU pixel preprocessing and the v5.4 SM70 vision acceleration remain enabled.
+These are host measurements; the Docker v4 rows below describe the separately
+tested image. [Core audit, results and setup](benchmark/qwen38_concurrent_core_audit_20261104/README.md)
+· [Earlier 6.6× vision improvement](benchmark/qwen38_vision_v100_20261104/README.md).
 
 Models are grouped newest to oldest by when V100 serving support was added
 here, with configurations kept together. All current rows are retained. Unless

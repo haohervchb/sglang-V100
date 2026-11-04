@@ -20,7 +20,13 @@ def gate_supported(x, weight, value, bias=None) -> bool:
             x.shape[0] == 1
             or (
                 os.environ.get("SGLANG_SM70_MTP_SHARED_GATE", "0") == "1"
-                and x.shape[0] in (2, 4)
+                and (
+                    x.shape[0] in (2, 4)
+                    or (
+                        os.environ.get("SGLANG_SM70_BATCHED_FUSIONS", "0") == "1"
+                        and x.shape[0] in (8, 12, 16, 20, 24, 28, 32)
+                    )
+                )
             )
         )
         and x.is_contiguous()
@@ -64,7 +70,13 @@ def qkvzba_supported(x, weight, tail) -> bool:
     return (
         os.environ.get("SGLANG_SM70_MTP_QKVZBA", "1") == "1"
         and x.ndim == 2
-        and x.shape[0] in (2, 4)
+        and (
+            x.shape[0] in (2, 4)
+            or (
+                os.environ.get("SGLANG_SM70_BATCHED_FUSIONS", "0") == "1"
+                and x.shape[0] == 8
+            )
+        )
         and x.is_contiguous()
         and qkv_ba_supported(x[:1], weight, tail)
     )

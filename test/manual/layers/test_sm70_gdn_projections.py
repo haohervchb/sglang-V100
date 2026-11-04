@@ -7,7 +7,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("rows", [2, 4])
+@pytest.mark.parametrize("rows", [2, 4, 8])
 @pytest.mark.parametrize("seed", [7, 31])
 def test_projection_layout_matches_separate_kernels_and_replays(
     rows, seed, monkeypatch
@@ -18,10 +18,14 @@ def test_projection_layout_matches_separate_kernels_and_replays(
     monkeypatch.setenv("SGLANG_SM70_DENSE_GEMV", "1")
     monkeypatch.setenv("SGLANG_SM70_QWEN_FUSIONS", "1")
     monkeypatch.setenv("SGLANG_SM70_MTP_QKVZBA", "1")
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_FUSIONS", "0")
     torch.manual_seed(seed)
     x = torch.randn(rows, 2560, device="cuda", dtype=torch.float16)
     w = torch.randn(4096, 2560, device="cuda", dtype=torch.float16) * 0.01
     tail = torch.randn(24, 2560, device="cuda", dtype=torch.float16) * 0.01
+    if rows == 8:
+        assert not qkvzba_supported(x, w, tail)
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_FUSIONS", "1")
     assert qkvzba_supported(x, w, tail)
     assert not qkvzba_supported(x[:1], w, tail)
     assert not qkvzba_supported(x, None, tail)
@@ -35,8 +39,10 @@ def test_projection_layout_matches_separate_kernels_and_replays(
     for scale in [1.0, -0.5, 0.0]:
         x.mul_(scale)
         graph.replay()
-        projected = linear(x, w)
-        ba = linear(x, tail)
+        # Existing two/four-row kernels are an independent layout reference
+        # for the eight-row fusion, with the same per-row reduction order.
+        projected = torch.cat([linear(part, w) for part in x.split(4)])
+        ba = torch.cat([linear(part, tail) for part in x.split(4)])
         expected = (
             projected[:, :2560],
             projected[:, 2560:].reshape(rows, 12, 128),

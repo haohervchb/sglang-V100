@@ -7,7 +7,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("batch_size", [1, 2, 4, 6, 8, 12, 16])
+@pytest.mark.parametrize("batch_size", [1, 2, 4, 6, 8, 12, 16, 20, 24, 28, 32])
 def test_sm70_topk10_softmax_matches_torch(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
@@ -29,8 +29,7 @@ def test_sm70_topk10_softmax_matches_torch(batch_size):
     torch.testing.assert_close(weights, reference_weights, rtol=2e-6, atol=3e-8)
 
 
-@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16])
-def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
+def _check_sm70_nvfp4_moe_rows(rows, capture):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
 
     torch.manual_seed(11)
@@ -80,10 +79,66 @@ def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
     torch.testing.assert_close(hidden_states, original_input, rtol=0, atol=0)
     assert batched.abs().max() > 0
     torch.testing.assert_close(batched, individual, rtol=0, atol=0)
+    if capture:
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            captured = sm70_nvfp4_moe_decode(
+                hidden_states,
+                w13,
+                w2,
+                w13_scales,
+                w2_scales,
+                w13_global,
+                w2_global,
+                ids,
+                weights,
+            )
+        for scale in [-0.5, 0.0]:
+            hidden_states.copy_(original_input * scale)
+            graph.replay()
+            expected = sm70_nvfp4_moe_decode(
+                hidden_states,
+                w13,
+                w2,
+                w13_scales,
+                w2_scales,
+                w13_global,
+                w2_global,
+                ids,
+                weights,
+            )
+            torch.testing.assert_close(captured, expected, rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16, 20, 24, 28, 32])
+def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
+    _check_sm70_nvfp4_moe_rows(rows, capture=False)
+
+
+@pytest.mark.parametrize("rows", [24, 28, 32])
+def test_sm70_nvfp4_moe_graph_replay(rows):
+    # Keep graph capture separate from eager tests run with allocator caching
+    # disabled under compute-sanitizer; cudaMalloc is not capture-safe.
+    _check_sm70_nvfp4_moe_rows(rows, capture=True)
+
+
+def test_sm70_moe32_dispatch_is_opt_in(monkeypatch):
+    from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode_max_rows
+
+    monkeypatch.setenv("SGLANG_SM70_MTP_WIDE_MOE", "0")
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE", "0")
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE32", "0")
+    assert sm70_nvfp4_moe_decode_max_rows() == 4
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE", "1")
+    assert sm70_nvfp4_moe_decode_max_rows() == 16
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE32", "1")
+    assert sm70_nvfp4_moe_decode_max_rows() == 32
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE", "0")
+    assert sm70_nvfp4_moe_decode_max_rows() == 4
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
-@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16])
+@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16, 20, 24, 28, 32])
 def test_sm70_topk10_softmax_ties_and_signed_zero(dtype, rows):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
@@ -99,7 +154,7 @@ def test_sm70_topk10_softmax_ties_and_signed_zero(dtype, rows):
     torch.testing.assert_close(weights, expected_weights, rtol=2e-6, atol=3e-8)
 
 
-@pytest.mark.parametrize("batch_size", [1, 4, 8, 12, 16])
+@pytest.mark.parametrize("batch_size", [1, 4, 8, 12, 16, 24, 32])
 def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
     from sglang.srt.layers.quantization.gptq import gptq_marlin_moe_repack

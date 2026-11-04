@@ -35,7 +35,17 @@ def kernel_category(name):
         ),
         ("ple", ["ple_embedding", "short_conv_state"]),
         ("hyperconnections", ["sm70_hc", "hc_", "mean_mul_sigmoid_view"]),
-        ("qsa", ["qsa", "sparse", "gqa", "indexer", "rotary"]),
+        (
+            "qsa",
+            [
+                "qsa",
+                "sparse",
+                "gqa",
+                "indexer",
+                "rotary",
+                "flash_attention_grouped_verify",
+            ],
+        ),
         ("copies", ["memcpy", "memset", "copy_kernel", "copy_"]),
         ("norm_pointwise", ["norm", "elementwise", "reduce_kernel", "sigmoid", "silu"]),
     ]:

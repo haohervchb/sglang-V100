@@ -58,8 +58,9 @@ void run(tvm::ffi::TensorView x, tvm::ffi::TensorView weight,
       .verify(value)
       .verify(out);
   TensorMatcher({1, 2560}).with_dtype<half>().with_device(dev).verify(weight);
-  RuntimeCheck(rows.unwrap() == 1 || rows.unwrap() == 2 || rows.unwrap() == 4,
-               "Shared gate supports one, two or four rows");
+  RuntimeCheck(rows.unwrap() == 1 || rows.unwrap() == 2 ||
+                   (rows.unwrap() >= 4 && rows.unwrap() <= 32 && rows.unwrap() % 4 == 0),
+               "Shared gate supports one, two, or multiples of four rows up to 32");
   RuntimeCheck(reinterpret_cast<uintptr_t>(x.data_ptr()) % 16 == 0 &&
                    reinterpret_cast<uintptr_t>(weight.data_ptr()) % 16 == 0,
                "Operands must be 16-byte aligned");

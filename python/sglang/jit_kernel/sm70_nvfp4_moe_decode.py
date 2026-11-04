@@ -21,7 +21,7 @@ def sm70_nvfp4_moe_decode_enabled() -> bool:
 
 def sm70_nvfp4_moe_decode_max_rows() -> int:
     if os.environ.get("SGLANG_SM70_BATCHED_MOE", "0") == "1":
-        return 16
+        return 32 if os.environ.get("SGLANG_SM70_BATCHED_MOE32", "0") == "1" else 16
     return 8 if os.environ.get("SGLANG_SM70_MTP_WIDE_MOE", "0") == "1" else 4
 
 
@@ -80,7 +80,7 @@ def sm70_nvfp4_moe_decode(
     topk_ids: torch.Tensor,
     topk_weights: torch.Tensor,
 ) -> torch.Tensor:
-    """Run the exact TP4 M<=16/H=2560/I=160/top-k=10 decode shape.
+    """Run the exact TP4 M<=32/H=2560/I=160/top-k=10 decode shape.
 
     Serving dispatch remains limited to four rows unless the wider-MTP or
     batched-serving experiment is explicitly enabled. Rows are independent;
@@ -120,7 +120,7 @@ def sm70_nvfp4_moe_decode(
 
 
 def sm70_topk10_softmax(logits: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    """Select and renormalize ten of 512 logits for up to sixteen rows."""
+    """Select and renormalize ten of 512 logits for up to thirty-two rows."""
     ext = _load_sm70_nvfp4_moe_decode_ops()
     if ext is None:
         raise RuntimeError("SM70 NVFP4 decode extension is unavailable")

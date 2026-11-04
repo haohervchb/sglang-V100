@@ -14,16 +14,17 @@ its prefill timing results do not describe this more conservative configuration.
 Chunk size does not reduce the context limit. Documents still need to fit the
 token limit after extraction; PDF file size is not a token-count limit.
 
-For concurrent office agents, the deployed v5.4 profile uses
+For concurrent office agents, the v5.5 profile uses
 `scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh` as `ExecStart` in a
-user-service override. It admits four active requests, preserves shared-prefix
+user-service override. It admits eight active requests, preserves shared-prefix
 checkpoints and 262K context, and enables the native SM70 vision backend.
 Install its optional [Flash-V100 vision dependency](../../python/sglang/jit_kernel/third_party/flash_v100/README.md#optional-vision-attention)
 before selecting this launcher. Pixel preprocessing remains on CPU to avoid
 the frontend competing with the model for GPU 0 memory. The vision encoder
-and language model run on GPU. The matched 32-page request fell from 80.0 s to
-12.1 s; concurrent text throughput remained around 250 output tokens/s in
-the fixed-length screen. See the [measurements and limits](../../benchmark/qwen38_vision_v100_20261104/README.md).
+and language model run on GPU. The v5.4 vision change reduced the matched
+32-page request from 80.0 s to 12.1 s. The v5.5 profile raises eight-client text
+throughput from 253 to 360 output tokens/s, with native verification up to
+32 rows and 48 Mamba cache slots. See the [core audit and validation](../../benchmark/qwen38_concurrent_core_audit_20261104/README.md).
 
 The optimized profile enables the shared-expert gate for MTP verification,
 the measured 2K MoE routing/geometry settings, and grouped Page4 QSA prefill.
