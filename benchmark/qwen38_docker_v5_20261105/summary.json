@@ -1,0 +1,792 @@
+{
+  "image": {
+    "id": "sha256:d51f28aaf8aa424d8f688f942ef663dad2b7622dcb08367190f3de25488843c1",
+    "revision": "7e280c7ce3e99efd6d98882f4aba378c3ec7f052",
+    "image": "geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5"
+  },
+  "runs": {
+    "host_text": {
+      "1": {
+        "batches": 1,
+        "aggregate_tok_s": 115.38837507303086,
+        "median_decode_tok_s": 119.38670863403422
+      },
+      "4": {
+        "batches": 1,
+        "aggregate_tok_s": 255.55913027254812,
+        "median_decode_tok_s": 68.5458556370485
+      },
+      "8": {
+        "batches": 1,
+        "aggregate_tok_s": 360.94259952397715,
+        "median_decode_tok_s": 49.129727980501144
+      }
+    },
+    "container_text": {
+      "1": {
+        "batches": 2,
+        "aggregate_tok_s": 112.92303605528178,
+        "median_decode_tok_s": 117.77130789759889
+      },
+      "4": {
+        "batches": 2,
+        "aggregate_tok_s": 250.40593970494854,
+        "median_decode_tok_s": 67.292314730587
+      },
+      "8": {
+        "batches": 2,
+        "aggregate_tok_s": 356.49018769964346,
+        "median_decode_tok_s": 48.72325298789359
+      }
+    },
+    "container_speed": {
+      "8": {
+        "batches": 1,
+        "aggregate_tok_s": 306.7971694029721,
+        "median_decode_tok_s": 46.94427017928511
+      }
+    }
+  },
+  "native_tests_passed": 18,
+  "text_checks": true,
+  "tool_arguments": true,
+  "tool_result": true,
+  "multimodal_passed": 11,
+  "multimodal_total": 12,
+  "multimodal_failures": [
+    "ocr"
+  ],
+  "image_32": {
+    "label": "docker_v5",
+    "repeat": 0,
+    "pages": 32,
+    "dimensions": [
+      768,
+      1024
+    ],
+    "start_unix_s": 1793833708.2009916,
+    "image_sha256": [
+      "abe8bfc30b86fe40f24c9bf6d3a8a6bbc9af82c02bf4446e9dcc813da016cd1b",
+      "a304eca60ac752db4ac82df12fa04bc00dc3e69010e8f2349cad862d21fc8e6b",
+      "b0623c01b11ce43735492199460eddf2c84b31f8c59cc51fe3f2061c00b12949",
+      "84b6d2f1757fdf7c6fb97687eaed3f6fdc5222bc9bc6391fc76d1cf7e97a65c9",
+      "9b3aea3ffed09d8844a86af40dd895a10020d3986252c42cb2b1efe5dfca6856",
+      "f4dd5e0faccb17b85c1b66467fa4f1f2f34da65ec3f372bbab6058b262fcfbdc",
+      "d801949599b196d84bd3b63132b7968557c0d8d77050b7d252e5a21f8ae2dbf8",
+      "a4306a643a6f16f3039ed81f2dda128f8d20d8e551e369466e3b9e65a9870bc8",
+      "e2f3cd331c7191697eba7df989a7d3e79900790077a08dd06150143c0e88c891",
+      "f5c4a87e8cfca0754a0e73de837a92b59ba4ecc84500b8ecbdafd82fcaea698e",
+      "3003939d1e6202d64da65e386dbedd449ff0aa8dfc3f6578db613283e405c2a9",
+      "364c066f4ecbaba0f0812e7777c849c6ccc8319122dbb235c42dcef8ae20c99b",
+      "e5ef322f95e23087220d35ee2517c99ce08535b7938bdcc3aaeff7c79ba1c8cb",
+      "9715a550790f536f9f5055475de7cdec703a1b48d9cda20884469419c41ccd74",
+      "46f2abe627e7ecc1f966a5ad3bc1236d635ebeb62f0ac7500ea0fa57f12f4562",
+      "10aaa1957db6afa0154a3cd815802d8e340258194536b353a9e72536a2980411",
+      "09bcfa2803697ec36ca70ef2d0c2a67ca9a390184cdd58d600e534d8771e87c7",
+      "f07cb0cb36348cd35b167c79a53ea94d99e68da053714ec8470494e59016ba49",
+      "61f8ced03096e61b949b689b7f104ed92df4c551631f0d70ab85b6c3917ebb55",
+      "67ecb59de7af1c7833f4adcea2c643e83f6b9f077184b516e13206be06cc4eec",
+      "76d0d71f3ea9f82e7c93217fa79851f2f97f15ad9739442773d7897a45cfbd7d",
+      "5330bfa2a8ca5258c1d6bdce038caf7365bab667398db6c10e0e04e5e539427e",
+      "b5f4539e7e86c5d728451ba160c7eaae7ef352737a4d5f029efb3417e648617c",
+      "9f48e094bdce2420e806dfb65137e644673c025e6cd292b0d04efded2824a319",
+      "7c6473489e2dd7d8c8ca23ff60cbcd3050e0b129192c191498550f8c6202c96e",
+      "d1f3254b99b8a37bb42ca1df0764767f525b32da2accc6f01667b6de101fad4e",
+      "cee887b8e5cdc655cd47f36edbdf3d43f37e7cbdf4c6431475a64b47e6d7a73c",
+      "ca7906d183b68c4101a1d7da5ba097f5d38a1e0a98618769350df14365c33a44",
+      "b733d71b641c69cc48a563c9eabf72deb449d20dc261e0b877f9491729efd34c",
+      "b50776f2b955d9b9829c4768e3015d4fb919e5d211bceb300a520aab8a1fc7d5",
+      "bcf5b06c8a9bb06f4d3e6b3842e3d554cc6b6fca03337f0fd575ea5dbb7cb6c4",
+      "e9ee954bcc94bfb4e9a9d9fe47dbc9159b3003126531529928102e5f916d23b5"
+    ],
+    "seconds": 13.600767786992947,
+    "ttft_s": 13.552038629015442,
+    "text": "Blue, Red",
+    "passed": true,
+    "usage": {
+      "prompt_tokens": 24675,
+      "total_tokens": 24679,
+      "completion_tokens": 4,
+      "prompt_tokens_details": null,
+      "reasoning_tokens": 0
+    }
+  },
+  "queue": {
+    "passed": true,
+    "completed": 48,
+    "expected": 48,
+    "seconds": 266.68920163001167,
+    "min_free_mib": [
+      2720.7,
+      3052.4,
+      3084.4,
+      3148.4
+    ],
+    "cached_requests": 8
+  },
+  "shared_document": {
+    "passed": true,
+    "concurrency": 8,
+    "shared_seconds": 6.9925340240006335,
+    "cached_input_tokens": [
+      32384,
+      30720,
+      32000,
+      30720,
+      32000,
+      32000,
+      32000,
+      32000
+    ],
+    "prime": {
+      "name": "cedar",
+      "expected": "731946",
+      "input_tokens": 32418,
+      "input_sha256": "f693527566ea69f93ec030c5213e54d142a25bd7c423d245b1665d78f20006ca",
+      "seconds": 8.90041397701134,
+      "response": {
+        "text": "731946",
+        "output_ids": [
+          22,
+          18,
+          16,
+          24,
+          19,
+          21,
+          248046
+        ],
+        "meta_info": {
+          "id": "e920ce420d934129b3ef10a38ca4b293",
+          "finish_reason": {
+            "type": "stop",
+            "matched": 248046
+          },
+          "prompt_tokens": 32418,
+          "weight_version": "default",
+          "num_retractions": 0,
+          "reasoning_tokens": 0,
+          "completion_tokens": 7,
+          "cached_tokens": 0,
+          "cached_tokens_details": null,
+          "dp_rank": null,
+          "e2e_latency": 8.88520050799707,
+          "spec_accept_rate": 1.0,
+          "spec_accept_length": 3.5,
+          "spec_num_correct_drafts": 6,
+          "spec_num_proposed_drafts": 6,
+          "spec_verify_ct": 2,
+          "spec_accepted_drafts": 6,
+          "spec_proposed_drafts": 6,
+          "spec_correct_drafts_histogram": [
+            0,
+            0,
+            0,
+            2
+          ],
+          "spec_accept_histogram": [
+            0,
+            0,
+            0,
+            2
+          ],
+          "response_sent_to_client_ts": 1793833668.800359
+        }
+      },
+      "passed": true
+    },
+    "shared": [
+      {
+        "name": "cedar",
+        "expected": "731946",
+        "input_tokens": 32418,
+        "input_sha256": "f693527566ea69f93ec030c5213e54d142a25bd7c423d245b1665d78f20006ca",
+        "seconds": 6.951538683992112,
+        "response": {
+          "text": "731946",
+          "output_ids": [
+            22,
+            18,
+            16,
+            24,
+            19,
+            21,
+            248046
+          ],
+          "meta_info": {
+            "id": "1f192dd8d3194fe4a88a8264201a5df1",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 32384,
+            "cached_tokens_details": {
+              "device": 32384,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.897632359992713,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7368834
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "maple",
+        "expected": "732067",
+        "input_tokens": 32418,
+        "input_sha256": "41ea679113df1ba5915c899c07f1f72ee5ce16127cee0d22118c4cb6507b685b",
+        "seconds": 6.983355333999498,
+        "response": {
+          "text": "732067",
+          "output_ids": [
+            22,
+            18,
+            17,
+            15,
+            21,
+            22,
+            248046
+          ],
+          "meta_info": {
+            "id": "58e9265555424682ba817415d8a1ea2c",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 30720,
+            "cached_tokens_details": {
+              "device": 30720,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.883772001980105,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7376814
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "birch",
+        "expected": "732188",
+        "input_tokens": 32420,
+        "input_sha256": "e377b3b6b48df41a8e302959f98131d054b5962e6d90b13a0ab1393e27866708",
+        "seconds": 6.9735815249732696,
+        "response": {
+          "text": "732188",
+          "output_ids": [
+            22,
+            18,
+            17,
+            16,
+            23,
+            23,
+            248046
+          ],
+          "meta_info": {
+            "id": "043422e50dba4a69b890736f3f11777e",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32420,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 32000,
+            "cached_tokens_details": {
+              "device": 32000,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.856776050990447,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7387693
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "elm",
+        "expected": "732309",
+        "input_tokens": 32418,
+        "input_sha256": "84139d35e80562e29c6bee25d0171428c63a765829396e88ccbfa7b6bda103a1",
+        "seconds": 6.967063065996626,
+        "response": {
+          "text": "732309",
+          "output_ids": [
+            22,
+            18,
+            17,
+            18,
+            15,
+            24,
+            248046
+          ],
+          "meta_info": {
+            "id": "d5a3c3b9a23043949401bf67fe634458",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 30720,
+            "cached_tokens_details": {
+              "device": 30720,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.867522771994118,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7382474
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "ash",
+        "expected": "732430",
+        "input_tokens": 32418,
+        "input_sha256": "86c672996b6d6d7453f10e000ca9cb0c90445d5af202c86fa087144dbbf34a82",
+        "seconds": 6.951014769001631,
+        "response": {
+          "text": "732430",
+          "output_ids": [
+            22,
+            18,
+            17,
+            19,
+            18,
+            15,
+            248046
+          ],
+          "meta_info": {
+            "id": "c6fa07b0d6f04a828c27a6a3254c2297",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 32000,
+            "cached_tokens_details": {
+              "device": 32000,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.847850599006051,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7392967
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "oak",
+        "expected": "732551",
+        "input_tokens": 32418,
+        "input_sha256": "6e2bf3f66fda819580fb4c17f98c9e76aa18f67d8d8f4df68f0913639f000dfd",
+        "seconds": 6.956410645012511,
+        "response": {
+          "text": "732551",
+          "output_ids": [
+            22,
+            18,
+            17,
+            20,
+            20,
+            16,
+            248046
+          ],
+          "meta_info": {
+            "id": "c483e61f3fdf4fec91b8ef69f91e6416",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 32000,
+            "cached_tokens_details": {
+              "device": 32000,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.839244799979497,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7398047
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "pine",
+        "expected": "732672",
+        "input_tokens": 32418,
+        "input_sha256": "08dca4b9b6674fecef8cc7fda11ae3070026871c540004951387e6bed545ab6c",
+        "seconds": 6.950103621988092,
+        "response": {
+          "text": "732672",
+          "output_ids": [
+            22,
+            18,
+            17,
+            21,
+            22,
+            17,
+            248046
+          ],
+          "meta_info": {
+            "id": "d3cfaa8c537e4c7bafe78d5d9c5f0793",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 32000,
+            "cached_tokens_details": {
+              "device": 32000,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.831838004000019,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.740334
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "willow",
+        "expected": "732793",
+        "input_tokens": 32420,
+        "input_sha256": "62ff2019aa1b87966b141d958fb978b14e2ccbf109bffef7d0d7a2b0c8ccfa2c",
+        "seconds": 6.94483607399161,
+        "response": {
+          "text": "732793",
+          "output_ids": [
+            22,
+            18,
+            17,
+            22,
+            24,
+            18,
+            248046
+          ],
+          "meta_info": {
+            "id": "36ed0d6282ee4e10bada3d42b479329e",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32420,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 32000,
+            "cached_tokens_details": {
+              "device": 32000,
+              "host": 0
+            },
+            "dp_rank": null,
+            "e2e_latency": 6.8253221460036,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833675.7408338
+          }
+        },
+        "passed": true
+      }
+    ],
+    "cold": [
+      {
+        "name": "cedar",
+        "expected": "731946",
+        "input_tokens": 32418,
+        "input_sha256": "f693527566ea69f93ec030c5213e54d142a25bd7c423d245b1665d78f20006ca",
+        "seconds": 8.500017556012608,
+        "response": {
+          "text": "731946",
+          "output_ids": [
+            22,
+            18,
+            16,
+            24,
+            19,
+            21,
+            248046
+          ],
+          "meta_info": {
+            "id": "9fd35b14f14e4579b2da07e1eb6cc22e",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32418,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 0,
+            "cached_tokens_details": null,
+            "dp_rank": null,
+            "e2e_latency": 8.473907786014024,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833684.3061955
+          }
+        },
+        "passed": true
+      },
+      {
+        "name": "willow",
+        "expected": "732793",
+        "input_tokens": 32420,
+        "input_sha256": "62ff2019aa1b87966b141d958fb978b14e2ccbf109bffef7d0d7a2b0c8ccfa2c",
+        "seconds": 9.128850975015666,
+        "response": {
+          "text": "732793",
+          "output_ids": [
+            22,
+            18,
+            17,
+            22,
+            24,
+            18,
+            248046
+          ],
+          "meta_info": {
+            "id": "21065a89d0df4ea98a229b3f3e984064",
+            "finish_reason": {
+              "type": "stop",
+              "matched": 248046
+            },
+            "prompt_tokens": 32420,
+            "weight_version": "default",
+            "num_retractions": 0,
+            "reasoning_tokens": 0,
+            "completion_tokens": 7,
+            "cached_tokens": 0,
+            "cached_tokens_details": null,
+            "dp_rank": null,
+            "e2e_latency": 9.10663240600843,
+            "spec_accept_rate": 1.0,
+            "spec_accept_length": 3.5,
+            "spec_num_correct_drafts": 6,
+            "spec_num_proposed_drafts": 6,
+            "spec_verify_ct": 2,
+            "spec_accepted_drafts": 6,
+            "spec_proposed_drafts": 6,
+            "spec_correct_drafts_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "spec_accept_histogram": [
+              0,
+              0,
+              0,
+              2
+            ],
+            "response_sent_to_client_ts": 1793833693.453111
+          }
+        },
+        "passed": true
+      }
+    ]
+  },
+  "host_restored": {
+    "passed": true,
+    "image_seconds": 13.110365092987195,
+    "gpu0_min_free_mib": 3021,
+    "health": 200
+  }
+}

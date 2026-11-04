@@ -27,6 +27,8 @@ CPU pixel preprocessing and the v5.4 SM70 vision acceleration remain enabled.
 These are host measurements; Docker v5 packages this balanced profile. The
 Docker v4 rows below retain the earlier image measurements. [Core audit, results and setup](benchmark/qwen38_concurrent_core_audit_20261104/README.md)
 · [Earlier 6.6× vision improvement](benchmark/qwen38_vision_v100_20261104/README.md).
+Docker v5 measured 356.5 aggregate tok/s at C8, within about 2% of the matched
+host controls across C1/C4/C8. [Docker v5 validation](benchmark/qwen38_docker_v5_20261105/README.md).
 
 Models are grouped newest to oldest by when V100 serving support was added
 here, with configurations kept together. All current rows are retained. Unless
@@ -133,6 +135,8 @@ FP16 KV, eight request slots, 2K prefill chunks and a 262,144-token context.
 Concurrent requests share the KV pool. Pixel preprocessing runs on CPU;
 vision encoding and language inference run on GPU. The wider-draft experiments
 remain off.
+
+<a id="serve-qwen38-flash-next-nvfp4-from-docker"></a>
 
 Docker:
 

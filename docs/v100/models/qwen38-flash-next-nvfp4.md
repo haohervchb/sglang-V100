@@ -88,6 +88,11 @@ inside the image against its PyTorch ABI; host `.so` files are excluded.
 The vision build needs no GPU. Its runtime is checked on V100 after building.
 The build retains dependency sources, licenses and metadata under `/opt/deps`.
 
+The [v5 container validation](../../../benchmark/qwen38_docker_v5_20261105/README.md)
+passed full-context, tool, image, shared-document and 48-request queue checks.
+With weights already cached and a fresh JIT volume, first readiness took about
+19 minutes on the test host. Later starts reuse the compiled kernels.
+
 For a direct Docker invocation, the image's default command already selects
 the balanced profile. The host wrapper supplies GPU access, shared memory,
 cache mounts and lifecycle options. Explicit commands such as
@@ -121,7 +126,8 @@ stays on CPU to avoid competing with TP0 for GPU memory. Document extraction
 still needs to produce input within the context limit.
 
 For the older target-only single-request profile, use
-`bash scripts/serve_qwen38_flash_next_nvfp4_v100.sh`. For the earlier
+`PORT=8082 bash scripts/serve_qwen38_flash_next_nvfp4_v100.sh` (its own default
+port is 30000). For the earlier
 single-request MTP profile, use
 `bash scripts/serve_qwen38_flash_next_nvfp4_v100_mtp.sh`.
 
