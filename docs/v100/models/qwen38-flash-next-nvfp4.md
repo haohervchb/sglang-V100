@@ -30,8 +30,9 @@ curl --fail http://127.0.0.1:8082/health
 
 Use `http://127.0.0.1:8082/v1` and model name `qwen` in your client. An active
 container may still be loading; HTTP 200 from `/health` means it is ready.
-The container restarts on failure and after a Docker-daemon restart, unless
-explicitly stopped.
+Startup and restarts are manual. The container does not restart after failure,
+a Docker-daemon restart or a reboot. Starting or restarting an existing managed
+container also clears any older automatic restart policy.
 
 ```bash
 bash scripts/qwen38.sh stop
@@ -59,8 +60,8 @@ systemctl --user stop sglang-qwen38-8082.service
 bash scripts/qwen38.sh
 ```
 
-Use one serving instance per group of four GPUs. If Docker will own the node
-across reboots, disable the host service so both do not start on the same cards.
+Use one serving instance per group of four GPUs. Keep the host service disabled
+at boot; start the host or Docker explicitly when needed.
 
 ## Update or build the image
 

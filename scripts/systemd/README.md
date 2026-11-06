@@ -53,7 +53,8 @@ active. Restart after installing the library. See the bundled
 mkdir -p ~/.config/systemd/user
 cp scripts/systemd/sglang-qwen38-8082.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now sglang-qwen38-8082.service
+systemctl --user disable sglang-qwen38-8082.service
+systemctl --user start sglang-qwen38-8082.service
 ```
 
 Model loading and graph warmup take several minutes. Readiness is indicated by
@@ -67,6 +68,6 @@ systemctl --user restart sglang-qwen38-8082.service
 systemctl --user stop sglang-qwen38-8082.service
 ```
 
-The service restarts on failure. User lingering is required for startup before
-login; inspect it with `loginctl show-user "$USER" -p Linger`. Native CUDA build
+The service stays disabled at boot and does not restart automatically. Start
+it explicitly when needed. Native CUDA build
 caches live under `~/.cache/sglang-v100/qwen38` so normal reboots preserve them.

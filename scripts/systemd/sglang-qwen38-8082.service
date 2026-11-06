@@ -14,8 +14,7 @@ Environment=CUDA_VISIBLE_DEVICES=0,1,2,3
 Environment=PORT=8082
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/bash %h/sglang-V100/scripts/qwen38.sh host
-Restart=on-failure
-RestartSec=15
+Restart=no
 KillMode=control-group
 TimeoutStopSec=60
 LimitNOFILE=1048576

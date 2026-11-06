@@ -28,6 +28,7 @@ Usage: bash scripts/qwen38.sh [start|logs|status|stop|restart|recreate|pull|buil
   host      Run the same profile in the active host Python environment.
 
 Defaults: port 8082, model qwen, native MTP-3/4, eight requests, 262K context.
+Startup and restarts are manual; nothing is enabled for boot.
 Set PORT, HF_HOME, QWEN38_CONTAINER or QWEN38_IMAGE when needed.
 Extra arguments after start/recreate/host are passed to SGLang.
 EOF
@@ -67,6 +68,7 @@ start() {
     if exists; then
         managed
         echo "Using existing container $q38_container. Use recreate to apply a new image or settings."
+        docker update --restart=no "$q38_container" >/dev/null
         docker start "$q38_container"
         return
     fi
@@ -80,7 +82,7 @@ start() {
         if [[ -v $q38_key ]]; then q38_env+=(--env "$q38_key"); fi
     done
     docker run -d --name "$q38_container" --label "$q38_label=true" \
-        --restart unless-stopped --stop-timeout 60 \
+        --restart no --stop-timeout 60 \
         --gpus all --network host --ipc host \
         --ulimit memlock=-1 --ulimit stack=67108864 \
         --volume "$q38_cache:/root/.cache/huggingface" \
@@ -102,7 +104,11 @@ case "$q38_action" in
         exec docker inspect --format '{{.Name}}: {{.State.Status}} {{if .State.Health}}({{.State.Health.Status}}){{end}}' "$q38_container"
         ;;
     stop) managed; exec docker stop --time 60 "$q38_container" ;;
-    restart) managed; exec docker restart --time 60 "$q38_container" ;;
+    restart)
+        managed
+        docker update --restart=no "$q38_container" >/dev/null
+        exec docker restart --time 60 "$q38_container"
+        ;;
     recreate)
         if exists; then
             managed

@@ -166,7 +166,7 @@ All model and kernel arguments live in the
 Docker includes the native grouped-QSA and vision dependencies. The
 [full model guide](docs/v100/models/qwen38-flash-next-nvfp4.md) covers installation,
 cache management, custom arguments and historical configurations. The
-[user-service guide](scripts/systemd/README.md) covers host startup on reboot.
+[user-service guide](scripts/systemd/README.md) covers manual host service operation.
 
 The balanced host profile measured roughly 360 aggregate output tok/s at C8
 and retained about 120 decode tok/s at C1 on the recorded prose workloads.
