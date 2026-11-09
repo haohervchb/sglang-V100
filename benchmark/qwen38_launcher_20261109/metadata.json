@@ -1,0 +1,34 @@
+{
+  "validate_launchers.py": {
+    "source_sha256": "390794537ad4daf9df6a5acdf22ed3db8de5c4f86ab298d04fb15504047b0834",
+    "archive_sha256": "8472d117da536c5715e6c6bf7b1eff434a2b043ceab6cb6cecd6d023822a7a53"
+  },
+  "validation.log": {
+    "source_sha256": "699a356e3fcc742e213aaa54e80d6bab7eb6de2cece5e40a9c4a299ca7569845",
+    "archive_sha256": "356a024b88c79c2be466c6863e09f091f151e7522d6ccedf2cfafe01b794ad3e"
+  },
+  "host_launcher_check.json": {
+    "source_sha256": "41bedaa5d33304aa3138bd3f2a63fa18228af5f53c001a045df63d21cf3ba93a",
+    "archive_sha256": "5f3f9363f6a0373273468f29abc6a4d07b93d5b680922fee9338b44ec65b798a"
+  },
+  "standalone_check.json": {
+    "source_sha256": "05162d0e24f355789e48ce567200a473c1bacd0974cdd01b0c5b8ca16d045bfd",
+    "archive_sha256": "0f1899305a370ebb7ba5d1aa81e75d554759a6c2380e6b99dde7452649cb4eaf"
+  },
+  "profile_argv.json": {
+    "source_sha256": "f4af254148c5845dcd11b4224be2583df45cd7abb1f52e84b386a73a8969cd62",
+    "archive_sha256": "d03a214b1b59c31c7179ee8c937dd0e75425918dd719038dfd843f63ddf25e34"
+  },
+  "v5_runtime_hashes.json": {
+    "source_sha256": "3ff43dbb464147b5d6d13829372b7c65f892f9f7484189f8ed36a8bd81f2e24d",
+    "archive_sha256": "ad3332e08641884fd5c3ad99cca7a4cf33acb70bf3357e3605599eb29b3e6096"
+  },
+  "v5_1_runtime_hashes.json": {
+    "source_sha256": "3ff43dbb464147b5d6d13829372b7c65f892f9f7484189f8ed36a8bd81f2e24d",
+    "archive_sha256": "ad3332e08641884fd5c3ad99cca7a4cf33acb70bf3357e3605599eb29b3e6096"
+  },
+  "build_release.log": {
+    "source_sha256": "54a46b3edb247c48a49b21aa6190f15f41edbcca1c8a43732670a81bbd8518b2",
+    "archive_sha256": "f84eeb08cd193314807a3fd4e36e2a8e219c357918bb2e1efa719261d2d1abf9"
+  }
+}

@@ -92,6 +92,9 @@ The [v5 container validation](../../../benchmark/qwen38_docker_v5_20261105/READM
 passed full-context, tool, image, shared-document and 48-request queue checks.
 With weights already cached and a fresh JIT volume, first readiness took about
 19 minutes on the test host. Later starts reuse the compiled kernels.
+The [v5.1 launcher checks](../../../benchmark/qwen38_launcher_20261109/README.md)
+verify image-only extraction and operation from an empty directory, with the
+same runtime files and serving arguments as v5.
 
 For a direct Docker invocation, the image's default command already selects
 the balanced profile. The host wrapper supplies GPU access, shared memory,
