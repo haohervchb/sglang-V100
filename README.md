@@ -99,7 +99,7 @@ docker pull geesegeesegeese/sglang-v100:latest
 For a reproducible deployment, pin the tested Qwen3.8 Flash Next release:
 
 ```bash
-docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4
+docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.1
 ```
 
 Build the current checkout:
@@ -123,173 +123,61 @@ server at a time on the four GPUs and activate `sglang-v100` for host commands.
 
 ### Qwen3.8 Flash Next NVFP4
 
-The packaged launcher uses TP4, FP16 activations, E5M2 KV, 262,144-token
-context, 8,192-token prefill chunks and one running request. It selects the
-measured V100 optimizations and detects the checkpoint's tool format.
-
-For a community-tested 8× V100 deployment using two independent TP4 replicas,
-long-context OpenCode, multimodal input, and reboot recovery, see the
-[2×TP4 OpenCode and multimodal field report](benchmark/qwen38_nvfp4_v100_opencode_field_report_20260927/README.md).
-
-Target-only on the host:
-
-```bash
-conda activate sglang-v100
-cd "$HOME/sglang-V100"
-CUDA_VISIBLE_DEVICES=0,1,2,3 PYTHONPATH="$PWD/python" PORT=30000 \
-  bash scripts/serve_qwen38_flash_next_nvfp4_v100.sh
-```
-
-Built-in MTP uses the same checkpoint with three speculative steps and four
-draft tokens:
-
-```bash
-conda activate sglang-v100
-cd "$HOME/sglang-V100"
-CUDA_VISIBLE_DEVICES=0,1,2,3 PYTHONPATH="$PWD/python" PORT=30000 \
-  bash scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
-  RadixArk/Qwen3.8-Flash-Next-NVFP4 \
-  --speculative-algorithm EAGLE \
-  --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
-  --speculative-num-steps 3 \
-  --speculative-eagle-topk 1 \
-  --speculative-num-draft-tokens 4
-```
+The current image contains the balanced MTP-3/4 profile for four V100 32 GB
+GPUs with NVLink, FP16 KV, eight request slots and 262K context. Model and
+kernel parameters live in the shell scripts, and concurrent requests share
+the KV pool. Startup and restarts are manual.
 
 #### Serve Qwen3.8 Flash Next NVFP4 from Docker
 
-The command below keeps MTP and image input enabled. It supports two requests
-near the 262,144-token context limit, or up to four shorter requests at once.
-
-On a Linux host with four V100 32 GB GPUs, a CUDA 12.8-compatible NVIDIA
-driver, and
-[Docker configured with the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuring-docker),
-run the following commands. No repository checkout or predownloaded checkpoint is
-needed: Docker pulls the runtime image, and the server downloads missing model
-files into the writable Hugging Face cache. The image does not include weights.
-The full command below starts SGLang directly with image/video support explicitly
-enabled by `--enable-multimodal`. Docker creates the named JIT volume, and the
-runtime creates its cache subdirectories and compiles kernels with the image's
-build tools. Both caches can start empty; no host script, Conda environment or
-CUDA compiler is needed.
+**No repository checkout is needed.** On a Linux host with Docker and the
+NVIDIA Container Toolkit, copy the launcher out of the image and run it:
 
 ```bash
-mkdir -p "$HOME/.cache/huggingface"
-docker pull geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4
-
-docker run --rm -it --name qwen38-flash-next-mtp-v4 \
-  --gpus all --network host --ipc host \
-  --ulimit memlock=-1 --ulimit stack=67108864 \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  -v sglang-v100-jit-v4:/root/sglang-v100-jit \
-  -e FLASHINFER_DISABLE_VERSION_CHECK=1 \
-  -e NCCL_P2P_LEVEL=NVL \
-  -e SGLANG_CUSTOM_ALLREDUCE_ALGO=1stage \
-  -e SGLANG_MAMBA_CONV_DTYPE=float16 \
-  -e SGLANG_MAMBA_SSM_DTYPE=float16 \
-  -e SGLANG_SM70_FORCE_FP16=1 \
-  -e SGLANG_SM70_DENSE_GEMV=1 \
-  -e SGLANG_SM70_QWEN_FUSIONS=1 \
-  -e SGLANG_ENABLE_HEALTH_ENDPOINT_GENERATION=0 \
-  -e SGLANG_SM70_QSA_DENSE_PREFILL_MAX_TOKENS=8192 \
-  -e TVM_FFI_CACHE_DIR=/root/sglang-v100-jit/tvm-ffi \
-  -e TORCH_EXTENSIONS_DIR=/root/sglang-v100-jit/torch_extensions \
-  -e SGLANG_V100_NVFP4_MOE_BUILD_DIR=/root/sglang-v100-jit/nvfp4_moe \
-  -e SGLANG_V100_DECODE_CUDA_BUILD_DIR=/root/sglang-v100-jit/longctx_decode \
-  geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v4 \
-  python -m sglang.launch_server \
-  --trust-remote-code \
-  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
-  --enable-multimodal \
-  --served-model-name qwen \
-  --dtype float16 \
-  --quantization modelopt_fp4 \
-  --reasoning-parser auto \
-  --tool-call-parser auto \
-  --attention-backend tilelang_fa_v100 \
-  --linear-attn-prefill-backend tilelang \
-  --linear-attn-decode-backend triton \
-  --kv-cache-dtype fp8_e5m2 \
-  --tensor-parallel-size 4 \
-  --host 127.0.0.1 \
-  --port 8082 \
-  --mem-fraction-static 0.84 \
-  --context-length 262144 \
-  --max-total-tokens 540672 \
-  --max-running-requests 4 \
-  --max-mamba-cache-size 24 \
-  --chunked-prefill-size 2048 \
-  --cuda-graph-max-bs 4 \
-  --cuda-graph-bs 1 2 4 \
-  --mamba-scheduler-strategy extra_buffer \
-  --mamba-full-memory-ratio 0.2 \
-  --speculative-algorithm EAGLE \
-  --speculative-draft-model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
-  --speculative-num-steps 3 \
-  --speculative-eagle-topk 1 \
-  --speculative-num-draft-tokens 4
+export QWEN38_IMAGE=geesegeesegeese/sglang-v100:latest
+docker pull "$QWEN38_IMAGE"
+docker run --rm --entrypoint cat "$QWEN38_IMAGE" /usr/local/bin/qwen38.sh > qwen38.sh
+bash qwen38.sh
 ```
 
-The server runs in the foreground and prints startup logs in this terminal.
-Logs can stay quiet while weights download. In another terminal, check readiness:
+This starts port **8082**, model name **qwen**, and keeps downloaded model
+weights and compiled kernels in persistent caches. The current launcher
+release is `v100-qwen38-flash-next-v5.1`; replace `latest` above with that tag
+to pin it. No Conda, host CUDA compiler or systemd setup is required.
 
 ```bash
-curl --fail http://127.0.0.1:8082/health
+bash qwen38.sh logs
+bash qwen38.sh status
+bash qwen38.sh stop
 ```
 
-Press Ctrl-C in the serving terminal when finished, or run
-`docker stop --time 60 qwen38-flash-next-mtp-v4` from another terminal.
-`--rm` deletes the container when it stops. Downloaded weights remain in the
-host cache, and compiled kernels remain in the named JIT volume.
+The API is `http://127.0.0.1:8082/v1`. Check readiness with
+`curl --fail http://127.0.0.1:8082/health`; initial weight loading and kernel
+compilation take time. Set `PORT=8083` or `HF_HOME=/srv/huggingface` before
+the launcher to change the port or model-cache location. One serving instance
+uses the four GPUs. Nothing is enabled at boot.
 
-First startup needs internet access and disk space for approximately 126 GiB
-of model weights, in addition to the Docker image and compilation caches.
-Later starts reuse the model and JIT caches. Use `-e HF_HUB_OFFLINE=1` only
-when all required model files are already cached; it is not needed for caching.
-The [empty-cache validation](benchmark/qwen38_docker_clean_start_20260910/README.md)
-passed on a 256 GiB RAM host; first readiness took 52 minutes including downloads
-and compilation.
+#### Foreground host launch
 
-For target-only mode, choose another container name and omit the five
-speculative arguments. The API is at `http://127.0.0.1:8082/v1`; the host
-commands use port 30000.
-The v4 image includes FFmpeg for video decoding.
+For an already prepared V100 host environment, use the
+[v5.1 release checkout](https://github.com/haohervchb/sglang-V100/tree/v100-qwen38-docker-v5.1),
+which contains the current host profile and shell launcher:
 
-#### Two full-context requests and up to four shorter requests
+```bash
+git fetch origin tag v100-qwen38-docker-v5.1
+git switch --detach v100-qwen38-docker-v5.1
+bash scripts/serve_qwen38.sh
+```
 
-The Docker command above uses the tested concurrent MTP configuration on four
-V100 32 GB GPUs. It retains the full per-request context and image input.
+The script finds the prepared serving Python. Logs stay in the terminal;
+Ctrl-C stops the server. Set `SGLANG_PYTHON` for a custom serving environment.
 
-`--max-total-tokens` is a shared KV pool, so the four requests cannot each
-reach 262,144 tokens at once. The extra-buffer Mamba scheduler needs five cache
-slots per live request; 24 slots allow four live requests with a small margin.
-`--max-running-requests` sets the server-side concurrency cap; a harness-side
-`max-num-seq` setting alone does not change the server capacity.
-The CUDA graphs cover batch sizes 1, 2 and 4; capturing only batch size 1
-leaves multi-request decode on the slower eager path.
-Image tokens and generated tokens count toward each request's 262,144-token
-limit and the shared KV pool; leave room for the answer when sending a long
-text-and-image prompt.
-
-On September 25, 2026, this MTP configuration completed two concurrent
-261,120-input/512-output requests (261,632 tokens each) without OOM. Four
-1,024-input/512-output requests all decoded together at 199.7 aggregate
-output tok/s over the run. Four 8,192-input/1,024-output requests completed
-at 120.0 aggregate output tok/s; the fourth briefly queued during prefill.
-Four 65,536-input/512-output requests also completed. Each of four concurrent
-image requests correctly identified the content of three input images.
-Two simultaneous image requests with 259,644 prompt tokens each also passed;
-GPU 0 had 1,017 MiB free at its measured peak. See the
-[MTP concurrency and image measurements](benchmark/qwen38_nvfp4_v100_full_context_mtp_concurrency_20260925/README.md).
-GPU 0 can use more memory when processing images, so monitor its free memory
-for your image sizes and request mix. The test container's main server process
-used about 810 MiB on GPU 0 in addition to the TP0 scheduler, accounting for
-most of its observed imbalance.
-
-See [Docker/host validation](benchmark/qwen38_nvfp4_v100_docker_v4_20260908/README.md),
-[image/video validation](benchmark/qwen38_nvfp4_v100_multimodal_20260909/README.md),
-and the [full model guide](docs/v100/models/qwen38-flash-next-nvfp4.md) for
-overlay builds, older deployment configurations and performance history.
+See the [release setup guide](https://github.com/haohervchb/sglang-V100/blob/v100-qwen38-docker-v5.1/docs/v100/models/qwen38-flash-next-nvfp4.md)
+for caches and updates, and the [validated default profile](https://github.com/haohervchb/sglang-V100/tree/v100-qwen38-docker-v5.1/benchmark/qwen38_docker_v5_20261105)
+for full-context, image, tool and concurrency checks. The earlier
+[v4 deployment](benchmark/qwen38_nvfp4_v100_full_context_mtp_concurrency_20260925/README.md)
+and [8× V100 community report](benchmark/qwen38_nvfp4_v100_opencode_field_report_20260927/README.md)
+retain their original configurations and measurements.
 
 ### Qwen3.8-27B
 
