@@ -1,6 +1,6 @@
 # Qwen3.8 Flash Next NVFP4 on V100
 
-[Back to the main README](../../../README.md) · [Host service](../../../scripts/systemd/README.md)
+[Back to the main README](../../../README.md) · [Foreground shell launcher](../../../scripts/serve_qwen38.sh)
 
 The default is the balanced MTP-3/4 profile: four V100 32 GB GPUs, NVLink,
 FP16 KV, eight request slots, 2K prefill chunks, 262K context, shared-prefix
@@ -10,21 +10,25 @@ wider MTP and adaptive speculation are off. The serving arguments are kept in
 
 ## Start Docker
 
-With Docker and the NVIDIA Container Toolkit installed, run from this checkout:
+With Docker and the NVIDIA Container Toolkit installed, run these commands in
+any directory. No repository checkout is required:
 
 ```bash
-bash scripts/qwen38.sh
+export QWEN38_IMAGE=geesegeesegeese/sglang-v100:latest
+docker pull "$QWEN38_IMAGE"
+docker run --rm --entrypoint cat "$QWEN38_IMAGE" /usr/local/bin/qwen38.sh > qwen38.sh
+bash qwen38.sh
 ```
 
-This starts `geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5` in the
+This starts `geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.1` in the
 background, using container name `qwen38` and port 8082. Docker pulls the image
 if needed. The checkpoint revision is pinned to
 `7b719225242aacd3dbd3f9407468c2ee9a9d2594`; weights download into a writable
 host cache when missing. The image contains the runtime and CUDA build tools.
 
 ```bash
-bash scripts/qwen38.sh logs
-bash scripts/qwen38.sh status
+bash qwen38.sh logs
+bash qwen38.sh status
 curl --fail http://127.0.0.1:8082/health
 ```
 
@@ -35,14 +39,14 @@ a Docker-daemon restart or a reboot. Starting or restarting an existing managed
 container also clears any older automatic restart policy.
 
 ```bash
-bash scripts/qwen38.sh stop
-bash scripts/qwen38.sh start
+bash qwen38.sh stop
+bash qwen38.sh start
 ```
 
 To use a different port or model-cache directory:
 
 ```bash
-PORT=8083 HF_HOME=/srv/huggingface bash scripts/qwen38.sh
+PORT=8083 HF_HOME=/srv/huggingface bash qwen38.sh
 ```
 
 `HF_HOME` defaults to `~/.cache/huggingface`. The named volume
@@ -53,21 +57,15 @@ A populated model cache avoids downloading them again. `HF_TOKEN` and
 `HF_HUB_OFFLINE`, when set, are passed through to the container.
 
 The launcher refuses to start a new container when the selected port is
-already occupied. Stop the host service before using the same GPUs for Docker:
-
-```bash
-systemctl --user stop sglang-qwen38-8082.service
-bash scripts/qwen38.sh
-```
-
-Use one serving instance per group of four GPUs. Keep the host service disabled
-at boot; start the host or Docker explicitly when needed.
+already occupied. Stop an existing foreground host server with Ctrl-C, or an
+existing Docker server with `bash qwen38.sh stop`, before reusing the GPUs.
+Use one serving instance per group of four GPUs. Startup remains manual.
 
 ## Update or build the image
 
 ```bash
-bash scripts/qwen38.sh pull
-bash scripts/qwen38.sh recreate
+bash qwen38.sh pull
+bash qwen38.sh recreate
 ```
 
 `recreate` applies the selected image and current settings to the managed
@@ -75,7 +73,8 @@ container, preserving both caches. `start` reuses an existing container and its
 saved configuration. Set `QWEN38_IMAGE` to select another image tag, or
 `QWEN38_CONTAINER` to select another managed container name.
 
-Build this checkout:
+Building requires the source checkout. Docker-only users can use `pull` and
+`recreate` above instead:
 
 ```bash
 bash scripts/qwen38.sh build
@@ -102,22 +101,27 @@ existing generic `sglang serve` argument entrypoint is retained.
 
 ## Run on the host
 
-After installing the V100 environment and optional grouped-QSA/vision libraries:
+After installing the V100 environment and optional grouped-QSA/vision libraries,
+run from that prepared source checkout:
 
 ```bash
-conda activate sglang-v100
-bash scripts/qwen38.sh host
+bash scripts/serve_qwen38.sh
 ```
 
-The [user-service unit](../../../scripts/systemd/sglang-qwen38-8082.service)
-uses this same command. Dependency build instructions are in the
+The script finds a serving Python in the prepared environment, or uses
+`SGLANG_PYTHON` when explicitly set. It runs in the foreground and Ctrl-C stops
+it. The image also contains this command as `serve-qwen38`, which is its default
+command. No systemd installation or boot startup is part of this workflow.
+`bash scripts/qwen38.sh host` remains a compatible shortcut.
+
+Dependency build instructions are in the
 [third-party notice](../../../python/sglang/jit_kernel/third_party/flash_v100/README.md).
 Docker already includes those dependencies.
 
-Advanced SGLang arguments can follow `host`, `start` or `recreate`:
+Advanced SGLang arguments can follow the foreground script or Docker `start`/`recreate`:
 
 ```bash
-bash scripts/qwen38.sh host --max-running-requests 4 --cuda-graph-bs 1 2 3 4
+bash scripts/serve_qwen38.sh --max-running-requests 4 --cuda-graph-bs 1 2 3 4
 ```
 
 The 262K limit applies to each request; concurrent agents share a 277,280-token

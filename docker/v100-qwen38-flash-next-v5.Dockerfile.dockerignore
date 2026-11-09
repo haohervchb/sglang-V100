@@ -7,6 +7,8 @@
 !scripts/serve_qwen38_flash_next_nvfp4_v100.sh
 !scripts/serve_qwen38_flash_next_nvfp4_v100_mtp.sh
 !scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh
+!scripts/serve_qwen38.sh
+!scripts/qwen38.sh
 !scripts/smoke_v100.sh
 !docker/
 !docker/v100-entrypoint.sh

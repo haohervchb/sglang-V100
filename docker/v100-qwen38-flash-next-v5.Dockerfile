@@ -50,22 +50,25 @@ COPY python/sglang /opt/sglang/python/sglang
 COPY scripts/serve_qwen38_flash_next_nvfp4_v100.sh \
      scripts/serve_qwen38_flash_next_nvfp4_v100_mtp.sh \
      scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh \
+     scripts/serve_qwen38.sh scripts/qwen38.sh \
      scripts/smoke_v100.sh /opt/sglang/scripts/
 COPY docker/v100-entrypoint.sh /usr/local/bin/v100-entrypoint
 
 RUN python -m compileall -q /opt/sglang/python/sglang \
     && python -c 'import torch, flash_attn_v100; from sglang.srt.layers.attention.tilelang_fa_v100._grouped_qsa import load_grouped_qsa_ops; assert load_grouped_qsa_ops().sglang_masked_sparse_kv' \
-    && for q38_script in /usr/local/bin/v100-entrypoint /opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100*.sh; do bash -n "$q38_script" || exit; done \
-    && chmod +x /usr/local/bin/v100-entrypoint
+    && for q38_script in /usr/local/bin/v100-entrypoint /opt/sglang/scripts/*qwen38*.sh; do bash -n "$q38_script" || exit; done \
+    && chmod +x /usr/local/bin/v100-entrypoint /opt/sglang/scripts/serve_qwen38.sh /opt/sglang/scripts/qwen38.sh \
+    && ln -s /opt/sglang/scripts/serve_qwen38.sh /usr/local/bin/serve-qwen38 \
+    && ln -s /opt/sglang/scripts/qwen38.sh /usr/local/bin/qwen38.sh
 
 # Revision metadata comes last so it does not invalidate native build layers.
 ARG SGLANG_SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.title="SGLang Qwen3.8 Flash Next on V100" \
-      org.opencontainers.image.version="v100-qwen38-flash-next-v5" \
+      org.opencontainers.image.version="v100-qwen38-flash-next-v5.1" \
       org.opencontainers.image.revision="${SGLANG_SOURCE_REVISION}"
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60m --retries=3 \
     CMD python -c 'import os,urllib.request; urllib.request.urlopen("http://127.0.0.1:"+os.environ.get("PORT","8082")+"/health",timeout=3)'
 
 ENTRYPOINT ["/usr/local/bin/v100-entrypoint"]
-CMD ["bash", "/opt/sglang/scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh"]
+CMD ["/usr/local/bin/serve-qwen38"]

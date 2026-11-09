@@ -2,11 +2,12 @@
 # One-command balanced Flash-Next serving on 4x V100 32 GB.
 set -euo pipefail
 
-q38_script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+q38_script_path=$(readlink -f -- "${BASH_SOURCE[0]}")
+q38_script_dir=$(dirname -- "$q38_script_path")
 q38_repo_dir=$(cd -- "$q38_script_dir/.." && pwd)
 q38_action=${1:-start}
 if (( $# )); then shift; fi
-q38_image=${QWEN38_IMAGE:-geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5}
+q38_image=${QWEN38_IMAGE:-geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.1}
 q38_container=${QWEN38_CONTAINER:-qwen38}
 q38_cache=${HF_HOME:-$HOME/.cache/huggingface}
 q38_jit_volume=${QWEN38_JIT_VOLUME:-qwen38-v5-jit}
@@ -15,7 +16,7 @@ q38_label=org.sglang.qwen38.managed
 
 usage() {
     cat <<'EOF'
-Usage: bash scripts/qwen38.sh [start|logs|status|stop|restart|recreate|pull|build|host]
+Usage: bash qwen38.sh [start|logs|status|stop|restart|recreate|pull|build|host]
 
   start     Start Docker in the background (default).
   logs      Follow startup and request logs.
@@ -24,8 +25,8 @@ Usage: bash scripts/qwen38.sh [start|logs|status|stop|restart|recreate|pull|buil
   restart   Restart the existing container.
   recreate  Replace the container with the selected image; preserve caches.
   pull      Download the selected release image.
-  build     Build the Docker image from this checkout.
-  host      Run the same profile in the active host Python environment.
+  build     Build the Docker image (requires the source checkout).
+  host      Serve in this terminal (requires a prepared source checkout).
 
 Defaults: port 8082, model qwen, native MTP-3/4, eight requests, 262K context.
 Startup and restarts are manual; nothing is enabled for boot.
@@ -37,11 +38,11 @@ EOF
 case "$q38_action" in
     help|-h|--help) usage; exit 0 ;;
     host)
-        export PORT="$q38_port"
-        export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3}
-        export SGLANG_SM70_MTP_LOCAL_TOP1=0 SGLANG_SM70_HC_COMBINE_NORM=0 SGLANG_SM70_AR_PUSH16=0
-        exec bash "$q38_script_dir/serve_qwen38_flash_next_nvfp4_v100_throughput.sh" \
-            RadixArk/Qwen3.8-Flash-Next-NVFP4 "$@"
+        if [[ ! -r "$q38_script_dir/serve_qwen38.sh" ]]; then
+            echo "Host serving needs the prepared source checkout. This standalone launcher can start Docker with: bash $q38_script_path" >&2
+            exit 1
+        fi
+        exec bash "$q38_script_dir/serve_qwen38.sh" "$@"
         ;;
     start|logs|status|stop|restart|recreate|pull|build) ;;
     *) usage >&2; exit 2 ;;
@@ -119,6 +120,10 @@ case "$q38_action" in
         ;;
     pull) exec docker pull "$q38_image" ;;
     build)
+        if [[ ! -f "$q38_repo_dir/docker/v100-qwen38-flash-next-v5.Dockerfile" ]]; then
+            echo "Building requires the source checkout. Use pull/start with the standalone launcher." >&2
+            exit 1
+        fi
         q38_revision=$(git -C "$q38_repo_dir" rev-parse HEAD)
         if [[ -n $(git -C "$q38_repo_dir" status --porcelain) ]]; then q38_revision+=-dirty; fi
         exec docker build --network=host \
