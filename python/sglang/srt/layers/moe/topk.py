@@ -30,6 +30,7 @@ from typing import (
 
 import torch
 import torch.nn.functional as F
+from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode_max_rows
 
 try:
     from triton_kernels.matmul_ogs import GatherIndx, RoutingData, ScatterIndx
@@ -133,7 +134,6 @@ if _is_cuda:
 
     try:
         from flashinfer.fused_moe import fused_topk_deepseek as _fused_topk_deepseek
-
         from sglang.srt.utils.custom_op import register_custom_op
 
         @register_custom_op(
@@ -678,7 +678,7 @@ def fused_topk(
     M, _ = hidden_states.shape
 
     if (
-        1 <= M <= 4
+        1 <= M <= sm70_nvfp4_moe_decode_max_rows()
         and gating_output.shape == (M, 512)
         and gating_output.dtype in (torch.float16, torch.float32)
         and topk == 10

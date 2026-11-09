@@ -1,0 +1,149 @@
+{
+  "dataset": "nvidia/SPEED-Bench",
+  "revision": "fbd6dc64353a3153bf24252a113ebd6d2cff9dec",
+  "split": "qualitative",
+  "turn": 0,
+  "enable_thinking": false,
+  "cases": [
+    {
+      "id": "speed_08a5bcca5621439cb1b93a663843d75c",
+      "kind": "coding",
+      "sub_category": null,
+      "input_sha256": "81303606fc80ea03b394b53f6b308d05b34bf99a4676b1540e236e494b462708",
+      "input_tokens": 132
+    },
+    {
+      "id": "speed_08f4c31730b4427f90e8146fef066c4c",
+      "kind": "coding",
+      "sub_category": null,
+      "input_sha256": "b942e7414d3e9c9c09fc45ccfa4b0b1ff6fbbf6fed25b767081c6c215ec6e5bd",
+      "input_tokens": 178
+    },
+    {
+      "id": "speed_0a7a83477d19422db773738a353b2795",
+      "kind": "coding",
+      "sub_category": null,
+      "input_sha256": "e48844aa15dbfe94e4dcc00bcaa85d7236b446fdb4692fb3799f75f2c05f8bcf",
+      "input_tokens": 143
+    },
+    {
+      "id": "speed_0daf539b787c4dccbb547330a8b4c3d7",
+      "kind": "coding",
+      "sub_category": null,
+      "input_sha256": "c89db803bb9d375997115ee85aaf98430fd4680fd208a8817709657aa2c30be6",
+      "input_tokens": 61
+    },
+    {
+      "id": "speed_0042b6eb553f41398140f79a252210fb",
+      "kind": "reasoning",
+      "sub_category": "history",
+      "input_sha256": "1b349608fcdb213a6912047f6cad460da6451e300ef83eb17920625bc15dab51",
+      "input_tokens": 28
+    },
+    {
+      "id": "speed_0af14f1626604fb78c17db8e076be523",
+      "kind": "reasoning",
+      "sub_category": "general",
+      "input_sha256": "1b349608fcdb213a6912047f6cad460da6451e300ef83eb17920625bc15dab51",
+      "input_tokens": 28
+    },
+    {
+      "id": "speed_13027a52cab44af49105732cab0fa27b",
+      "kind": "reasoning",
+      "sub_category": "general",
+      "input_sha256": "1b349608fcdb213a6912047f6cad460da6451e300ef83eb17920625bc15dab51",
+      "input_tokens": 28
+    },
+    {
+      "id": "speed_150f42512f514ee6b63b2723fc2a69ff",
+      "kind": "reasoning",
+      "sub_category": "general",
+      "input_sha256": "1b349608fcdb213a6912047f6cad460da6451e300ef83eb17920625bc15dab51",
+      "input_tokens": 28
+    },
+    {
+      "id": "speed_02ca690c74b14ccb82a44471d97e094e",
+      "kind": "writing",
+      "sub_category": null,
+      "input_sha256": "59fc14ddb33676aaff4dd7655c6a6c67663d4838f44aeeaae875cced56d0b48c",
+      "input_tokens": 44
+    },
+    {
+      "id": "speed_02cdc14782c5405da93af16c2156e493",
+      "kind": "writing",
+      "sub_category": "Academic & Engineering",
+      "input_sha256": "f4b3b9e3988107233e3df5ce30e00f9168dd967b71a8864f5458eb8d0388d9a4",
+      "input_tokens": 1469
+    },
+    {
+      "id": "speed_046f05feedfe413cb872cb5c638f5ea7",
+      "kind": "writing",
+      "sub_category": "Academic & Engineering",
+      "input_sha256": "9b35cba545ed6738b1f43f1b33fa56f282c5f55f335711810c011e29753da8d1",
+      "input_tokens": 186
+    },
+    {
+      "id": "speed_1574e7b555934e60b662de65184269cc",
+      "kind": "writing",
+      "sub_category": "Academic & Engineering",
+      "input_sha256": "5c01a6389a7e623983b12e927093d9bd446362afda29a084108f905d5f5a9cb6",
+      "input_tokens": 38
+    },
+    {
+      "id": "speed_003d477fd51145f8bcd8f3fe35e1a85c",
+      "kind": "rag",
+      "sub_category": "table_and_text_extraction",
+      "input_sha256": "1b349608fcdb213a6912047f6cad460da6451e300ef83eb17920625bc15dab51",
+      "input_tokens": 28
+    },
+    {
+      "id": "speed_01fa8e8862984a30bc598b65bd77ca95",
+      "kind": "rag",
+      "sub_category": "rag",
+      "input_sha256": "f43bee41d24fe2a411ebcb54be745133aca61deadd59cbc6b2c07224e7a31fed",
+      "input_tokens": 755
+    },
+    {
+      "id": "speed_025ad33d686a4b14ad6021cc041a400c",
+      "kind": "rag",
+      "sub_category": "rag",
+      "input_sha256": "51ebce7507a1baff5084208a11f5e8c33c737533f1fe91490f501252b38f87c8",
+      "input_tokens": 735
+    },
+    {
+      "id": "speed_04dbbad1651540119148d95967058c11",
+      "kind": "rag",
+      "sub_category": "rag",
+      "input_sha256": "b5cabaf5c2d44df1ee39d0d3e3ff301db6376af36c1c5c72c9292e94af459324",
+      "input_tokens": 789
+    },
+    {
+      "id": "speed_61528e7d09564903a7e6358ed3b3f4c6",
+      "kind": "multilingual",
+      "sub_category": "ja_math",
+      "input_sha256": "832a52c56344b96d2294f7b33111efc96c6ef66eec36154a766425f1ff80aef3",
+      "input_tokens": 69
+    },
+    {
+      "id": "speed_1672523d190a47e599498ce10e972d89",
+      "kind": "multilingual",
+      "sub_category": "ko_math",
+      "input_sha256": "9ca68ce2793aa2119fb9963f3706dc729a222d51ebfb46bbcf776d547a144d0b",
+      "input_tokens": 147
+    },
+    {
+      "id": "speed_4b1cb30c6051425d81a78d9ebb27039b",
+      "kind": "multilingual",
+      "sub_category": "ru-zh",
+      "input_sha256": "84c6c0b6bbfd9ad0c6b35b343d72438e3a38585e0728b62de971b60ac7166dac",
+      "input_tokens": 41
+    },
+    {
+      "id": "speed_6aebfdd4784f4cce9c493132f0062407",
+      "kind": "multilingual",
+      "sub_category": "ar-zh",
+      "input_sha256": "fe7685244600a9defe94115d37a3b024751acc1f843692b4c605a16576f572c0",
+      "input_tokens": 41
+    }
+  ]
+}

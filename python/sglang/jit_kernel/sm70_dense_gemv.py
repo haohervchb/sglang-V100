@@ -8,6 +8,7 @@ from sglang.jit_kernel.utils import cache_once, load_jit
 
 # (output features, input features) -> (threads, lanes per row, vector width).
 _CONFIGS = {
+    (16384, 2560): (64, 32, 8),  # TP4 shard of the 65,536-token MTP hot head
     (4096, 2560): (64, 16, 8),
     (3584, 2560): (64, 32, 8),
     (2560, 1536): (128, 32, 8),

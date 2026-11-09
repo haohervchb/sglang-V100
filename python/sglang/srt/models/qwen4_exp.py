@@ -1331,8 +1331,17 @@ class Qwen4ExpLayerExtensionMixin:
     ):
         if not forward_batch.forward_mode.is_idle():
             hidden_states = attn_tp_all_reduce(hidden_states)
-        hidden_states = self.attn_hyper_connection.combine(hidden_states, residual)
-        hidden_states, residual = self.mlp_hyper_connection.mix(hidden_states)
+        combined = self.attn_hyper_connection.combine_and_norm(
+            hidden_states, residual, self.mlp_hyper_connection.hc_norm
+        )
+        if combined is None:
+            hidden_states = self.attn_hyper_connection.combine(hidden_states, residual)
+            hidden_states, residual = self.mlp_hyper_connection.mix(hidden_states)
+        else:
+            hidden_states, normalized = combined
+            hidden_states, residual = self.mlp_hyper_connection.mix(
+                hidden_states, normed_input=normalized
+            )
         return hidden_states, residual
 
     def _qwen4_exp_use_dp_moe_gather(self) -> bool:

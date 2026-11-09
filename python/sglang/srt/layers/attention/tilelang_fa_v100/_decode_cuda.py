@@ -144,16 +144,34 @@ def sm70_cuda_qsa_prefill(
     indices,
     seq_lens,
     softmax_scale,
+    page_size=None,
 ):
-    """Run exact-shape QSA chunk-prefill directly from the E5M2 cache."""
+    """Run exact-shape QSA chunk-prefill directly from E5M2 or FP16 KV."""
+    if os.environ.get("SGLANG_SM70_QSA_GROUPED_PREFILL", "0") == "1":
+        from ._grouped_qsa import can_use_grouped_qsa, grouped_qsa_prefill
+
+        if can_use_grouped_qsa(q, k_cache, v_cache, indices, page_size):
+            result = grouped_qsa_prefill(
+                q,
+                k_cache,
+                v_cache,
+                req_to_token,
+                req_indices,
+                indices,
+                seq_lens,
+                softmax_scale,
+                page_size,
+            )
+            if result is not None:
+                return result
     ext = _load_sm70_cuda_decode_ops()
     if ext is None:
         raise RuntimeError("SM70 CUDA QSA prefill extension is unavailable.")
     output = torch.empty_like(q)
     ext.sm70_qsa_prefill(
         q.contiguous(),
-        k_cache.view(torch.uint8).contiguous(),
-        v_cache.view(torch.uint8).contiguous(),
+        _qsa_cache_view(k_cache),
+        _qsa_cache_view(v_cache),
         req_to_token.to(dtype=torch.int32).contiguous(),
         req_indices.to(dtype=torch.int32).contiguous(),
         indices.to(dtype=torch.int32).contiguous(),
@@ -174,7 +192,7 @@ def sm70_cuda_qsa_decode(
     seq_lens,
     softmax_scale,
 ):
-    """Run QSA split-KV decode directly from selected E5M2 cache rows."""
+    """Run QSA split-KV decode directly from selected E5M2 or FP16 rows."""
     ext = _load_sm70_cuda_decode_ops()
     if ext is None:
         raise RuntimeError("SM70 CUDA QSA decode extension is unavailable.")
@@ -190,8 +208,8 @@ def sm70_cuda_qsa_decode(
     indices = indices.to(dtype=torch.int32).contiguous()
     ext.sm70_qsa_decode(
         q.contiguous(),
-        k_cache.view(torch.uint8).contiguous(),
-        v_cache.view(torch.uint8).contiguous(),
+        _qsa_cache_view(k_cache),
+        _qsa_cache_view(v_cache),
         req_to_token.to(dtype=torch.int32).contiguous(),
         req_indices.to(dtype=torch.int32).contiguous(),
         indices,
@@ -231,6 +249,14 @@ def sm70_cuda_qsa_decode(
         selected_tokens=indices.shape[1],
     )
     return combine(partial_o, partial_lse, seq_lens)
+
+
+def _qsa_cache_view(cache):
+    if cache.dtype == torch.float8_e5m2:
+        return cache.view(torch.uint8).contiguous()
+    if cache.dtype == torch.float16:
+        return cache.contiguous()
+    raise ValueError(f"SM70 QSA requires E5M2 or FP16 KV, got {cache.dtype}")
 
 
 def sm70_cuda_qsa_indexer_decode(

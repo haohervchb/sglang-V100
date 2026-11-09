@@ -65,6 +65,11 @@ def _mtp_quant_config(quant_config):
 
 
 class Qwen4ExpForCausalLMMTP(Qwen3_5ForCausalLMMTP):
+    # load_weights consumes only mtp.*; the worker shares target embeddings and
+    # lm_head afterward. Index-based selection also works without 1Cat's
+    # compact BF16 filename convention (see 1CatAI/1Cat-vLLM#389).
+    checkpoint_weight_prefixes = ("mtp.",)
+
     def __init__(
         self,
         config: PretrainedConfig,

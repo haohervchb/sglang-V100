@@ -389,6 +389,90 @@ class VisionTritonAttention(nn.Module):
         return output
 
 
+class VisionFlashV100Attention(nn.Module):
+    """Non-causal varlen attention using the optional SM70 FlashAttention build."""
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        if envs.SGLANG_VIT_ENABLE_CUDA_GRAPH.get():
+            raise ValueError(
+                "fa2_v100 vision attention requires eager vision execution"
+            )
+        from flash_attn_v100 import flash_attn_varlen_func as v100_varlen
+
+        self.varlen = v100_varlen
+        self.scale = kwargs.get("softmax_scale")
+
+    def forward(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cu_seqlens: torch.Tensor | SingletonCache | None,
+        bsz: int,
+        seq_len: int,
+        softmax_scale: Optional[float] = None,
+        **kwargs,
+    ) -> torch.Tensor:
+        if (
+            not q.is_cuda
+            or q.dtype != torch.float16
+            or k.dtype != q.dtype
+            or v.dtype != q.dtype
+            or torch.cuda.get_device_capability(q.device) != (7, 0)
+        ):
+            raise ValueError("fa2_v100 vision attention requires SM70 and FP16 Q/K/V")
+        if kwargs.get("s_aux") is not None or kwargs.get("attention_mask") is not None:
+            raise ValueError(
+                "fa2_v100 does not support attention sinks or arbitrary masks"
+            )
+        if (
+            q.ndim != 3
+            or k.ndim != 3
+            or v.ndim != 3
+            or not (q.shape[0] == k.shape[0] == v.shape[0])
+        ):
+            raise ValueError(
+                "fa2_v100 vision attention requires packed self-attention Q/K/V"
+            )
+        if q.shape[0] == 0:
+            return torch.empty_like(q)
+        head_dim = q.shape[-1]
+        if (
+            not (0 < head_dim <= 256)
+            or k.shape[-1] != head_dim
+            or v.shape[-1] != head_dim
+        ):
+            raise ValueError(
+                "fa2_v100 requires matching Q/K/V head dimensions up to 256"
+            )
+        scale = softmax_scale if softmax_scale is not None else self.scale
+        if scale is None:
+            scale = head_dim**-0.5
+        padded_dim = next(d for d in (16, 32, 64, 128, 256) if d >= head_dim)
+        if padded_dim != head_dim:
+            # Qwen3.8 vision uses 72-wide heads. Zero padding preserves its
+            # dot products; the scale must still use the original dimension.
+            q, k, v = [F.pad(t, (0, padded_dim - head_dim)) for t in (q, k, v)]
+        lengths = resolve_seqlens(cu_seqlens, bsz, seq_len, device=q.device)
+        max_length = int((lengths[1:] - lengths[:-1]).max().item())
+        lengths = lengths.to(device=q.device, dtype=torch.int32).contiguous()
+        output = self.varlen(
+            q,
+            k,
+            v,
+            cu_seqlens_q=lengths,
+            cu_seqlens_k=lengths,
+            max_seqlen_q=max_length,
+            max_seqlen_k=max_length,
+            dropout_p=0.0,
+            softmax_scale=scale,
+            causal=False,
+            window_size=kwargs.get("window_size", (-1, -1)),
+        )
+        return output[..., :head_dim].contiguous()
+
+
 class VisionFlash3Attention(nn.Module):
     def __init__(
         self,
@@ -793,6 +877,7 @@ class VisionAMXAttention(nn.Module):
 
 QKV_BACKEND_IMPL = {
     "triton_attn": VisionTritonAttention,
+    "fa2_v100": VisionFlashV100Attention,
     "sdpa": VisionSdpaAttention,
     "fa3": VisionFlash3Attention,
     "fa4": VisionFlash4Attention,

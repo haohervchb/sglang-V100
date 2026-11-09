@@ -7,14 +7,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("batch_size", [1, 2, 4])
+@pytest.mark.parametrize("batch_size", [1, 2, 4, 6, 8, 12, 16, 20, 24, 28, 32])
 def test_sm70_topk10_softmax_matches_torch(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
     torch.manual_seed(100 + batch_size)
-    logits = torch.randn(
-        batch_size, 512, dtype=torch.float16, device="cuda"
-    )
+    logits = torch.randn(batch_size, 512, dtype=torch.float16, device="cuda")
     weights, ids = sm70_topk10_softmax(logits)
 
     probabilities = torch.softmax(logits.float(), dim=-1)
@@ -31,30 +29,22 @@ def test_sm70_topk10_softmax_matches_torch(batch_size):
     torch.testing.assert_close(weights, reference_weights, rtol=2e-6, atol=3e-8)
 
 
-def test_sm70_nvfp4_moe_four_rows_match_individual_rows():
+def _check_sm70_nvfp4_moe_rows(rows, capture):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
 
     torch.manual_seed(11)
     # Ten experts are sufficient for this route-layout test. The serving path
     # supplies all 512; keeping the fixture small avoids a >300 MB allocation.
-    w13 = torch.empty(
-        (10, 160, 640), dtype=torch.int32, device="cuda"
-    ).random_()
-    w2 = torch.empty(
-        (10, 10, 5120), dtype=torch.int32, device="cuda"
-    ).random_()
-    w13_scales = torch.full(
-        (10, 160, 320), 0x70, dtype=torch.uint8, device="cuda"
-    )
-    w2_scales = torch.full(
-        (10, 10, 2560), 0x70, dtype=torch.uint8, device="cuda"
-    )
+    w13 = torch.empty((10, 160, 640), dtype=torch.int32, device="cuda").random_()
+    w2 = torch.empty((10, 10, 5120), dtype=torch.int32, device="cuda").random_()
+    w13_scales = torch.full((10, 160, 320), 0x70, dtype=torch.uint8, device="cuda")
+    w2_scales = torch.full((10, 10, 2560), 0x70, dtype=torch.uint8, device="cuda")
     w13_global = torch.full((10,), 100.0, dtype=torch.float32, device="cuda")
     w2_global = torch.full((10,), 100.0, dtype=torch.float32, device="cuda")
-    hidden_states = torch.randn((4, 2560), dtype=torch.float16, device="cuda")
+    hidden_states = torch.randn((rows, 2560), dtype=torch.float16, device="cuda")
     original_input = hidden_states.clone()
-    ids = torch.arange(10, dtype=torch.int32, device="cuda").repeat(4, 1)
-    weights = torch.softmax(torch.randn((4, 10), device="cuda"), dim=-1)
+    ids = torch.arange(10, dtype=torch.int32, device="cuda").repeat(rows, 1)
+    weights = torch.softmax(torch.randn((rows, 10), device="cuda"), dim=-1)
 
     batched = sm70_nvfp4_moe_decode(
         hidden_states,
@@ -80,7 +70,7 @@ def test_sm70_nvfp4_moe_four_rows_match_individual_rows():
                 ids[row],
                 weights[row],
             )
-            for row in range(4)
+            for row in range(rows)
         ]
     )
 
@@ -89,13 +79,70 @@ def test_sm70_nvfp4_moe_four_rows_match_individual_rows():
     torch.testing.assert_close(hidden_states, original_input, rtol=0, atol=0)
     assert batched.abs().max() > 0
     torch.testing.assert_close(batched, individual, rtol=0, atol=0)
+    if capture:
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            captured = sm70_nvfp4_moe_decode(
+                hidden_states,
+                w13,
+                w2,
+                w13_scales,
+                w2_scales,
+                w13_global,
+                w2_global,
+                ids,
+                weights,
+            )
+        for scale in [-0.5, 0.0]:
+            hidden_states.copy_(original_input * scale)
+            graph.replay()
+            expected = sm70_nvfp4_moe_decode(
+                hidden_states,
+                w13,
+                w2,
+                w13_scales,
+                w2_scales,
+                w13_global,
+                w2_global,
+                ids,
+                weights,
+            )
+            torch.testing.assert_close(captured, expected, rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16, 20, 24, 28, 32])
+def test_sm70_nvfp4_moe_rows_match_individual_rows(rows):
+    _check_sm70_nvfp4_moe_rows(rows, capture=False)
+
+
+@pytest.mark.parametrize("rows", [24, 28, 32])
+def test_sm70_nvfp4_moe_graph_replay(rows):
+    # Keep graph capture separate from eager tests run with allocator caching
+    # disabled under compute-sanitizer; cudaMalloc is not capture-safe.
+    _check_sm70_nvfp4_moe_rows(rows, capture=True)
+
+
+def test_sm70_moe32_dispatch_is_opt_in(monkeypatch):
+    from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode_max_rows
+
+    monkeypatch.setenv("SGLANG_SM70_MTP_WIDE_MOE", "0")
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE", "0")
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE32", "0")
+    assert sm70_nvfp4_moe_decode_max_rows() == 4
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE", "1")
+    assert sm70_nvfp4_moe_decode_max_rows() == 16
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE32", "1")
+    assert sm70_nvfp4_moe_decode_max_rows() == 32
+    monkeypatch.setenv("SGLANG_SM70_BATCHED_MOE", "0")
+    assert sm70_nvfp4_moe_decode_max_rows() == 4
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.float32])
-def test_sm70_topk10_softmax_ties_and_signed_zero(dtype):
+@pytest.mark.parametrize("rows", [4, 6, 8, 12, 16, 20, 24, 28, 32])
+def test_sm70_topk10_softmax_ties_and_signed_zero(dtype, rows):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_topk10_softmax
 
-    logits = torch.zeros((4, 512), device="cuda", dtype=dtype)
+    logits = torch.zeros((rows, 512), device="cuda", dtype=dtype)
     logits[1, ::2] = -0.0
     logits[2].fill_(-5)
     logits[2, [19, 31, 57]] = 4
@@ -107,7 +154,7 @@ def test_sm70_topk10_softmax_ties_and_signed_zero(dtype):
     torch.testing.assert_close(weights, expected_weights, rtol=2e-6, atol=3e-8)
 
 
-@pytest.mark.parametrize("batch_size", [1, 4])
+@pytest.mark.parametrize("batch_size", [1, 4, 8, 12, 16, 24, 32])
 def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     from sglang.jit_kernel.sm70_nvfp4_moe_decode import sm70_nvfp4_moe_decode
     from sglang.srt.layers.quantization.gptq import gptq_marlin_moe_repack
@@ -155,6 +202,23 @@ def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     ids[:, -1] = -1  # Masked routes must not read stale partials.
     weights = torch.softmax(torch.randn(batch_size, 10, device=device), dim=-1)
     output = sm70_nvfp4_moe_decode(x, w13, w2, s13, s2, g13, g2, ids, weights)
+    individual = torch.cat(
+        [
+            sm70_nvfp4_moe_decode(
+                x[row : row + 1],
+                w13,
+                w2,
+                s13,
+                s2,
+                g13,
+                g2,
+                ids[row : row + 1],
+                weights[row : row + 1],
+            )
+            for row in range(batch_size)
+        ]
+    )
+    torch.testing.assert_close(output, individual, rtol=0, atol=0)
     reference = torch.zeros_like(x, dtype=torch.float32)
     for row in range(batch_size):
         for route in range(9):
@@ -169,4 +233,15 @@ def test_sm70_nvfp4_moe_matches_dequantized_weights(batch_size):
     # cancellations near zero do not require a loose relative tolerance.
     relative_l2 = (output.float() - reference).norm() / reference.norm()
     assert relative_l2 < 0.003
-    torch.testing.assert_close(output.float(), reference, rtol=0.02, atol=0.01)
+    if batch_size in (1, 4):
+        # Preserve the existing pointwise gates for their original fixtures.
+        torch.testing.assert_close(output.float(), reference, rtol=0.02, atol=0.01)
+    else:
+        # Larger random fixtures expose cancellation-sensitive outliers also
+        # produced bit-for-bit by the established one-row kernel above. Bound
+        # peak-relative error as well as the unchanged L2 limit; increasing
+        # batch size must not introduce any additional arithmetic error.
+        relative_peak_error = (
+            output.float() - reference
+        ).abs().max() / reference.abs().max()
+        assert relative_peak_error < 0.003

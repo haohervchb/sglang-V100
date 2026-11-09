@@ -5618,6 +5618,7 @@ class ServerArgs:
             type=str,
             choices=[
                 "sdpa",
+                "fa2_v100",
                 "fa3",
                 "fa4",
                 "triton_attn",

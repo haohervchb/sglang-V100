@@ -1,0 +1,125 @@
+{
+  "selected_profile": "mtp3_native16_c4_masked_qsa",
+  "release_tag": "v100-qwen38-flash-next-v5.3",
+  "hardware": "4x V100 SXM2 32GB, TP4 NVLink",
+  "metric": "Total completed output tokens divided by elapsed wall time; includes prompt processing and queueing. Warmups and cache flushes excluded.",
+  "configuration": {
+    "max_running_requests": 4,
+    "mtp_steps": 3,
+    "verification_tokens": 4,
+    "kv_dtype": "float16",
+    "context_length": 262144,
+    "max_req_input_len": 262138,
+    "max_total_tokens": 277280,
+    "max_mamba_cache_size": 24,
+    "prefill_chunk_size": 2048,
+    "prefill_max_requests": 1
+  },
+  "fixed_work": [
+    {
+      "case": "prose_1000",
+      "clients": 4,
+      "requests": 8,
+      "output_tokens_each": 1024,
+      "baseline_output_tok_s": 116.63419451830778,
+      "candidate_output_tok_s": 254.64869959689554,
+      "speedup": 2.1833108261996355,
+      "baseline_median_request_s": 35.01236870550201,
+      "candidate_median_request_s": 15.712713142249413,
+      "baseline_median_ttft_s": 26.682721056004084,
+      "candidate_median_ttft_s": 0.6519434692527284
+    },
+    {
+      "case": "code_edit_8192",
+      "clients": 4,
+      "requests": 8,
+      "output_tokens_each": 512,
+      "baseline_output_tok_s": 101.10119924067419,
+      "candidate_output_tok_s": 134.33595190051295,
+      "speedup": 1.3287275809728283,
+      "baseline_median_request_s": 20.21497787599219,
+      "candidate_median_request_s": 11.076553299000807,
+      "baseline_median_ttft_s": 17.423726177490607,
+      "candidate_median_ttft_s": 5.80272892550056
+    }
+  ],
+  "speed_screen": {
+    "cases": 20,
+    "clients4_output_tok_s": 226.9730870569839,
+    "clients8_output_tok_s": 226.88177256162402
+  },
+  "validation": {
+    "checks": {
+      "passed": true,
+      "complete": true,
+      "expected_cases": 8
+    },
+    "tools": {
+      "tool_arguments": true,
+      "tool_result": true
+    },
+    "shared_document": {
+      "passed": true,
+      "concurrency": 4,
+      "shared_seconds": 3.970185719008441,
+      "cached_input_tokens": [
+        32384,
+        30720,
+        30720,
+        32000,
+        32000,
+        32000,
+        32000,
+        32000
+      ]
+    },
+    "cached_agents": {
+      "passed": true,
+      "clients": 8,
+      "concurrency": 4,
+      "cached_input_tokens": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "queue": {
+      "passed": true,
+      "completed": 48,
+      "expected": 48,
+      "seconds": 280.80931902999873,
+      "min_free_mib": [
+        2604.7,
+        3074.4,
+        3106.4,
+        3170.4
+      ],
+      "cached_requests": 0
+    },
+    "multimodal": {
+      "accepted": true,
+      "passed": 11,
+      "total": 12,
+      "known_ocr_failure": true
+    },
+    "kernel_tests": {
+      "moe_numeric": 27,
+      "moe_under_device_memcheck": 5,
+      "grouped_attention_poisoned_cache_and_graph": 9
+    }
+  },
+  "limitations": [
+    "Small controlled screen; synthetic long-form prose and copy-heavy code editing are not a replay of office workloads.",
+    "SPEED uses natural EOS and a 512-token ceiling; generated lengths can vary.",
+    "Intermediate prefix caching is preserved for shared documents.",
+    "Earlier batched code/prose measurements producing repeated exclamation tokens were invalidated, not counted as gains.",
+    "Six-request experiment was stopped before validation to deploy the proven four-request profile promptly."
+  ],
+  "single_agent_decode_tok_s": 118.96058686639478,
+  "masked_attention_fix": "Planner padding used page zero with zero query masks; loading NaN K/V there poisoned WMMA probability-times-value products. Patched K/V loads zero tokens unused by every query, with a mask-publication barrier."
+}

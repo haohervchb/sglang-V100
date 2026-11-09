@@ -234,7 +234,7 @@ class GatedResidual(HyperConnectionBase):
         self._mix_compute = torch.compile(_mix_compute)
         self._combine_compute = torch.compile(_combine_compute)
 
-    def mix(self, hyper_input: torch.Tensor):
+    def mix(self, hyper_input: torch.Tensor, normed_input: torch.Tensor | None = None):
         assert hyper_input.shape[-1] == self.hc_count * self.hidden_size
         if hyper_input.shape[0] == 0:
             mixed_input = hyper_input.new_empty(
@@ -242,7 +242,10 @@ class GatedResidual(HyperConnectionBase):
             )
             return mixed_input, (hyper_input, hyper_input)
 
-        if self.config.hc_per_branch_norm:
+        if normed_input is not None:
+            assert normed_input.shape == hyper_input.shape
+            hyper_input_normed = normed_input
+        elif self.config.hc_per_branch_norm:
             hyper_input_normed = self.hc_norm(hyper_input)
         else:
             hyper_input_normed = self.hc_norm(
@@ -322,6 +325,13 @@ class GatedResidual(HyperConnectionBase):
         if gate_partials is not None:
             return mixed_input, (hyper_input, hyper_input_normed, gate_partials)
         return mixed_input, (hyper_input, hyper_input_normed)
+
+    def combine_and_norm(self, block_output, residuals, next_norm):
+        from sglang.jit_kernel.sm70_hc_combine_norm import combine_norm, supported
+
+        if supported(self, block_output, residuals, next_norm):
+            return combine_norm(self, block_output, residuals, next_norm)
+        return None
 
     def combine(self, block_output: torch.Tensor, residuals) -> torch.Tensor:
         if len(residuals) == 3:

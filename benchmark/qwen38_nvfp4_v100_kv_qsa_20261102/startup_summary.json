@@ -1,0 +1,22 @@
+{
+  "e5m2_4": {
+    "mtp_load_seconds": [
+      105.03,
+      105.16,
+      105.16,
+      105.16
+    ],
+    "median_mtp_load_seconds": 105.16,
+    "kv_tokens": 554576
+  },
+  "fp16_4": {
+    "mtp_load_seconds": [
+      12.2,
+      12.43,
+      12.46,
+      12.47
+    ],
+    "median_mtp_load_seconds": 12.445,
+    "kv_tokens": 277280
+  }
+}

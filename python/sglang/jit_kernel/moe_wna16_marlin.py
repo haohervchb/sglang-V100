@@ -50,6 +50,14 @@ _sm70_marlin_user_tuning = any(
 _sm70_qwen38_tuning_stage = None
 
 
+def sm70_qwen38_prefill_2k_enabled() -> bool:
+    return (
+        _IS_SM70
+        and not _sm70_marlin_user_tuning
+        and os.environ.get("SGLANG_SM70_MOE_PREFILL_2K", "0") == "1"
+    )
+
+
 def _configure_sm70_qwen38_nvfp4_stage(
     b_scales: torch.Tensor,
     moe_block_size: int,
@@ -58,7 +66,7 @@ def _configure_sm70_qwen38_nvfp4_stage(
     size_n: int,
     size_k: int,
 ) -> None:
-    """Select the measured TP4 decode geometry before CUDA-graph capture.
+    """Select measured Qwen TP4 decode and prefill geometries.
 
     marlin_v100 reads these variables synchronously when its host launcher is
     called.  SGLang captures the resulting kernels in the decode CUDA graph,
@@ -74,6 +82,24 @@ def _configure_sm70_qwen38_nvfp4_stage(
     stage = None
     values = None
     if (
+        sm70_qwen38_prefill_2k_enabled()
+        and b_scales.dtype == torch.float8_e4m3fn
+        and moe_block_size == 64
+        and top_k == 10
+        and (size_m, size_n, size_k) == (2048, 320, 2560)
+    ):
+        stage = 5
+        values = ("64x64x32x4x32x32x32", "1", "vector_words")
+    elif (
+        sm70_qwen38_prefill_2k_enabled()
+        and b_scales.dtype == torch.float8_e4m3fn
+        and moe_block_size == 64
+        and top_k == 1
+        and (size_m, size_n, size_k) == (20480, 2560, 160)
+    ):
+        stage = 6
+        values = ("64x256x32x4x64x64x32", "1", "vector_words")
+    elif (
         b_scales.dtype == torch.float8_e4m3fn
         and moe_block_size == 8
         and top_k == 10

@@ -1,0 +1,3 @@
+{
+  "target_fp16": "Rejected: memory fraction0.83 resolved to259328KVtokens (259322inputlimit), below262Kgate; oversize rejection exposed short-prefill padded-group OOB. Superseded by target_fp16_retry at0.84 after the bounds fix."
+}

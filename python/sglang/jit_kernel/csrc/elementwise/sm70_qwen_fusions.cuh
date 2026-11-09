@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Batch-one Qwen3.8 FP16 projection/activation fusions on Volta.
+// Small-batch Qwen3.8 FP16 projection/activation fusions on Volta.
 #include <cuda_fp16.h>
 #include <sgl_kernel/tensor.h>
 #include <sgl_kernel/utils.h>
@@ -11,6 +11,9 @@ template <int THREADS>
 __global__ void kernel(const half* __restrict__ x,
                        const half* __restrict__ weight,
                        const half* __restrict__ value, half* __restrict__ out) {
+  x += blockIdx.x * 2560;
+  value += blockIdx.x * 2560;
+  out += blockIdx.x * 2560;
   float a[8] = {};
   for (int k = threadIdx.x * 8; k < 2560; k += THREADS * 8) {
     int4 xv = *reinterpret_cast<const int4*>(x + k),
@@ -47,17 +50,21 @@ void run(tvm::ffi::TensorView x, tvm::ffi::TensorView weight,
   using namespace host;
   auto dev = SymbolicDevice{};
   dev.set_options<kDLCUDA>();
-  TensorMatcher({1, 2560})
+  auto rows = SymbolicSize{};
+  TensorMatcher({rows, 2560})
       .with_dtype<half>()
       .with_device(dev)
       .verify(x)
-      .verify(weight)
       .verify(value)
       .verify(out);
+  TensorMatcher({1, 2560}).with_dtype<half>().with_device(dev).verify(weight);
+  RuntimeCheck(rows.unwrap() == 1 || rows.unwrap() == 2 ||
+                   (rows.unwrap() >= 4 && rows.unwrap() <= 32 && rows.unwrap() % 4 == 0),
+               "Shared gate supports one, two, or multiples of four rows up to 32");
   RuntimeCheck(reinterpret_cast<uintptr_t>(x.data_ptr()) % 16 == 0 &&
                    reinterpret_cast<uintptr_t>(weight.data_ptr()) % 16 == 0,
                "Operands must be 16-byte aligned");
-  LaunchKernel(1, THREADS, dev.unwrap())(
+  LaunchKernel(rows.unwrap(), THREADS, dev.unwrap())(
       kernel<THREADS>, static_cast<const half*>(x.data_ptr()),
       static_cast<const half*>(weight.data_ptr()),
       static_cast<const half*>(value.data_ptr()),

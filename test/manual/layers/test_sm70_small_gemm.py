@@ -38,6 +38,24 @@ def test_small_gemm_reference_and_graph_replay(rows, n, k, monkeypatch):
     assert not supported(x, weight)
 
 
+def test_hot_head_single_row_graph(monkeypatch):
+    from sglang.jit_kernel.sm70_dense_gemv import linear, supported
+
+    monkeypatch.setenv("SGLANG_SM70_DENSE_GEMV", "1")
+    torch.manual_seed(16)
+    x = torch.randn(1, 2560, device="cuda", dtype=torch.float16)
+    weight = torch.randn(16384, 2560, device="cuda", dtype=torch.float16) * 0.01
+    assert supported(x, weight)
+    linear(x, weight)
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        result = linear(x, weight)
+    for scale in [1.0, -0.5, 0.0]:
+        x.mul_(scale)
+        graph.replay()
+        torch.testing.assert_close(result, (x.float() @ weight.float().T).half(), rtol=0.002, atol=0.001)
+
+
 def test_hc_batch_dispatch_falls_back_for_disabled_or_unaligned(monkeypatch):
     from sglang.srt.layers.hc_mix_triton import sm70_hc_down_gemv_silu_supported
 

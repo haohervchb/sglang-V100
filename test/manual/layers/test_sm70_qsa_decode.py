@@ -9,7 +9,8 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.mark.parametrize("batch", [1, 2, 4])
 @pytest.mark.parametrize("topk", [2048, 2051])
-def test_selected_cache_attention_and_changing_graph_inputs(batch, topk):
+@pytest.mark.parametrize("kv_dtype", [torch.float8_e5m2, torch.float16])
+def test_selected_cache_attention_and_changing_graph_inputs(batch, topk, kv_dtype):
     from sglang.srt.layers.attention.tilelang_fa_v100._decode_cuda import (
         sm70_cuda_qsa_decode,
     )
@@ -17,8 +18,8 @@ def test_selected_cache_attention_and_changing_graph_inputs(batch, topk):
     torch.manual_seed(31 + batch)
     pool = 70032
     q = torch.randn(batch, 6, 256, device="cuda", dtype=torch.float16)
-    k = torch.randn(pool, 1, 256, device="cuda").to(torch.float8_e5m2)
-    v = torch.randn(pool, 1, 256, device="cuda").to(torch.float8_e5m2)
+    k = torch.randn(pool, 1, 256, device="cuda").to(kv_dtype)
+    v = torch.randn(pool, 1, 256, device="cuda").to(kv_dtype)
     table = torch.stack(
         [torch.randperm(pool, device="cuda", dtype=torch.int32) for _ in range(2)]
     )
@@ -60,3 +61,59 @@ def test_selected_cache_attention_and_changing_graph_inputs(batch, topk):
         reference = torch.stack(expected)
         torch.testing.assert_close(output.float(), reference, rtol=0.005, atol=0.001)
         assert (output.float() - reference).norm() / reference.norm() < 0.001
+
+
+@pytest.mark.parametrize(
+    "prefix,rows,topk", [(0, 33, 31), (25000, 8, 2048), (262000, 9, 2051)]
+)
+@pytest.mark.parametrize("kv_dtype", [torch.float8_e5m2, torch.float16])
+def test_chunk_prefill_causality_and_cache_mapping(prefix, rows, topk, kv_dtype):
+    from sglang.srt.layers.attention.tilelang_fa_v100._decode_cuda import (
+        sm70_cuda_qsa_prefill,
+    )
+
+    torch.manual_seed(41)
+    length = prefix + rows
+    q = torch.randn(rows, 6, 256, device="cuda", dtype=torch.float16)
+    k = torch.randn(length, 1, 256, device="cuda").to(kv_dtype)
+    v = torch.randn_like(k.float()).to(kv_dtype)
+    table = torch.randperm(length, device="cuda", dtype=torch.int32)[None]
+    req = torch.zeros(1, device="cuda", dtype=torch.int32)
+    lens = torch.tensor([length], device="cuda", dtype=torch.int32)
+    indices = torch.full((rows, topk), -1, device="cuda", dtype=torch.int32)
+    expected = []
+    for row in range(rows):
+        visible = prefix + row + 1
+        count = min(topk, visible)
+        selected = torch.randperm(visible, device="cuda")[:count].sort().values
+        if count > 4:
+            selected[3::37] = -1
+        indices[row, :count] = selected.int()
+        slots = table[0, selected[selected >= 0]].long()
+        scores = q[row].float() @ k[slots, 0].float().T * 0.0625
+        expected.append(scores.softmax(-1) @ v[slots, 0].float())
+    out = sm70_cuda_qsa_prefill(q, k, v, table, req, indices, lens, 0.0625)
+    ref = torch.stack(expected)
+    torch.testing.assert_close(out.float(), ref, rtol=0.005, atol=0.001)
+    assert (out.float() - ref).norm() / ref.norm() < 0.001
+
+
+def test_e5m2_values_in_fp16_have_identical_attention():
+    from sglang.srt.layers.attention.tilelang_fa_v100._decode_cuda import (
+        sm70_cuda_qsa_decode,
+        sm70_cuda_qsa_prefill,
+    )
+
+    torch.manual_seed(72)
+    rows, length, topk = 4, 4096, 2048
+    q = torch.randn(rows, 6, 256, device="cuda", dtype=torch.float16)
+    k = torch.randn(length, 1, 256, device="cuda").to(torch.float8_e5m2)
+    v = torch.randn_like(k.float()).to(torch.float8_e5m2)
+    table = torch.randperm(length, device="cuda", dtype=torch.int32)[None]
+    indices = torch.arange(topk, device="cuda", dtype=torch.int32).repeat(rows, 1)
+    for fn, requests in [(sm70_cuda_qsa_prefill, 1), (sm70_cuda_qsa_decode, rows)]:
+        req = torch.zeros(requests, device="cuda", dtype=torch.int32)
+        lens = torch.full((requests,), length, device="cuda", dtype=torch.int32)
+        a = fn(q, k, v, table, req, indices, lens, 0.0625)
+        b = fn(q, k.half(), v.half(), table, req, indices, lens, 0.0625)
+        assert torch.equal(a, b)

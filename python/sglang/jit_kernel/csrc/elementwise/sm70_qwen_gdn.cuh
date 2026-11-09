@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Fused GDN projections and split layout for two/four verification rows.
+// Fused GDN projections and split layout for two/four/eight verification rows.
 #include <sgl_kernel/tensor.h>
 
 #include <sgl_kernel/utils.cuh>
@@ -66,7 +66,7 @@ void run(
     tvm::ffi::TensorView z,
     tvm::ffi::TensorView b,
     tvm::ffi::TensorView a) {
-  static_assert(M == 2 || M == 4);
+  static_assert(M == 2 || M == 4 || M == 8);
   using namespace host;
   auto dev = SymbolicDevice{};
   dev.set_options<kDLCUDA>();

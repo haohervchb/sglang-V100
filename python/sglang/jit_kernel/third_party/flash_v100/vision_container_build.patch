@@ -1,0 +1,10 @@
+diff --git a/setup.py b/setup.py
+--- a/setup.py
++++ b/setup.py
+@@ -146,4 +146,4 @@ def get_cmdclass():
+-            if not torch.cuda.is_available():
+-                raise RuntimeError("CUDA is required but not available.")
++            if torch.version.cuda is None:
++                raise RuntimeError("A CUDA-enabled PyTorch build is required.")
+             if parse(torch.version.cuda) < parse("12.8"):
+                 raise RuntimeError(f"CUDA version {torch.version.cuda} < 12.8 is not supported.")

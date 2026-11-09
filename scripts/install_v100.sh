@@ -187,10 +187,9 @@ log "Installing the proven FlashInfer SM70 source"
 python -m pip uninstall -y flashinfer-python flashinfer-cubin || true
 python -m pip install --no-deps --no-build-isolation -e "$FLASHINFER_DIR"
 
-# Attention is implemented in this repository's TileLang package. Uninstall a
-# legacy external attention wheel from this environment if an older installer
-# put one there; do not delete any user's source checkout.
-python -m pip uninstall -y flash-attn-v100 flash_attn_v100 || true
+# Language attention uses the in-tree TileLang package. Preserve an optional
+# flash_attn_v100 installation: the throughput profile uses it for vision.
+# See scripts/systemd/README.md for the separately validated vision build.
 
 TURBOMIND_SOURCE_DIR="$DEPS_ROOT/turbomind-sm70-source"
 prepare_sparse_repo \
