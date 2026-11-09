@@ -271,6 +271,7 @@ class QSAIndexer(MultiPlatformOp):
             logical_positions=logical_positions,
             compress_ratio=self.compress_ratio,
             is_extend=is_extend,
+            ring_size=metadata.token_to_kv_pool.qsa_ring_size,
         )
 
     def _group_ring_slots(
@@ -281,6 +282,7 @@ class QSAIndexer(MultiPlatformOp):
             group_end_positions=group_end_positions,
             sequence_ids=sequence_ids,
             compress_ratio=self.compress_ratio,
+            ring_size=metadata.token_to_kv_pool.qsa_ring_size,
         )
 
     def update_key_state_and_compress(
@@ -307,6 +309,13 @@ class QSAIndexer(MultiPlatformOp):
             pool.set_qsa_rope_position_buffer(
                 state_slots[: token_k.shape[0]], rope_positions
             )
+
+        # Extend groups are sourced entirely from this packed chunk. A chunk
+        # shorter than one group only updates the pending tail. Its fixed-size
+        # write plan may contain a dummy slot-zero entry; reading ratio members
+        # from that entry would access beyond a one/two/three-token input.
+        if is_extend and token_k.shape[0] < self.compress_ratio:
+            return
 
         if metadata.is_cuda_graph:
             self._compress_decode_cuda_graph(metadata)
