@@ -25,7 +25,10 @@ from sglang.srt.speculative.dflash_utils import (
 )
 from sglang.srt.speculative.dflash_worker import DFlashWorker
 from sglang.srt.speculative.eagle_info_v2 import assign_extend_cache_locs_func
-from sglang.srt.speculative.spec_utils import assign_req_to_token_pool_func
+from sglang.srt.speculative.spec_utils import (
+    assign_req_to_token_pool_func,
+    generate_token_bitmask,
+)
 from sglang.srt.speculative.triton_ops.dflash_accept_bonus import (
     _compute_dflash_accept_bonus_triton_unchecked,
 )
@@ -676,6 +679,24 @@ class DFlashWorkerV2(DFlashWorker):
         batch.seq_lens_cpu = seq_lens_cpu_backup
         batch.seq_lens_sum = seq_lens_sum_backup
 
+        # Prepare grammar data on CPU if needed (mirrors EAGLE v2). DFLASH verify
+        # is a linear chain, so the tree links are fixed by the block shape.
+        retrieve_next_token_cpu = None
+        retrieve_next_sibling_cpu = None
+        draft_tokens_cpu = None
+        if batch.has_grammar:
+            retrieve_next_token_cpu = torch.full(
+                (bs, int(self.block_size)), -1, dtype=torch.int64
+            )
+            if int(self.block_size) > 1:
+                retrieve_next_token_cpu[:, :-1] = torch.arange(
+                    1, int(self.block_size), dtype=torch.int64
+                )
+            retrieve_next_sibling_cpu = torch.full(
+                (bs, int(self.block_size)), -1, dtype=torch.int64
+            )
+            draft_tokens_cpu = draft_tokens.cpu()
+
         target_out = self.target_worker.forward_batch_generation(
             batch=None,
             forward_batch=verify_forward_batch,
@@ -685,11 +706,35 @@ class DFlashWorkerV2(DFlashWorker):
         logits_output = target_out.logits_output
         can_run_cuda_graph = target_out.can_run_cuda_graph
 
+        # Generate vocab mask for constrained decoding
+        vocab_mask = None
+        if batch.has_grammar:
+            vocab_mask = generate_token_bitmask(
+                batch.reqs,
+                verify_input,
+                retrieve_next_token_cpu,
+                retrieve_next_sibling_cpu,
+                draft_tokens_cpu,
+                batch.sampling_info.vocab_size,
+            )
+            if vocab_mask is not None:
+                assert verify_input.grammar is not None
+                vocab_mask = vocab_mask.to(device=logits_output.next_token_logits.device)
+                # NOTE: otherwise this vocab mask will be the one from the previous
+                # extend stage and will be applied to produce wrong results
+                batch.sampling_info.vocab_mask = None
+
         if sampling_info is not None:
             apply_dflash_verify_logits_adjustments(
                 next_token_logits=logits_output.next_token_logits,
                 sampling_info=sampling_info,
                 draft_token_num=int(self.block_size),
+            )
+
+        # Constrain every chain position before accept picks from it.
+        if vocab_mask is not None:
+            verify_input.grammar.apply_vocab_mask(
+                logits=logits_output.next_token_logits, vocab_mask=vocab_mask
             )
 
         candidates = draft_tokens

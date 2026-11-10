@@ -663,7 +663,9 @@ class DFlashWorker:
 
         if batch.has_grammar:
             raise RuntimeError(
-                "Invariant broken: DFLASH batch has grammar constraints, but scheduler should have rejected this request."
+                "DFLASH spec-v1 worker does not support grammar-constrained "
+                "decoding; grammar support is available in the spec-v2 worker. "
+                "Run the server with SGLANG_ENABLE_SPEC_V2=1."
             )
         if batch.sampling_info is not None and not batch.sampling_info.is_all_greedy:
             if self.selector is not None and not is_dflash_sampling_verify_available():
