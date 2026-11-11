@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Tuple
 
 import torch
+
+from sglang.srt.environ import envs
 from sglang.srt.layers.attention.qsa.kernel import (
     average_pool_qsa_keys,
     expand_qsa_block_indices,
@@ -36,6 +38,29 @@ def _qsa_prefill_row_chunk_size(rows: int, keys: int, heads: int) -> int:
     max_padded_rows = max(block_q, _QSA_PREFILL_LOGITS_BUDGET_BYTES // bytes_per_row)
     max_padded_rows = max(block_q, max_padded_rows // block_q * block_q)
     return min(rows, max_padded_rows)
+
+
+# Split prefill selection across attention-TP ranks only once scoring clearly
+# outweighs the exchange: the all-gather is a cross-rank sync point, and below
+# ~32K context (8192 compressed keys) the key-split scorer is already cheap.
+_QSA_PREFILL_SPLIT_MIN_KEYS = 8192
+_QSA_PREFILL_SPLIT_MIN_ROWS = 1024
+
+
+def _qsa_prefill_split_group(rows: int, keys: int):
+    if keys < _QSA_PREFILL_SPLIT_MIN_KEYS or rows < _QSA_PREFILL_SPLIT_MIN_ROWS:
+        return None
+    if not envs.SGLANG_ENABLE_QSA_PREFILL_TP_SPLIT.get():
+        return None
+    from sglang.srt.layers.dp_attention import get_attention_tp_group
+
+    group = get_attention_tp_group()
+    return group if group.world_size > 1 else None
+
+
+def _qsa_prefill_expand_chunk_size(rows: int) -> int:
+    # Bound expand_qsa_block_indices temporaries like the scoring chunks do.
+    return min(rows, 2048)
 
 
 class QSAIndexer(MultiPlatformOp):
@@ -172,6 +197,7 @@ class QSAIndexer(MultiPlatformOp):
         pool=None,
         cache_loc: torch.Tensor | None = None,
         q_heads_padded: int | None = None,
+        max_position=None,
     ) -> Tuple[torch.Tensor, torch.Tensor, bool]:
         qk, _ = self.index_qk_proj(hidden_states)
         token_k = qk[:, self.index_n_heads * self.index_head_dim :].reshape(
@@ -192,6 +218,8 @@ class QSAIndexer(MultiPlatformOp):
             ):
                 self.rotary_emb._ensure_cos_sin_cache_length(
                     int(positions.max().item())
+                    if max_position is None
+                    else max_position()
                 )
             key_state_buffer = pool.get_qsa_key_state_buffer(self.layer_id)
             q = qsa_index_q_norm_rope_store(
@@ -473,6 +501,39 @@ class QSAIndexer(MultiPlatformOp):
         if rows == 0:
             return output
 
+        tp_group = _qsa_prefill_split_group(rows, compressed_keys.shape[0])
+        if tp_group is not None:
+            # The indexer is replicated, so each rank scores a contiguous quarter
+            # of the rows and the ranks exchange block ids. Every row's scores
+            # and top-k are computed exactly as on one rank.
+            world, rank = tp_group.world_size, tp_group.rank_in_group
+            per_rank = -(-rows // world)
+            lo = min(rows, rank * per_rank)
+            hi = min(rows, lo + per_rank)
+            local = torch.full(
+                (per_rank, self.block_topk), -1, dtype=torch.int32, device=q.device
+            )
+            if hi > lo:
+                local[: hi - lo] = self._prefill_block_indices(
+                    q[lo:hi], compressed_keys, row_starts[lo:hi], row_ends[lo:hi]
+                )
+            block_indices = tp_group.all_gather(local, dim=0)[:rows]
+            del local
+            row_chunk_size = _qsa_prefill_expand_chunk_size(rows)
+            for row_start in range(0, rows, row_chunk_size):
+                row_end = min(row_start + row_chunk_size, rows)
+                chunk_slice = slice(row_start, row_end)
+                output[chunk_slice].copy_(
+                    expand_qsa_block_indices(
+                        block_indices[chunk_slice],
+                        query_positions[chunk_slice],
+                        sequence_lengths_for_rows[chunk_slice],
+                        compress_ratio=self.compress_ratio,
+                        token_topk=self.token_topk,
+                    )
+                )
+            return output
+
         row_chunk_size = _qsa_prefill_row_chunk_size(
             rows, compressed_keys.shape[0], q.shape[1]
         )
@@ -510,6 +571,38 @@ class QSAIndexer(MultiPlatformOp):
             output[chunk_slice].copy_(selected)
             del logits, block_indices, selected
         return output
+
+    def _prefill_block_indices(
+        self,
+        q: torch.Tensor,
+        compressed_keys: torch.Tensor,
+        row_starts: torch.Tensor,
+        row_ends: torch.Tensor,
+    ) -> torch.Tensor:
+        rows = q.shape[0]
+        out = torch.empty(
+            (rows, self.block_topk), dtype=torch.int32, device=q.device
+        )
+        row_chunk_size = _qsa_prefill_row_chunk_size(
+            rows, compressed_keys.shape[0], q.shape[1]
+        )
+        for row_start in range(0, rows, row_chunk_size):
+            row_end = min(row_start + row_chunk_size, rows)
+            chunk_slice = slice(row_start, row_end)
+            logits = qsa_mqa_prefill(
+                q[chunk_slice],
+                compressed_keys,
+                row_starts[chunk_slice],
+                row_ends[chunk_slice],
+            )
+            out[chunk_slice] = qsa_fast_topk(
+                logits,
+                row_starts[chunk_slice],
+                row_ends[chunk_slice],
+                topk=self.block_topk,
+            )
+            del logits
+        return out
 
     def select_decode_tokens(
         self,
@@ -628,6 +721,10 @@ class QSAIndexer(MultiPlatformOp):
             positions,
             pool=indexer_metadata.token_to_kv_pool,
             cache_loc=state_slots,
+            max_position=lambda: indexer_metadata.host_value(
+                ("max_position", positions.data_ptr(), positions.numel()),
+                lambda: int(positions.max().item()),
+            ),
             q_heads_padded=(
                 # The exact Volta path consumes the four real heads directly;
                 # TileLang on newer GPUs needs an eight-head multiple. Write

@@ -89,6 +89,17 @@ class QSAIndexerMetadata(msgspec.Struct, frozen=True):
     compress_group_ring_locs: Optional[torch.Tensor] = None
     extend_rope_matrix: Optional[torch.Tensor] = None
     graph_ring_group_locs: Optional[torch.Tensor] = None
+    # Host copies of per-forward device values (sequence lengths, maximum
+    # position), read once per forward instead of once per QSA layer; each
+    # read is a device-to-host sync that drains the prefill launch queue.
+    host_values: dict = msgspec.field(default_factory=dict)
+
+    def host_value(self, key, compute):
+        value = self.host_values.get(key)
+        if value is None:
+            value = compute()
+            self.host_values[key] = value
+        return value
 
     def get_seqlens_int32(self) -> torch.Tensor:
         return self.sequence_lengths.to(torch.int32)
@@ -137,7 +148,9 @@ class QSAIndexerMetadata(msgspec.Struct, frozen=True):
         compressed_buffer = pool.get_qsa_compressed_k_buffer(layer_id)
         parts = []
         sequence_lengths = self.sequence_lengths.to(torch.int32)
-        sequence_lengths_list = sequence_lengths.tolist()
+        sequence_lengths_list = self.host_value(
+            "sequence_lengths", sequence_lengths.tolist
+        )
         for sequence_id in range(len(sequence_lengths_list)):
             complete_blocks = int(sequence_lengths_list[sequence_id]) // ratio
             if complete_blocks == 0:

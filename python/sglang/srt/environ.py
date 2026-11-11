@@ -207,6 +207,13 @@ class Envs:
     # Select the FP8 (deep_gemm) tokenwise QSA indexer; only the BF16 reference
     # path is ported, so setting this fails loudly instead of degrading.
     SGLANG_QWEN_DSA_USE_FP8_INDEXER = EnvBool(False)
+    # Split the QSA indexer prefill scorer's key range across CTAs so long
+    # contexts fill the GPU. Bitwise-identical logits; False restores one CTA
+    # per 32-row block.
+    SGLANG_ENABLE_QSA_MQA_KEY_SPLIT = EnvBool(True)
+    # Score QSA indexer prefill rows on one attention-TP rank each and exchange
+    # the selected block ids. The indexer is replicated, so results are exact.
+    SGLANG_ENABLE_QSA_PREFILL_TP_SPLIT = EnvBool(True)
     SGLANG_PREFETCH_BLOCK_SIZE_MB = EnvInt(16)
     SGLANG_GEMMA_OUT_OF_PLACE_POSITION_MUTATION = EnvBool(False)
 
@@ -302,6 +309,12 @@ class Envs:
     SGLANG_DISAGGREGATION_NUM_PRE_ALLOCATE_REQS = EnvInt(0)
 
     # Scheduler: others:
+    # When a request's final prefill chunk is longer than this many tokens and
+    # crosses a multiple of it, end that chunk on the boundary first. Hybrid
+    # recurrent models only checkpoint state at chunk ends, so this keeps the
+    # prefix-cache hit granularity of smaller chunks with larger chunk sizes.
+    # 0 disables.
+    SGLANG_CHUNKED_PREFILL_CACHE_ALIGN = EnvInt(0)
     SGLANG_EMPTY_CACHE_INTERVAL = EnvFloat(-1)  # in seconds. Set if you observe high memory accumulation over a long serving period.
     SGLANG_DISABLE_CONSECUTIVE_PREFILL_OVERLAP = EnvBool(False)
     # PP: skip output send/recv when the entire batch consists of non-final chunked prefill requests,

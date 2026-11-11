@@ -9,6 +9,8 @@ import math
 from typing import Optional
 
 import torch
+
+from sglang.srt.environ import envs
 from sglang.srt.utils import get_device_capability
 
 
@@ -139,6 +141,11 @@ if HAS_TILELANG:
     ):
         rows = T.dynamic("rows")
         keys = T.dynamic("keys")
+        # The key range of each row block is split across grid.y so long
+        # contexts (where the logits budget leaves few row blocks) still fill
+        # the GPU. Every logit is computed by exactly one CTA with the same
+        # tile, so the split does not change results.
+        splits = T.dynamic("splits")
 
         @T.prim_func
         def kernel(
@@ -147,9 +154,12 @@ if HAS_TILELANG:
             Logits: T.Tensor([rows, keys], T.float32),  # type: ignore
             Starts: T.Tensor([rows], T.int32),  # type: ignore
             Ends: T.Tensor([rows], T.int32),  # type: ignore
+            SplitShape: T.Tensor([splits], T.int32),  # type: ignore
             Scale: T.float32,
         ):
-            with T.Kernel(T.ceildiv(rows, block_q), threads=threads) as bx:
+            with T.Kernel(
+                T.ceildiv(rows, block_q), splits, threads=threads
+            ) as (bx, by):
                 q_shared = T.alloc_shared([block_q * heads, head_dim], dtype)
                 k_shared = T.alloc_shared([block_n, head_dim], dtype)
                 scores = T.alloc_fragment([block_n, block_q * heads], T.float32)
@@ -164,11 +174,15 @@ if HAS_TILELANG:
                     start_min = T.min(start_min, T.min(Starts[row_base + qi], keys))
                     end_max = T.max(end_max, T.min(Ends[row_base + qi], keys))
 
+                total_blocks = T.ceildiv(end_max - start_min, block_n)
+                per_split = T.ceildiv(total_blocks, splits)
+                first_block = T.min(by * per_split, total_blocks)
+                split_blocks = T.min(per_split, total_blocks - first_block)
+                split_start = start_min + first_block * block_n
+
                 T.copy(Q[row_base * heads, 0], q_shared)
-                for ni in T.Pipelined(
-                    T.ceildiv(end_max - start_min, block_n), num_stages=num_stages
-                ):
-                    T.copy(K[start_min + ni * block_n, 0], k_shared)
+                for ni in T.Pipelined(split_blocks, num_stages=num_stages):
+                    T.copy(K[split_start + ni * block_n, 0], k_shared)
                     T.gemm(
                         k_shared,
                         q_shared,
@@ -181,7 +195,7 @@ if HAS_TILELANG:
                         scores_3d[n, qi, head] = T.max(scores_3d[n, qi, head], 0.0)
                     T.reduce_sum(scores_3d, reduced, dim=-1, clear=True)
                     for qi, n in T.Parallel(block_q, block_n):
-                        Logits[row_base + qi, start_min + ni * block_n + n] = (
+                        Logits[row_base + qi, split_start + ni * block_n + n] = (
                             reduced[n, qi] / Scale
                         )
 
@@ -291,6 +305,32 @@ if HAS_TILELANG:
         return kernel
 
 
+_QSA_MQA_PREFILL_BLOCK_N = 64
+_qsa_mqa_split_shapes: dict = {}
+
+
+def _qsa_mqa_split_count(row_blocks: int, keys: int, device: torch.device) -> int:
+    """Key splits so the prefill scorer launches about two CTA waves."""
+
+    if not envs.SGLANG_ENABLE_QSA_MQA_KEY_SPLIT.get():
+        return 1
+    sms = torch.cuda.get_device_properties(device).multi_processor_count
+    key_blocks = max(1, -(-keys // _QSA_MQA_PREFILL_BLOCK_N))
+    # Keep at least 8 key blocks per CTA so the pipeline still amortizes Q loads.
+    max_splits = max(1, key_blocks // 8)
+    return max(1, min(max_splits, -(-2 * sms // max(row_blocks, 1))))
+
+
+def _qsa_mqa_split_shape(row_blocks: int, keys: int, device: torch.device):
+    splits = _qsa_mqa_split_count(row_blocks, keys, device)
+    key = (device, splits)
+    shape = _qsa_mqa_split_shapes.get(key)
+    if shape is None:
+        shape = torch.empty(splits, dtype=torch.int32, device=device)
+        _qsa_mqa_split_shapes[key] = shape
+    return shape
+
+
 def tilelang_qsa_mqa_prefill(
     q: torch.Tensor,
     k: torch.Tensor,
@@ -336,6 +376,7 @@ def tilelang_qsa_mqa_prefill(
         logits,
         starts,
         ends,
+        _qsa_mqa_split_shape(padded_rows // block_q, keys, q.device),
         float(score_scale or math.sqrt(head_dim)),
     )
     # A leading-dimension slice that retains every column is already

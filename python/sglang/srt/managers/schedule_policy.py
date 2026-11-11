@@ -402,6 +402,23 @@ class AddReqResult(Enum):
     OTHER = auto()  # Other reasons to stop adding requests
 
 
+def _cache_aligned_final_chunk(prefix_len: int, extend_len: int) -> int:
+    """Length of a final prefill chunk after SGLANG_CHUNKED_PREFILL_CACHE_ALIGN.
+
+    A final chunk longer than the alignment that crosses one of its multiples
+    ends there, leaving the tail for the next step. Returns extend_len when no
+    cut applies.
+    """
+
+    align = envs.SGLANG_CHUNKED_PREFILL_CACHE_ALIGN.get()
+    if align <= 0 or extend_len <= align:
+        return extend_len
+    boundary = (prefix_len + extend_len) // align * align
+    if prefix_len < boundary < prefix_len + extend_len:
+        return boundary - prefix_len
+    return extend_len
+
+
 class PrefillAdder:
     def __init__(
         self,
@@ -681,6 +698,10 @@ class PrefillAdder:
                     return req
                 _rem_tokens = self.rem_chunk_tokens
 
+        if self.dllm_config is None and req.extend_input_len <= _rem_tokens:
+            _rem_tokens = _cache_aligned_final_chunk(
+                len(req.prefix_indices), req.extend_input_len
+            )
         truncated = req.extend_input_len > _rem_tokens
         req.set_extend_input_len(min(req.extend_input_len, _rem_tokens))
         req.fill_ids = req.fill_ids[: len(req.prefix_indices) + req.extend_input_len]
@@ -914,7 +935,11 @@ class PrefillAdder:
 
                 self._add_dllm_req(req, prefix_len)
                 self._req_inc_lock_ref(req)
-            elif self.rem_chunk_tokens is None or input_tokens <= self.rem_chunk_tokens:
+            elif self.rem_chunk_tokens is None or (
+                input_tokens <= self.rem_chunk_tokens
+                and _cache_aligned_final_chunk(prefix_len, req.extend_input_len)
+                == req.extend_input_len
+            ):
                 # Non-chunked prefill
                 self.can_run_list.append(req)
 
@@ -930,6 +955,11 @@ class PrefillAdder:
             else:
                 # Make sure at least one page is available
                 trunc_len = self.rem_chunk_tokens // self.page_size * self.page_size
+                if input_tokens <= self.rem_chunk_tokens:
+                    # The whole remainder fits, but it is cut at a cache boundary.
+                    trunc_len = _cache_aligned_final_chunk(
+                        prefix_len, req.extend_input_len
+                    )
 
                 if trunc_len <= 0:
                     return AddReqResult.OTHER

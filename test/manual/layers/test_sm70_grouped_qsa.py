@@ -10,7 +10,10 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize("poison_unused", [False, True])
-@pytest.mark.parametrize("prefix,rows", [(0, 8), (2048, 16), (25000, 16), (262000, 8)])
+@pytest.mark.parametrize(
+    "prefix,rows",
+    [(0, 8), (2048, 16), (25000, 16), (262000, 8), (2048, 13), (6000, 1003)],
+)
 def test_grouped_qsa_reference_and_graph_replay(prefix, rows, poison_unused):
     from sglang.srt.layers.attention.tilelang_fa_v100._grouped_qsa import (
         grouped_qsa_prefill,
@@ -114,7 +117,12 @@ def test_grouped_dispatch_is_limited_to_structured_fp16_page4(monkeypatch):
     assert can_use_grouped_qsa(q, k, k, ids, 16)
     assert not can_use_grouped_qsa(q, k, k, ids, None)
     assert not can_use_grouped_qsa(q, k, k, ids, 1)
-    assert not can_use_grouped_qsa(q[:128], k, k, ids[:128], 16)
+    # Any chunk up to 8192 rows (ragged rows are padded to the group size).
+    assert can_use_grouped_qsa(q[:131], k, k, ids[:131], 16)
+    big_q = torch.zeros(8200, 6, 256, device="cuda", dtype=torch.float16)
+    big_ids = torch.zeros(8200, 2051, device="cuda", dtype=torch.int32)
+    assert not can_use_grouped_qsa(big_q, k, k, big_ids, 16)
+    assert not can_use_grouped_qsa(q[:128], k, k, ids[:120], 16)
     assert not can_use_grouped_qsa(q, k, k, ids[:, :2048], 16)
     fp8 = k.to(torch.float8_e5m2)
     assert not can_use_grouped_qsa(q, fp8, fp8, ids, 16)

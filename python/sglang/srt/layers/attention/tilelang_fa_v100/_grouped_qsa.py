@@ -19,6 +19,10 @@ import triton.language as tl
 
 logger = logging.getLogger(__name__)
 _WORKSPACES = {}
+# Largest prefill chunk the grouped route serves; rows are padded to a multiple
+# of the eight-query group.
+_MAX_GROUPED_ROWS = 8192
+_GROUP_ROWS = 8
 
 
 @lru_cache(maxsize=1)
@@ -64,8 +68,10 @@ def can_use_grouped_qsa(q, k, v, indices, page_size):
         and page_size == 16
         and q.is_cuda
         and q.dtype == torch.float16
-        and tuple(q.shape) == (2048, 6, 256)
-        and tuple(indices.shape) == (2048, 2051)
+        and q.ndim == 3
+        and tuple(q.shape[1:]) == (6, 256)
+        and 0 < q.shape[0] <= _MAX_GROUPED_ROWS
+        and tuple(indices.shape) == (q.shape[0], 2051)
         and q.is_contiguous()
         and indices.is_contiguous()
         and indices.dtype == torch.int32
@@ -127,6 +133,17 @@ def grouped_qsa_prefill(q, k, v, table, req, indices, lens, scale, page_size=16)
     ops = load_grouped_qsa_ops()
     if ops is None:
         return None
+    pad = (-q.shape[0]) % _GROUP_ROWS
+    if pad:
+        # Rows are the last `rows` positions of the request, so lead with copies
+        # of the first row (its position stays valid after masking) and drop
+        # their outputs.
+        q = torch.cat([q[:1].expand(pad, -1, -1), q]).contiguous()
+        indices = torch.cat([indices[:1].expand(pad, -1), indices]).contiguous()
+        output = grouped_qsa_prefill(
+            q, k, v, table, req, indices, lens, scale, page_size
+        )
+        return None if output is None else output[pad:]
     rows = q.shape[0]
     assert rows > 0 and rows % 8 == 0 and indices.shape == (rows, 2051)
     assert page_size == 16 and k.shape[0] % page_size == 0
@@ -135,22 +152,40 @@ def grouped_qsa_prefill(q, k, v, table, req, indices, lens, scale, page_size=16)
     assert all(t.device == q.device for t in (k, v, table, req, indices, lens))
     groups = rows // 8
     pages = triton.cdiv(table.shape[1], page_size)
-    key = (q.device.index, torch.cuda.current_stream(q.device).cuda_stream, rows, pages)
-    workspace = _WORKSPACES.get(key)
-    if workspace is None:
-        workspace = dict(
+    # One workspace per (device, stream, pages), sized for the largest row
+    # count seen so far; ragged chunks use leading slices instead of keeping a
+    # separate allocation per distinct row count.
+    key = (q.device.index, torch.cuda.current_stream(q.device).cuda_stream, pages)
+    capacity = _WORKSPACES.get(key)
+    if capacity is None or capacity["rows"] < rows:
+        cap = rows if capacity is None else max(rows, capacity["rows"])
+        cap_groups = cap // 8
+        capacity = dict(
+            rows=cap,
             blocks=torch.empty((1, pages), dtype=torch.int32, device=q.device),
-            positions=torch.empty(rows, dtype=torch.int64, device=q.device),
-            token_to_req=torch.empty(rows, dtype=torch.int32, device=q.device),
-            selected=torch.empty_like(indices, dtype=torch.int32),
+            positions=torch.empty(cap, dtype=torch.int64, device=q.device),
+            token_to_req=torch.empty(cap, dtype=torch.int32, device=q.device),
+            selected=torch.empty((cap, 2051), dtype=torch.int32, device=q.device),
             grouped_pages=torch.empty(
-                (groups, 4160), dtype=torch.int32, device=q.device
+                (cap_groups, 4160), dtype=torch.int32, device=q.device
             ),
-            masks=torch.empty((groups, 4160), dtype=torch.uint32, device=q.device),
-            lengths=torch.empty(groups, dtype=torch.int32, device=q.device),
-            lse=torch.empty((rows, 6), dtype=torch.float32, device=q.device),
+            masks=torch.empty(
+                (cap_groups, 4160), dtype=torch.uint32, device=q.device
+            ),
+            lengths=torch.empty(cap_groups, dtype=torch.int32, device=q.device),
+            lse=torch.empty((cap, 6), dtype=torch.float32, device=q.device),
         )
-        _WORKSPACES[key] = workspace
+        _WORKSPACES[key] = capacity
+    workspace = dict(
+        blocks=capacity["blocks"],
+        positions=capacity["positions"][:rows],
+        token_to_req=capacity["token_to_req"][:rows],
+        selected=capacity["selected"][:rows],
+        grouped_pages=capacity["grouped_pages"][:groups],
+        masks=capacity["masks"][:groups],
+        lengths=capacity["lengths"][:groups],
+        lse=capacity["lse"][:rows],
+    )
     _prepare_metadata[(triton.cdiv(max(rows, pages), 256),)](
         table,
         req,
