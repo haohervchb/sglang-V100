@@ -118,6 +118,7 @@ class QSAIndexer(MultiPlatformOp):
 
     def _use_fused_prep(self, tensor: torch.Tensor) -> bool:
         """Whether the fused indexer-prep kernels support this configuration."""
+        cache = getattr(self.rotary_emb, "cos_sin_cache", None)
         return (
             tensor.is_cuda
             and tensor.dtype in (torch.bfloat16, torch.float16)
@@ -125,9 +126,18 @@ class QSAIndexer(MultiPlatformOp):
             and self.rotary_emb.rotary_dim % 2 == 0
             and not getattr(self.rotary_emb, "mrope_interleaved_glm", False)
             and len(getattr(self.rotary_emb, "mrope_section", None) or ()) in (0, 3)
-            and getattr(self.rotary_emb, "cos_sin_cache", None) is not None
-            and self.rotary_emb.cos_sin_cache.is_cuda
-            and self.rotary_emb.cos_sin_cache.dtype == torch.float32
+            and cache is not None
+            and cache.is_cuda
+            and (
+                cache.dtype == torch.float32
+                # The shared attention MRoPE converts its cache to FP16 on its
+                # first forward. Eager RoPE rounds cos/sin to FP16 anyway, so on
+                # V100 the fused kernels reading that cache stay bit-identical.
+                or (
+                    cache.dtype == tensor.dtype == torch.float16
+                    and torch.cuda.get_device_capability(tensor.device) == (7, 0)
+                )
+            )
         )
 
     def _rope_axis_map(self, device) -> torch.Tensor:

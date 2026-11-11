@@ -83,3 +83,83 @@ def test_verify_tiles_preserve_states_and_graph_replay(tokens, seed, monkeypatch
         reference = run()
         torch.testing.assert_close(captured, reference, rtol=0, atol=0)
         torch.testing.assert_close(captured_state, cache[2, :tokens], rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("requests", [2, 3, 4, 5, 8])
+@pytest.mark.parametrize("tokens", [2, 4])
+def test_multi_request_verify_tiles_preserve_states(requests, tokens, monkeypatch):
+    import sglang.srt.layers.attention.fla.fused_sigmoid_gating_recurrent as gdn
+
+    torch.manual_seed(97 + requests * tokens)
+    rows = requests * tokens
+    qkv = torch.randn(1, rows, 2560, device="cuda", dtype=torch.float16) * 0.1
+    q = qkv[:, :, :512].view(1, rows, 4, 128)
+    k = qkv[:, :, 512:1024].view(1, rows, 4, 128)
+    v = qkv[:, :, 1024:].view(1, rows, 12, 128)
+    a = torch.randn(rows, 12, device="cuda", dtype=torch.float16)
+    b = torch.randn_like(a)
+    alog = torch.randn(12, device="cuda")
+    bias = torch.randn_like(alog)
+    slots = requests + 2
+    state = torch.randn(slots, 12, 128, 128, device="cuda", dtype=torch.float16) * 0.1
+    state_index = torch.randperm(slots, device="cuda")[:requests].int()
+    cache_index = torch.randperm(slots, device="cuda")[:requests].int()
+    cu = torch.arange(0, rows + 1, tokens, device="cuda", dtype=torch.int32)
+    cache = torch.empty(slots, 4, 12, 128, 128, device="cuda", dtype=torch.float16)
+
+    def run():
+        return gdn.fused_sigmoid_gating_delta_rule_update(
+            alog,
+            a,
+            bias,
+            1.0,
+            20.0,
+            q,
+            k,
+            v,
+            b,
+            state,
+            state_index,
+            use_qk_l2norm_in_kernel=True,
+            cu_seqlens=cu,
+            disable_state_update=True,
+            intermediate_states_buffer=cache,
+            intermediate_state_indices=cache_index,
+        )
+
+    original_kernel = gdn.fused_sigmoid_gating_delta_rule_update_kernel
+    tiles = []
+
+    class RecordTiles:
+        def __getitem__(self, grid):
+            def launch(**kwargs):
+                tiles.append(kwargs["BV"])
+                return original_kernel[grid](**kwargs)
+
+            return launch
+
+    monkeypatch.setattr(
+        gdn, "fused_sigmoid_gating_delta_rule_update_kernel", RecordTiles()
+    )
+    cached = cache_index.long()
+    monkeypatch.setenv("SGLANG_SM70_MTP_GDN", "0")
+    reference = run()
+    reference_state = cache[cached, :tokens].clone()
+    monkeypatch.setenv("SGLANG_SM70_MTP_GDN", "1")
+    result = run()
+    assert tiles == [32, 8 if requests <= 4 else 16]
+    torch.testing.assert_close(result, reference, rtol=0, atol=0)
+    torch.testing.assert_close(cache[cached, :tokens], reference_state, rtol=0, atol=0)
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        captured = run()
+    for factor in [-0.5, 2.0]:
+        qkv.mul_(factor)
+        state.mul_(factor)
+        graph.replay()
+        captured_state = cache[cached, :tokens].clone()
+        monkeypatch.setenv("SGLANG_SM70_MTP_GDN", "0")
+        reference = run()
+        torch.testing.assert_close(captured, reference, rtol=0, atol=0)
+        torch.testing.assert_close(captured_state, cache[cached, :tokens], rtol=0, atol=0)
+        monkeypatch.setenv("SGLANG_SM70_MTP_GDN", "1")

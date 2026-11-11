@@ -2,7 +2,7 @@ import sys
 
 import pytest
 import torch
-from sglang.kernels.ops.attention.triton_gdn_fused_proj import (
+from sglang.jit_kernel.triton.gdn_fused_proj import (
     fused_qkvzba_split_reshape_cat_contiguous,
 )
 from sglang.test.ci.ci_register import register_cuda_ci

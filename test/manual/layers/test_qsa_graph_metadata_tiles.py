@@ -7,22 +7,23 @@ import triton
 pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
 
 
-@pytest.mark.parametrize("rows", [1, 4, 6, 8])
+@pytest.mark.parametrize("rows", [1, 4, 6, 8, 16, 32])
 @pytest.mark.parametrize("pages", [129, 8192])
-def test_page_tiles_and_graph_replay(rows, pages):
+@pytest.mark.parametrize("capped", [False, True])
+def test_page_tiles_and_graph_replay(rows, pages, capped):
     from sglang.srt.layers.attention.qsa.graph_metadata import (
         _qsa_graph_row_metadata_kernel,
     )
 
     torch.manual_seed(19)
     ratio, full_page, ring = 4, 32, 16
-    page_ids = torch.randint(1, 10000, (10, pages), device="cuda")
+    page_ids = torch.randint(1, 10000, (rows + 2, pages), device="cuda")
     pool = (
         page_ids[:, :, None] * full_page
         + torch.arange(full_page, device="cuda")[None, None, :]
     ).flatten(1)
     seq = torch.tensor(
-        [1, 4, 251, 2500, 41, 62, 87, 90][:rows], dtype=torch.int32, device="cuda"
+        ([1, 4, 251, 2500, 41, 62, 87, 90] * 4)[:rows], dtype=torch.int32, device="cuda"
     )
     req = torch.arange(1, rows + 1, dtype=torch.int32, device="cuda")
 
@@ -53,11 +54,16 @@ def test_page_tiles_and_graph_replay(rows, pages):
             num_warps=1,
         )
 
+    # The serving launcher caps the grid at 4096 one-warp CTAs; a capped
+    # count that does not divide the page tiles exercises the stride loop.
+    tiles = triton.cdiv(pages, 128)
+    if capped:
+        tiles = max(1, min(tiles, (tiles + 2) // 3))
     run(serial, 1)
-    run(tiled, triton.cdiv(pages, 128))
+    run(tiled, tiles)
     graph = torch.cuda.CUDAGraph()
     with torch.cuda.graph(graph):
-        run(tiled, triton.cdiv(pages, 128))
+        run(tiled, tiles)
     for increment in [0, 1, 2, 3]:
         seq.add_(increment)
         req.copy_(torch.arange(rows, device="cuda", dtype=torch.int32) + increment % 2)

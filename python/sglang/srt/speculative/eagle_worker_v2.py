@@ -574,15 +574,27 @@ class EagleDraftWorker(BaseDraftWorker):
         token_list: List[torch.Tensor] = []
         parents_list: List[torch.Tensor] = []
 
+        # A topk=1 chain selects the only candidate at every later step, so
+        # its scores, sort and gather are constant permutations.
+        chain_tail = (
+            self.topk == 1
+            and self.speculative_num_steps > 1
+            and self.speculative_num_draft_tokens - 1 == self.speculative_num_steps
+        )
+
         # Forward multiple steps
         scores = None
         for i in range(self.speculative_num_steps):
-            input_ids, hidden_states, scores, tree_info = select_top_k_tokens(
-                i, topk_p, topk_index, hidden_states, scores, self.topk
-            )
-            score_list.append(tree_info[0])
-            token_list.append(tree_info[1])
-            parents_list.append(tree_info[2])
+            if chain_tail and i > 0:
+                input_ids = topk_index.flatten()
+                token_list.append(topk_index)
+            else:
+                input_ids, hidden_states, scores, tree_info = select_top_k_tokens(
+                    i, topk_p, topk_index, hidden_states, scores, self.topk
+                )
+                score_list.append(tree_info[0])
+                token_list.append(tree_info[1])
+                parents_list.append(tree_info[2])
 
             # We don't need to run the last forward. we get 1 token from draft prefill and (#spec steps - 1) tokens here
             if i == self.speculative_num_steps - 1:
@@ -647,6 +659,13 @@ class EagleDraftWorker(BaseDraftWorker):
             hidden_states = logits_output.hidden_states
             forward_batch.positions.add_(1)
 
+        if chain_tail:
+            draft_tokens = torch.cat(token_list, dim=1)
+            parent_list, top_scores_index = self._chain_tree_constants(
+                draft_tokens.shape[0], draft_tokens.device
+            )
+            return parent_list, top_scores_index, draft_tokens
+
         # Organize the results
         score_list = torch.cat(score_list, dim=1).flatten(
             1
@@ -674,6 +693,31 @@ class EagleDraftWorker(BaseDraftWorker):
             parent_list = torch.empty(batch_size, 0, device=parents_list[0].device)
 
         return parent_list, top_scores_index, draft_tokens
+
+    def _chain_tree_constants(self, bs: int, device: torch.device):
+        """Contiguous [bs, steps] int64 parents (-1, 0, ..., steps-2) and
+        selected indices (0, ..., steps-1) of a topk=1 draft chain.
+
+        build_tree_kernel_efficient reads both with per-row strides, so these
+        are row slices of persistent buffers rather than expanded views.
+        Buffers are (re)allocated outside graph capture; the eager warmup runs
+        before every capture.
+        """
+        from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+
+        buffers = getattr(self, "_chain_tree_buffers", None)
+        if buffers is None or buffers[0].shape[0] < bs or buffers[0].device != device:
+            rows = max(bs, 64)
+            steps = self.speculative_num_steps
+            selected = torch.arange(steps, dtype=torch.int64, device=device)
+            buffers = (
+                (selected - 1).expand(rows, steps).contiguous(),
+                selected.expand(rows, steps).contiguous(),
+            )
+            if not get_is_capture_mode():
+                self._chain_tree_buffers = buffers
+        parent_list, top_scores_index = buffers
+        return parent_list[:bs], top_scores_index[:bs]
 
     def draft_extend(self):
         pass

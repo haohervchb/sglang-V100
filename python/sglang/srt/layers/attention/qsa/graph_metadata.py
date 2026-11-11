@@ -251,9 +251,8 @@ def launch_graph_metadata(
     # table serially, even for batch-one decode. Spread its independent tiles
     # across SMs; only tile zero writes the per-row scalar/ring metadata.
     page_tiles = (
-        triton.cdiv(max_pages, 128)
-        if num_rows <= 8
-        and torch.cuda.get_device_capability(req_to_token.device) == (7, 0)
+        max(1, min(triton.cdiv(max_pages, 128), 4096 // max(num_rows, 1)))
+        if torch.cuda.get_device_capability(req_to_token.device) == (7, 0)
         else 1
     )
     _qsa_graph_row_metadata_kernel[(num_rows, page_tiles)](

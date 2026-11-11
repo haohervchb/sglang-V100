@@ -91,17 +91,29 @@ def sm70_nvfp4_moe_decode(
         raise RuntimeError("SM70 NVFP4 MoE decode extension is unavailable")
     batch_size = hidden_states.shape[0]
     num_routes = batch_size * 10
-    gate_up_partials = torch.empty(
-        (40, num_routes, 320), dtype=torch.float32, device=hidden_states.device
-    )
-    activated = torch.empty(
-        (num_routes, 160), dtype=torch.float16, device=hidden_states.device
-    )
-    down_partials = torch.empty(
-        (num_routes, 5, 2560), dtype=torch.float32, device=hidden_states.device
-    )
+    # The fused kernels keep split-K partials on chip: gate_up_partials holds
+    # only the per-route gate/up pre-activations. The legacy four-kernel
+    # fallback (misaligned operands) still needs full-size scratch.
+    aligned = all(
+        t.data_ptr() % 16 == 0 for t in (hidden_states, w13, w2, w13_scales)
+    ) and (w2_scales.data_ptr() % 8 == 0)
+    device = hidden_states.device
+    if aligned:
+        gate_up_partials = torch.empty(
+            (num_routes, 320), dtype=torch.float32, device=device
+        )
+        activated = torch.empty((0,), dtype=torch.float16, device=device)
+        down_partials = torch.empty((0,), dtype=torch.float32, device=device)
+    else:
+        gate_up_partials = torch.empty(
+            (40, num_routes, 320), dtype=torch.float32, device=device
+        )
+        activated = torch.empty((num_routes, 160), dtype=torch.float16, device=device)
+        down_partials = torch.empty(
+            (num_routes, 5, 2560), dtype=torch.float32, device=device
+        )
     output = torch.empty_like(hidden_states)
-    ext.decode(
+    (ext.decode if aligned else ext.decode_legacy)(
         hidden_states,
         w13,
         w2,

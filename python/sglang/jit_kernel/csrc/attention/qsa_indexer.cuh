@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <sstream>
 #include <stdexcept>
+#include <type_traits>
 
 namespace sglang {
 
@@ -104,16 +105,19 @@ SGL_DEVICE float eager_round<fp16_t>(float x) {
  * \tparam kIsNeox    true -> NeoX pairing (d, d+half); false -> GPT-J (2i, 2i+1).
  * \param smem_row    Normed row [kHeadDim], one warp cooperates.
  * \param out_row     Destination row [kHeadDim].
- * \param cos_sin_cache [num_positions, rotary_dim] fp32 cache.
+ * \param cos_sin_cache [num_positions, rotary_dim] cache, fp32 or the storage
+ *                      dtype. A storage-dtype cache holds exactly the values
+ *                      the eager path rounds the fp32 cache to, so both
+ *                      produce the same rotated rows.
  * \param axis_map    [rotary_dim/2] int32 position-axis selector per pair.
  * \param pos         Resolved per-axis positions for this token (>= 3 entries).
  * \param rotary_dim  Rotated prefix length; tail dims pass through.
  */
-template <typename T, int kHeadDim, bool kIsNeox>
+template <typename T, typename C, int kHeadDim, bool kIsNeox>
 SGL_DEVICE void qsa_mrope_apply(
     const T* __restrict__ smem_row,
     T* __restrict__ out_row,
-    const float* __restrict__ cos_sin_cache,
+    const C* __restrict__ cos_sin_cache,
     const int32_t* __restrict__ axis_map,
     const int64_t* pos,
     const int32_t rotary_dim) {
@@ -131,17 +135,17 @@ SGL_DEVICE void qsa_mrope_apply(
     if constexpr (kIsNeox) {
       if (d < half) {
         const int32_t p = d + half;
-        const float* row = cos_sin_cache + pos[axis_map[d]] * rotary_dim;
-        const float c = eager_round<T>(row[d]);
-        const float s = eager_round<T>(row[half + d]);
+        const C* row = cos_sin_cache + pos[axis_map[d]] * rotary_dim;
+        const float c = eager_round<T>(static_cast<float>(row[d]));
+        const float s = eager_round<T>(static_cast<float>(row[half + d]));
         const float nd = static_cast<float>(smem_row[d]);
         const float np = static_cast<float>(smem_row[p]);
         o = DTypeTrait<T>::from(eager_round<T>(nd * c) - eager_round<T>(np * s));
       } else if (d < rotary_dim) {
         const int32_t p = d - half;
-        const float* row = cos_sin_cache + pos[axis_map[p]] * rotary_dim;
-        const float c = eager_round<T>(row[p]);
-        const float s = eager_round<T>(row[half + p]);
+        const C* row = cos_sin_cache + pos[axis_map[p]] * rotary_dim;
+        const float c = eager_round<T>(static_cast<float>(row[p]));
+        const float s = eager_round<T>(static_cast<float>(row[half + p]));
         const float nd = static_cast<float>(smem_row[d]);
         const float np = static_cast<float>(smem_row[p]);
         o = DTypeTrait<T>::from(eager_round<T>(nd * c) + eager_round<T>(np * s));
@@ -151,9 +155,9 @@ SGL_DEVICE void qsa_mrope_apply(
     } else {
       if (d < rotary_dim) {
         const int32_t p = d / 2;
-        const float* row = cos_sin_cache + pos[axis_map[p]] * rotary_dim;
-        const float c = eager_round<T>(row[p]);
-        const float s = eager_round<T>(row[half + p]);
+        const C* row = cos_sin_cache + pos[axis_map[p]] * rotary_dim;
+        const float c = eager_round<T>(static_cast<float>(row[p]));
+        const float s = eager_round<T>(static_cast<float>(row[half + p]));
         const int32_t q = (d % 2 == 0) ? d + 1 : d - 1;
         const float nd = static_cast<float>(smem_row[d]);
         const float nq = static_cast<float>(smem_row[q]);
@@ -232,7 +236,7 @@ struct QsaIndexQPrepParams {
   const void* qk;                  // [tokens, (num_q_heads + 1) * kHeadDim]
   void* q_out;                     // [tokens, q_heads_padded, kHeadDim]
   const void* weight;              // [kHeadDim]
-  const float* cos_sin_cache;      // [positions_capacity, rotary_dim]
+  const void* cos_sin_cache;       // [positions_capacity, rotary_dim]
   const int32_t* axis_map;         // [rotary_dim / 2]
   const int64_t* positions;        // [num_axes, tokens] (row stride may exceed tokens)
   const int64_t* cache_loc;        // [tokens]
@@ -251,7 +255,7 @@ struct QsaIndexQPrepParams {
  * head, zero-fill of padded heads, raw token-K store and RoPE-position store.
  * One CTA (4 warps) per token; one warp per query head.
  */
-template <typename T, int kHeadDim, bool kIsNeox, bool kUsePDL>
+template <typename T, typename C, int kHeadDim, bool kIsNeox, bool kUsePDL>
 __global__ __launch_bounds__(128) void qsa_index_q_prep_kernel(
     const QsaIndexQPrepParams __grid_constant__ params) {
   using namespace device;
@@ -284,8 +288,9 @@ __global__ __launch_bounds__(128) void qsa_index_q_prep_kernel(
       qsa_gemma_norm_row<T, kHeadDim>(
           x_row, static_cast<const T*>(params.weight), params.eps,
           smem_rows[warp]);
-      qsa_mrope_apply<T, kHeadDim, kIsNeox>(
-          smem_rows[warp], out_row, params.cos_sin_cache, params.axis_map, pos,
+      qsa_mrope_apply<T, C, kHeadDim, kIsNeox>(
+          smem_rows[warp], out_row,
+          static_cast<const C*>(params.cos_sin_cache), params.axis_map, pos,
           params.rotary_dim);
     } else {
       vec_t zv;
@@ -315,7 +320,7 @@ struct QsaIndexKCompressParams {
   const void* key_state_buffer;      // [slots, kHeadDim]
   const int32_t* group_locs;         // [groups, compress_ratio]
   const int64_t* rope_position_buffer;  // [slots, 3]
-  const float* cos_sin_cache;        // [positions_capacity, rotary_dim]
+  const void* cos_sin_cache;         // [positions_capacity, rotary_dim]
   const int32_t* axis_map;           // [rotary_dim / 2]
   const void* weight;                // [kHeadDim]
   const int32_t* write_locs;         // [groups]
@@ -331,7 +336,7 @@ struct QsaIndexKCompressParams {
  * MRoPE at the group-start position, store into the compressed cache.
  * One warp per group.
  */
-template <typename T, int kHeadDim, bool kIsNeox, bool kUsePDL>
+template <typename T, typename C, int kHeadDim, bool kIsNeox, bool kUsePDL>
 __global__ __launch_bounds__(128) void qsa_index_k_compress_kernel(
     const QsaIndexKCompressParams __grid_constant__ params) {
   using namespace device;
@@ -407,8 +412,9 @@ __global__ __launch_bounds__(128) void qsa_index_k_compress_kernel(
 
   T* out_row = static_cast<T*>(params.compressed_k_buffer) +
                static_cast<int64_t>(params.write_locs[group]) * kHeadDim;
-  qsa_mrope_apply<T, kHeadDim, kIsNeox>(
-      smem_rows[warp], out_row, params.cos_sin_cache, params.axis_map, pos,
+  qsa_mrope_apply<T, C, kHeadDim, kIsNeox>(
+      smem_rows[warp], out_row, static_cast<const C*>(params.cos_sin_cache),
+      params.axis_map, pos,
       params.rotary_dim);
 
   device::PDLTriggerSecondary<kUsePDL>();
@@ -421,8 +427,9 @@ __global__ __launch_bounds__(128) void qsa_index_k_compress_kernel(
  * \tparam kHeadDim  Index head dimension: 64 | 128 | 256.
  * \tparam kIsNeox   RoPE pairing style.
  * \tparam kUsePDL   Whether to launch with PDL enabled.
+ * \tparam C         RoPE cache element type: fp32_t, or T itself.
  */
-template <typename T, int kHeadDim, bool kIsNeox, bool kUsePDL>
+template <typename T, int kHeadDim, bool kIsNeox, bool kUsePDL, typename C = fp32_t>
 void qsa_index_q_prep(
     tvm::ffi::TensorView qk,
     tvm::ffi::TensorView q_out,
@@ -437,6 +444,8 @@ void qsa_index_q_prep(
     int64_t num_q_heads,
     int64_t rotary_dim,
     float eps) {
+  static_assert(std::is_same_v<C, fp32_t> || std::is_same_v<C, T>,
+                "the RoPE cache must be fp32 or the storage dtype");
   using namespace host;
   auto tokens = SymbolicSize{"tokens"};
   auto device = SymbolicDevice{};
@@ -455,7 +464,7 @@ void qsa_index_q_prep(
   TensorMatcher({D}).with_dtype<T>().with_device(device).verify(weight);
   auto cache_rows = SymbolicSize{"cos_sin_cache_rows"};
   TensorMatcher({cache_rows, rotary_dim})
-      .with_dtype<fp32_t>()
+      .with_dtype<C>()
       .with_device(device)
       .verify(cos_sin_cache);
   TensorMatcher({rotary_dim / 2})
@@ -492,7 +501,7 @@ void qsa_index_q_prep(
       .qk = qk.data_ptr(),
       .q_out = q_out.data_ptr(),
       .weight = weight.data_ptr(),
-      .cos_sin_cache = static_cast<const float*>(cos_sin_cache.data_ptr()),
+      .cos_sin_cache = cos_sin_cache.data_ptr(),
       .axis_map = static_cast<const int32_t*>(axis_map.data_ptr()),
       .positions = static_cast<const int64_t*>(positions.data_ptr()),
       .cache_loc = static_cast<const int64_t*>(cache_loc.data_ptr()),
@@ -508,13 +517,13 @@ void qsa_index_q_prep(
   };
   LaunchKernel(static_cast<uint32_t>(num_tokens), 128, device.unwrap())
       .enable_pdl(kUsePDL)(
-          qsa_index_q_prep_kernel<T, kHeadDim, kIsNeox, kUsePDL>, params);
+          qsa_index_q_prep_kernel<T, C, kHeadDim, kIsNeox, kUsePDL>, params);
 }
 
 /**
  * \brief Validate inputs and launch `qsa_index_k_compress_kernel` (one warp per group).
  */
-template <typename T, int kHeadDim, bool kIsNeox, bool kUsePDL>
+template <typename T, int kHeadDim, bool kIsNeox, bool kUsePDL, typename C = fp32_t>
 void qsa_index_k_compress(
     tvm::ffi::TensorView key_state_buffer,
     tvm::ffi::TensorView group_locs,
@@ -527,6 +536,8 @@ void qsa_index_k_compress(
     int64_t compress_ratio,
     int64_t rotary_dim,
     float eps) {
+  static_assert(std::is_same_v<C, fp32_t> || std::is_same_v<C, T>,
+                "the RoPE cache must be fp32 or the storage dtype");
   using namespace host;
   auto device = SymbolicDevice{};
   device.set_options<kDLCUDA>();
@@ -546,7 +557,7 @@ void qsa_index_k_compress(
       .verify(rope_position_buffer);
   auto cache_rows = SymbolicSize{"cos_sin_cache_rows"};
   TensorMatcher({cache_rows, rotary_dim})
-      .with_dtype<fp32_t>()
+      .with_dtype<C>()
       .with_device(device)
       .verify(cos_sin_cache);
   TensorMatcher({rotary_dim / 2})
@@ -574,7 +585,7 @@ void qsa_index_k_compress(
       .group_locs = static_cast<const int32_t*>(group_locs.data_ptr()),
       .rope_position_buffer =
           static_cast<const int64_t*>(rope_position_buffer.data_ptr()),
-      .cos_sin_cache = static_cast<const float*>(cos_sin_cache.data_ptr()),
+      .cos_sin_cache = cos_sin_cache.data_ptr(),
       .axis_map = static_cast<const int32_t*>(axis_map.data_ptr()),
       .weight = weight.data_ptr(),
       .write_locs = static_cast<const int32_t*>(write_locs.data_ptr()),
@@ -587,7 +598,7 @@ void qsa_index_k_compress(
   LaunchKernel(
       static_cast<uint32_t>(div_ceil(num_groups, 4)), 128, device.unwrap())
       .enable_pdl(kUsePDL)(
-          qsa_index_k_compress_kernel<T, kHeadDim, kIsNeox, kUsePDL>, params);
+          qsa_index_k_compress_kernel<T, C, kHeadDim, kIsNeox, kUsePDL>, params);
 }
 
 }  // namespace sglang

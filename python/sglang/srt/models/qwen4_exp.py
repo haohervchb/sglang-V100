@@ -1465,6 +1465,7 @@ class Qwen4ExpAttentionDecoderLayer(
     ) -> None:
         config.attn_output_gate = True
         super().__init__(config, layer_id, quant_config, prefix, alt_stream, is_nextn)
+        self._is_nextn = is_nextn
         from sglang.srt.layers.attention.qsa.config import is_qwen_qsa
         from sglang.srt.layers.attention.qsa.glue import build_qsa_indexer
 
@@ -1542,6 +1543,15 @@ class Qwen4ExpAttentionDecoderLayer(
             positions=positions, hidden_states=hidden_states
         )
 
+    def _apply_qk_norm(
+        self, q: torch.Tensor, k: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not getattr(self, "_qk_norm_on_current_stream", False):
+            return super()._apply_qk_norm(q, k)
+        q_by_head = self.q_norm(q.reshape(-1, self.head_dim))
+        k_by_head = self.k_norm(k.reshape(-1, self.head_dim))
+        return q_by_head.view(q.shape), k_by_head.view(k.shape)
+
     def self_attention(
         self,
         positions: torch.Tensor,
@@ -1566,11 +1576,21 @@ class Qwen4ExpAttentionDecoderLayer(
                     hidden_states, positions, forward_batch
                 )
 
-        q, k, v, gate = self._prepare_qkv_gate(
-            positions=positions,
-            hidden_states=hidden_states,
-            forward_batch=forward_batch,
-        )
+        # While the indexer occupies alt_stream, keep q/k norm and RoPE on the
+        # current stream; queueing k_norm behind the indexer would make the
+        # main stream wait for the whole indexer before its RoPE. Target layers
+        # only: on the MTP draft layer the same reordering changed draft tokens
+        # in serving (and with them the acceptance pattern), so the draft keeps
+        # the parent ordering.
+        self._qk_norm_on_current_stream = overlap_indexer and not self._is_nextn
+        try:
+            q, k, v, gate = self._prepare_qkv_gate(
+                positions=positions,
+                hidden_states=hidden_states,
+                forward_batch=forward_batch,
+            )
+        finally:
+            self._qk_norm_on_current_stream = False
 
         if overlap_indexer:
             current_stream.wait_stream(self.alt_stream)
