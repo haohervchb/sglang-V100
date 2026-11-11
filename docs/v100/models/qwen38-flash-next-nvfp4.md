@@ -3,7 +3,7 @@
 [Back to the main README](../../../README.md) · [Foreground shell launcher](../../../scripts/serve_qwen38.sh)
 
 The default is the balanced MTP-3/4 profile: four V100 32 GB GPUs, NVLink,
-FP16 KV, eight request slots, 2K prefill chunks, 262K context, shared-prefix
+FP16 KV, eight request slots, 4K prefill chunks, 262K context, shared-prefix
 checkpoints and image/video support. The three experimental kernel switches,
 wider MTP and adaptive speculation are off. The serving arguments are kept in
 [shell scripts](../../../scripts/serve_qwen38_flash_next_nvfp4_v100_throughput.sh).
@@ -20,7 +20,7 @@ docker run --rm --entrypoint cat "$QWEN38_IMAGE" /usr/local/bin/qwen38.sh > qwen
 bash qwen38.sh
 ```
 
-This starts `geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.1` in the
+This starts `geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.2` in the
 background, using container name `qwen38` and port 8082. Docker pulls the image
 if needed. The checkpoint revision is pinned to
 `7b719225242aacd3dbd3f9407468c2ee9a9d2594`; weights download into a writable
@@ -95,6 +95,9 @@ With weights already cached and a fresh JIT volume, first readiness took about
 The [v5.1 launcher checks](../../../benchmark/qwen38_launcher_20261109/README.md)
 verify image-only extraction and operation from an empty directory, with the
 same runtime files and serving arguments as v5.
+[v5.2](../../../benchmark/qwen38_v52_20261111/README.md) adds the decode kernel
+bundle and 4K prefill: prose 114 -> 142 tok/s at one request and 359 -> 504 at
+eight, and 11-19% shorter time to first token from 8K to 160K prompts.
 
 For a direct Docker invocation, the image's default command already selects
 the balanced profile. The host wrapper supplies GPU access, shared memory,
@@ -128,8 +131,9 @@ bash scripts/serve_qwen38.sh --max-running-requests 4 --cuda-graph-bs 1 2 3 4
 ```
 
 The 262K limit applies to each request; concurrent agents share a 277,280-token
-KV pool. The 2K prefill chunks preserve intermediate prefix checkpoints and
-leave room for temporary activations during long reads. Pixel preprocessing
+KV pool. Prefill runs in 4K chunks; a prompt's last long chunk ends on a 2K
+boundary (`SGLANG_CHUNKED_PREFILL_CACHE_ALIGN=2048`) so prefix checkpoints land
+where 2K chunks put them, with about 2.6 GB left for temporary activations. Pixel preprocessing
 stays on CPU to avoid competing with TP0 for GPU memory. Document extraction
 still needs to produce input within the context limit.
 

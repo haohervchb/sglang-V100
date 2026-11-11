@@ -64,7 +64,7 @@ RUN python -m compileall -q /opt/sglang/python/sglang \
 # Revision metadata comes last so it does not invalidate native build layers.
 ARG SGLANG_SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.title="SGLang Qwen3.8 Flash Next on V100" \
-      org.opencontainers.image.version="v100-qwen38-flash-next-v5.1" \
+      org.opencontainers.image.version="v100-qwen38-flash-next-v5.2" \
       org.opencontainers.image.revision="${SGLANG_SOURCE_REVISION}"
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60m --retries=3 \

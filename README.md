@@ -121,7 +121,7 @@ bash qwen38.sh status     # Container and health status
 bash qwen38.sh stop       # Stop; keep model and JIT caches
 ```
 
-The current launcher release is `v100-qwen38-flash-next-v5.1`; replace `latest`
+The current launcher release is `v100-qwen38-flash-next-v5.2`; replace `latest`
 above with that tag to pin it. Startup and restarts are manual. Use
 `bash qwen38.sh pull` and `bash qwen38.sh recreate` to apply an image update.
 The [Docker Hub tag list](https://hub.docker.com/r/geesegeesegeese/sglang-v100/tags)
@@ -140,7 +140,7 @@ server at a time on the four GPUs and activate `sglang-v100` for host commands.
 ### Qwen3.8 Flash Next NVFP4
 
 The balanced profile uses four V100 32 GB GPUs with NVLink, native MTP-3/4,
-FP16 KV, eight request slots, 2K prefill chunks and a 262,144-token context.
+FP16 KV, eight request slots, 4K prefill chunks and a 262,144-token context.
 Concurrent requests share the KV pool. Pixel preprocessing runs on CPU;
 vision encoding and language inference run on GPU. Wider-draft experiments
 remain off.

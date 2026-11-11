@@ -7,7 +7,7 @@ q38_script_dir=$(dirname -- "$q38_script_path")
 q38_repo_dir=$(cd -- "$q38_script_dir/.." && pwd)
 q38_action=${1:-start}
 if (( $# )); then shift; fi
-q38_image=${QWEN38_IMAGE:-geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.1}
+q38_image=${QWEN38_IMAGE:-geesegeesegeese/sglang-v100:v100-qwen38-flash-next-v5.2}
 q38_container=${QWEN38_CONTAINER:-qwen38}
 q38_cache=${HF_HOME:-$HOME/.cache/huggingface}
 q38_jit_volume=${QWEN38_JIT_VOLUME:-qwen38-v5-jit}
