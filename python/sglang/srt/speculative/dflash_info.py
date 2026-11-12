@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import torch
 
+from sglang.srt.constrained.base_grammar_backend import BaseGrammarObject
 from sglang.srt.distributed import get_tp_group
 from sglang.srt.layers.attention.utils import create_flashinfer_kv_indices_triton
 from sglang.srt.layers.logits_processor import LogitsProcessorOutput
@@ -174,6 +175,9 @@ class DFlashVerifyInput(SpecInput):
     # Semantics follow SGLang speculative conventions: True means the (q, k) pair is allowed.
     custom_mask: torch.Tensor | None = None
     capture_hidden_mode: CaptureHiddenMode = CaptureHiddenMode.FULL
+
+    # Stamped by generate_token_bitmask during verify, read back to apply the mask.
+    grammar: Optional[BaseGrammarObject] = None
 
     # DFlash2's sparse proposal distribution. Plain DFlash leaves both unset.
     selector_candidate_ids: torch.Tensor | None = None
